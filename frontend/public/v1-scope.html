@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSC Monitor v1.0 — 功能范围</title>
+<style>
+:root{
+  --bg:#0A0908; --bg1:#121110; --bg2:#17150f; --border:#262320;
+  --gold:#F0B90B; --gold2:#C9980A; --amber:#FFCF3F;
+  --green:#34D399; --red:#F0656F; --orange:#F59E42; --blue:#5AA6E0; --violet:#9A86F0;
+  --text:#E4E0D6; --muted:#7A766C; --dim:#46423A;
+  --mono:'SF Mono','Fira Code','Consolas',monospace;
+  --sans:-apple-system,'Helvetica Neue',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:radial-gradient(1000px 560px at 50% -8%,#15120b 0%,transparent 56%),var(--bg);
+  color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;
+  padding:46px 26px 100px;max-width:920px;margin:0 auto;-webkit-font-smoothing:antialiased;
+}
+code{font-family:var(--mono);font-size:.92em;color:#b8d8c8;}
+h1,h2{text-wrap:balance;}
+
+.head{border-bottom:1px solid var(--border);padding-bottom:22px;margin-bottom:8px;}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:9px;}
+.head h1{font-size:25px;font-weight:700;letter-spacing:-.3px;}
+.head .sub{color:var(--muted);font-size:13px;margin-top:7px;}
+.head .meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--dim);}
+.head .meta b{color:var(--muted);font-weight:400;}
+
+/* status legend */
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:24px 0 8px;padding:12px 16px;background:var(--bg1);border:1px solid var(--border);border-radius:10px;}
+.lg{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);}
+.pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 8px;border-radius:5px;letter-spacing:.3px;white-space:nowrap;}
+.p-done{background:#06231a;color:var(--green);border:1px solid #14533d;}
+.p-part{background:#2a1c00;color:var(--amber);border:1px solid #4a3500;}
+.p-todo{background:#0e1a26;color:var(--blue);border:1px solid #1a3a52;}
+.p-next{background:#1a0d2e;color:var(--violet);border:1px solid #3a1a6a;}
+
+section{margin-top:34px;}
+.sec-label{font-family:var(--mono);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.sec-label .n{color:var(--gold);}
+.sec-label .cnt{color:var(--dim);font-size:10px;}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.feat{display:flex;gap:14px;align-items:flex-start;padding:13px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:7px;background:var(--bg1);}
+.feat .body{flex:1;min-width:0;}
+.feat .ft{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.feat .fd{font-size:12px;color:var(--muted);line-height:1.55;}
+.feat .src{font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:5px;}
+.feat .src b{color:#5a564d;font-weight:400;}
+.feat.is-next{opacity:.72;border-style:dashed;}
+
+.grp-foundation{border-left:3px solid var(--green);}
+.grp-monitor{border-left:3px solid var(--gold);}
+.grp-tools{border-left:3px solid var(--blue);}
+.grp-alert{border-left:3px solid var(--orange);}
+.grp-deploy{border-left:3px solid var(--muted);}
+.grp-next{border-left:3px solid var(--violet);}
+
+.flag{font-size:9px;font-family:var(--mono);font-weight:700;letter-spacing:.4px;padding:1px 6px;border-radius:4px;background:#2a0d0d;color:#F0888F;border:1px solid #4a2020;}
+
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 4px;}
+.scard{background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;}
+.scard .v{font-family:var(--mono);font-size:24px;font-weight:700;line-height:1;}
+.scard .l{font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:.3px;}
+.v-done{color:var(--green);} .v-todo{color:var(--blue);} .v-part{color:var(--amber);} .v-next{color:var(--violet);}
+
+.note{font-size:12px;color:var(--muted);background:var(--bg1);border:1px solid var(--border);border-left:3px solid var(--gold2);border-radius:9px;padding:13px 16px;margin-top:14px;}
+.note b{color:var(--amber);}
+@media(max-width:600px){.summary{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="eyebrow">BSC DevOps Assistant · Scope</div>
+  <h1>v1.0 功能范围 — 实时监控基座</h1>
+  <div class="sub">本版所有功能清单（供 review）。主题：把实时采集做对（0.45s / WebSocket），交付准确完整的监控大盘。AI 类功能见末尾"下一版"。</div>
+  <div class="meta">
+    <span><b>版本</b> v1.0</span>
+    <span><b>主题</b> 监控基座，无 AI</span>
+    <span><b>执行计划</b> 见 PLAN.md</span>
+    <span><b>日期</b> 2026-06-28</span>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="scard"><div class="v v-done">7</div><div class="l">✓ 已完成(mock)</div></div>
+  <div class="scard"><div class="v v-part">3</div><div class="l">◐ 部分完成</div></div>
+  <div class="scard"><div class="v v-todo">9</div><div class="l">○ 待实现</div></div>
+  <div class="scard"><div class="v v-next">6</div><div class="l">→ 下一版</div></div>
+</div>
+
+<div class="legend">
+  <div class="lg"><span class="pill p-done">✓ DONE</span> 已实现(mock预览通过)</div>
+  <div class="lg"><span class="pill p-part">◐ PARTIAL</span> UI好/缺真实数据</div>
+  <div class="lg"><span class="pill p-todo">○ TODO</span> 本版待实现</div>
+  <div class="lg"><span class="pill p-next">→ NEXT</span> 划到下一版</div>
+</div>
+
+<!-- Foundation -->
+<section>
+  <div class="sec-label"><span class="n">A.</span> 实时采集层（地基·最优先） <span class="cnt">Phase 0–1</span></div>
+
+  <div class="feat grp-foundation">
+    <span class="pill p-todo">○ TODO</span>
+    <div class="body">
+      <div class="ft">WebSocket newHeads 推送采集 <span class="flag">关键修正</span></div>
+      <div class="fd">逐块推送替代 1s 轮询。0.45s 出块下轮询必丢块，这是出块心跳/blocktime 的硬要求。</div>
+      <div class="src"><b>源</b> eth_subscribe("newHeads") · WSS endpoint</div>
+    </div>
+  </div>
+  <div class="feat grp-foundation">
+    <span class="pill p-todo">○ TODO</span>
+    <div class="body">
+      <div class="ft">SeqGuard — 补块 / Reorg 检测</div>
+      <div class="fd">parentHash 链接性校验：跳号→批量 backfill，回退→标记 reorg；5s heartbeat 兜底防 WS 假死。</div>
+      <div class="src"><b>源</b> eth_getHeaderByNumber · eth_blockNumber</div>
+    </div>
+  </div>
+  <div class="feat grp-foundation">
+    <span class="pill p-todo">○ TODO</span>
+    <div class="body">
+      <div class="ft">精确 blocktime + 异常分级</div>
+      <div class="fd">milliTimestamp 差值得毫秒级 blocktime；阈值 450/900/2000ms（2s=漏槽 backOffTime 特征）。</div>
+      <div class="src"><b>源</b> Header.MixDigest → MilliTimestamp()</div>
+    </div>
+  </div>
+</section>
+
+<!-- Monitor -->
+<section>
+  <div class="sec-label"><span class="n">B.</span> Monitor 监控大盘 <span class="cnt">核心</span></div>
+
+  <div class="feat grp-monitor">
+    <span class="pill p-part">◐ PARTIAL</span>
+    <div class="body">
+      <div class="ft">Validator Ring · Orbital Core 轨道核心</div>
+      <div class="fd">3D 球体 + 集团配色（真实数据，IP=Internal 自运营 + 5 外部集团）+ proposer 能量光束 + 中心核。已做；待接真实 parlia 数据 + turnLength=16 出块模型。</div>
+      <div class="src"><b>源</b> parlia_getValidators / getTurnLength · validators.js(51地址查表)</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-todo">○ TODO</span>
+    <div class="body">
+      <div class="ft">turnLength=16 出块模型</div>
+      <div class="fd">同一 validator 连续出 16 块(~7.2s)再轮换，中心显示 block N/16，turn 结束甩光束。当前 demo 每块换人需修。</div>
+      <div class="src"><b>源</b> parlia_getTurnLength</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-done">✓ DONE</span>
+    <div class="body">
+      <div class="ft">MEV% / Builder 分布</div>
+      <div class="fd">每块 MEV 归属（v1 legacy / v2 bidblock），builder 识别（blockrazor/puissant 等），BlockRiver 配色。</div>
+      <div class="src"><b>源</b> eth_getBlockMevInfo</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-done">✓ DONE</span>
+    <div class="body">
+      <div class="ft">Gas 利用率 / 流量带</div>
+      <div class="fd">仪表 + 分区（&lt;50 低 / 50-70 中 / 70-85 高 / &gt;85 饱和）+ 折线。70% 为高流量阈值。</div>
+      <div class="src"><b>源</b> 区块 gasUsed/gasLimit</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-part">◐ PARTIAL</span>
+    <div class="body">
+      <div class="ft">Block Insert Latency p99</div>
+      <div class="fd">堆叠折线（对应 keter Block processing）。UI 好；待接真实 keter token。</div>
+      <div class="src"><b>源</b> Keter/Prometheus chain_block_insert_*</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-done">✓ DONE</span>
+    <div class="body">
+      <div class="ft">稳定性面板 — Slash / Reorg / 慢块</div>
+      <div class="fd">slash 计数+状态分级、reorg 计数、异常块统计。（Fast Finality lag → 下一版）</div>
+      <div class="src"><b>源</b> SlashIndicator 合约 · 块流 reorg 标记</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-done">✓ DONE</span>
+    <div class="body">
+      <div class="ft">Block River 出块河流</div>
+      <div class="fd">柱高=gas，柱色=builder，MEV 金点，70% 参考线。待加：0.45s 下时间桶聚合防刷屏。</div>
+      <div class="src"><b>源</b> 实时块流</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-todo">○ TODO</span>
+    <div class="body">
+      <div class="ft">节点版本分布</div>
+      <div class="fd">各 validator 运行的 BSC 版本（v1.7.x），标注落后旧版节点。</div>
+      <div class="src"><b>源</b> Keter node_stats{NodeType} · extraData 解析</div>
+    </div>
+  </div>
+  <div class="feat grp-monitor">
+    <span class="pill p-todo">○ TODO</span>
+    <div class="body">
+      <div class="ft">面板按 0.45s 校准</div>
+      <div class="fd">统计窗口"200块"→时间窗口(5min)；修 Gas 面板在新布局被压扁。</div>
+      <div class="src"><b>源</b> —</div>
+    </div>
+  </div>
+</section>
+
+<!-- Sub tools -->
+<section>
+  <div class="sec-label"><span class="n">C.</span> 查询子工具 <span class="cnt">Storage / TxPool</span></div>
+  <div class="feat grp-tools">
+    <span class="pill p-part">◐ PARTIAL</span>
+    <div class="body">
+      <div class="ft">Storage 存储查询</div>
+      <div class="fd">查节点磁盘用量/目录大小分布。查询表单 UI 已做；待后端 endpoint。</div>
+      <div class="src"><b>源</b> 节点磁盘 API · Keter node_filesystem_*</div>
+    </div>
+  </div>
+  <div class="feat grp-tools">
+    <span class="pill p-todo">○ TODO</span>
+    <div class="body">
+      <div class="ft">TxPool 查询</div>
+      <div class="fd">pending/queued 分布、指定地址 pending tx、stuck tx 检测。表单 UI 已做；待后端。</div>
+      <div class="src"><b>源</b> txpool_status / txpool_content</div>
+    </div>
+  </div>
+</section>
+
+<!-- Alerts -->
+<section>
+  <div class="sec-label"><span class="n">D.</span> 告警（规则式，无 AI） <span class="cnt">Alerts</span></div>
+  <div class="feat grp-alert">
+    <span class="pill p-done">✓ DONE</span>
+    <div class="body">
+      <div class="ft">告警聚合视图</div>
+      <div class="fd">slash + 慢块 + 磁盘 统一聚合，分级（CRITICAL/HIGH/WARN），可 ACK。规则式，AI 处理思路→下一版。</div>
+      <div class="src"><b>源</b> 链上 + 块流 + Keter disk</div>
+    </div>
+  </div>
+</section>
+
+<!-- Deploy -->
+<section>
+  <div class="sec-label"><span class="n">E.</span> 部署 <span class="cnt">Phase 5</span></div>
+  <div class="feat grp-deploy">
+    <span class="pill p-part">◐ PARTIAL</span>
+    <div class="body">
+      <div class="ft">Docker 一键部署</div>
+      <div class="fd">docker-compose（backend+frontend+nginx）+ keter token 挂载。配置已写；待补 WSS 环境变量 + 内网实测。无鉴权(v2.0 加)。</div>
+      <div class="src"><b>源</b> docker-compose.yml · nginx.conf</div>
+    </div>
+  </div>
+</section>
+
+<!-- Next version -->
+<section>
+  <div class="sec-label"><span class="n">F.</span> 划到下一版（本版不做） <span class="cnt">v1.1 / v1.2 / v2.0</span></div>
+
+  <div class="feat grp-next is-next">
+    <span class="pill p-next">→ v1.1</span>
+    <div class="body">
+      <div class="ft">Fast Finality 监控</div>
+      <div class="fd">justified/finalized lag（Fermi 后 finality 1.125s）。<b style="color:#9A86F0">本次明确移到下一版</b>。</div>
+      <div class="src"><b>源</b> parlia_getJustifiedNumber / getFinalizedNumber</div>
+    </div>
+  </div>
+  <div class="feat grp-next is-next">
+    <span class="pill p-next">→ v1.1</span>
+    <div class="body">
+      <div class="ft">"一键分析" AI 按钮</div>
+      <div class="fd">大流量归因、稳定性根因推断，点按钮调 Claude 流式分析。</div>
+      <div class="src"><b>源</b> Claude API（需 ANTHROPIC_API_KEY）</div>
+    </div>
+  </div>
+  <div class="feat grp-next is-next">
+    <span class="pill p-next">→ v1.2</span>
+    <div class="body">
+      <div class="ft">开发辅助 — GitHub Issues + AI</div>
+      <div class="fd">每日拉 bnb-chain/bsc issues，AI 给优先级+解决思路；Bug Bounty 聚合。</div>
+      <div class="src"><b>源</b> GitHub API · Immunefi · Claude</div>
+    </div>
+  </div>
+  <div class="feat grp-next is-next">
+    <span class="pill p-next">→ v1.2</span>
+    <div class="body">
+      <div class="ft">智能告警处理</div>
+      <div class="fd">对接 Keter urgent 告警，AI 给处理思路/值班指引。</div>
+      <div class="src"><b>源</b> Keter AlertManager · Claude</div>
+    </div>
+  </div>
+  <div class="feat grp-next is-next">
+    <span class="pill p-next">→ v2.0</span>
+    <div class="body">
+      <div class="ft">鉴权 — Google OAuth</div>
+      <div class="fd">限制 @bnbchain.org 域名，oauth2-proxy 反向代理。</div>
+      <div class="src"><b>源</b> oauth2-proxy</div>
+    </div>
+  </div>
+  <div class="feat grp-next is-next">
+    <span class="pill p-next">→ v2.0</span>
+    <div class="body">
+      <div class="ft">推送 / 日报 / 时间轴等</div>
+      <div class="fd">Slack/微信推送、告警规则配置、值班日报、链上事件时间轴、升级追踪、一键 fork 复现。</div>
+      <div class="src"><b>源</b> 多源</div>
+    </div>
+  </div>
+</section>
+
+<div class="note">
+  <b>执行顺序</b>：A(采集地基)先行 → B(Ring 真实化 + 面板校准) → C/D(子工具/告警) → E(部署)。详见 <code>PLAN.md</code> 的 Phase 0–5。下一版功能确认后再细化设计。
+</div>
+
+</body>
+</html>

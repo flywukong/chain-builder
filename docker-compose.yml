@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      BSC_RPC_URL: ${BSC_RPC_URL:-https://bsc-dataseed.bnbchain.org}
+      KETER_CONFIG_FILE: /run/secrets/keter_config
+      CORS_ORIGIN: http://localhost:80
+    volumes:
+      - ${KETER_CONFIG_FILE:-~/.keter.json}:/run/secrets/keter_config:ro
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_WS_URL: ws://localhost/ws
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend

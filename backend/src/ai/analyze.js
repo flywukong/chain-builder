@@ -1,0 +1,203 @@
+/**
+ * AI network analysis via the local Claude Code CLI (headless `claude -p`).
+ * On-demand: summarize the last ~24h of monitoring data. The prompt carries
+ * explicit normal-range baselines so the model reports genuine anomalies only —
+ * it must NOT manufacture "risks" out of in-range fluctuation.
+ */
+
+import { spawn } from "child_process";
+
+const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
+const TIMEOUT_MS = 180_000;
+
+function buildPrompt(data) {
+  return [
+    `你是 BNB Chain (BSC) 主网的资深运维分析师。根据下面最近 ${data.windowDays ?? 7} 天的监控数据(部分细粒度指标为 24h,见字段名),用中文输出一份简洁的网络健康分析(markdown,200 字以内)。`,
+    "",
+    "判断基线（处于范围内即为正常，不要当成风险或“需关注”项）：",
+    "- 出块间隔 ~450ms；区块导入时延 p50 ≤ 200ms、p95 ≤ 800ms，范围内波动属正常",
+    "- fast finality 下日均 0~3 次深度 1-2 块的 micro-reorg 属正常",
+    "- MEV 占比 90%~100% 是主网常态（builder 市场成熟），不是风险",
+    "- 大流量复合口径:dataseed pending >4000 或 区块 gas 利用率 ≥90%,任一触发;二者均低即流量正常",
+    "- Slash:BSC 协议有内建惩罚机制(计数达阈值自动 jail、移出活跃集),无需人工干预。事件按 internal 字段区分:internal=false(外部 validator)只陈述事实(validator、笔数、时间模式),是其运营方自身问题,禁止输出「核实是否移出活跃集/确认 slash 类型/联系运营方/持续监控防扩散」这类操作建议;仅 internal=true(我方内部运营)被 slash 时才建议排查节点",
+    "",
+    "要求：",
+    "1. 首行总体结论：正常 / 需关注 / 告警（三选一）。",
+    "2. 只描述偏离基线的异常维度(具体数值 + 与基线对比 + 建议);处于正常范围的维度一律不写、不要逐项报平安。",
+    "3. 仅当数据明显超出基线时才指出异常并给建议；一切正常就写「各项指标均在正常范围内」。禁止为凑内容制造风险点。",
+    "4. 直接输出正文，不要开场白、结尾语或水平分隔线。",
+    "",
+    "监控数据（JSON）：",
+    "```json",
+    JSON.stringify(data, null, 2),
+    "```",
+  ].join("\n");
+}
+
+export async function runAnalysis(data) {
+  return spawnClaude(buildPrompt(data));
+}
+
+// ── 大流量事件分析(归因到合约)──
+export async function runTrafficAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网的资深运维分析师。分析下面这次大流量事件(复合口径:dataseed 平均 pending > 4000 或 区块 gas 利用率 ≥ 90% 任一触发;事件 trigger 字段标注触发原因),用中文输出 markdown,250 字以内,直接正文。",
+    "若 lastEpisode 为 null,直接说明窗口内无大流量,给出 pending 基线与 gas 峰值作参考,不要硬造事件。",
+    "",
+    "已提供事件时间线(北京时间)、30 天基线,以及事件峰值时段链上采样(若有):sampledBlocks 为采样区块,topContracts 按交易 gasLimit 份额聚合。",
+    "",
+    "要求:",
+    "1. 概述事件:时间、持续、峰值 pending 与基线的倍数、区块 gas 是否被打满。",
+    "2. 归因:根据 topContracts 判断流量由什么合约/交易类型引起。你认识的知名 BSC 合约(如 PancakeSwap Router、四字节铭文类、known token)直接标注;不认识的地址就写「未知合约 0x…前8位」,禁止编造名字。",
+    "3. 影响与结论:pending 消化情况、是否需要关注。",
+    "4. 若无链上采样数据,基于时间线分析并说明归因需 tx 级数据。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+// ── TxPool 拥堵诊断 ──
+export async function runTxpoolAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网的资深运维分析师。诊断当前 TxPool 是否异常拥堵,用中文输出 markdown,200 字以内,直接正文。",
+    "",
+    "判断基线:dataseed 平均 pending 中位数见 baseline;大流量复合口径 = pending>4000 或 gas 利用率≥90%,任一触发;单节点 max 恒高(~25k)是已知卡死节点,忽略。区块 gas 上限 140M——50M 左右只是 ~36% 利用率,不要称为「打满」。",
+    "拥堵类型判别:pending 高 + 区块 gas 打满 → 需求型(链在满负荷消化);pending 高 + 区块不满 → 传播/定价异常,更值得警惕。",
+    "",
+    "要求:首行给结论(正常 / 轻度积压 / 异常拥堵);对比当前值与 24h 形态、30d 基线;判断类型;正常就说「TxPool 状态正常」,不要制造风险。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+// ── MEV 格局分析:builder 集中度 / v1v2 路径 / local & unknown ──
+export async function runMevAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网的 MEV 格局分析师。基于滚动窗口的实时出块数据分析 builder 格局,中文 markdown,250 字以内,直接正文。",
+    "",
+    "注意:窗口约 2000 块(≈15 分钟),只代表当前时段,不要外推为长期趋势。",
+    "",
+    "要求:",
+    "1. 集中度:各 builder 家族份额、top2 合计占比,判断是否双寡头/单一依赖(单家 >70% 才算依赖风险)。",
+    "2. v1/v2 路径:v2 bidblock(BEP-675)当前 0% 属预期(SendBidBlock 待 Pasteur 硬分叉后经 RPC 启用),不是异常。",
+    "3. local(非 MEV)块 = validator 本地打包;unknown = 未识别 builder 地址,数量偏高时建议补 BUILDER_MAP。",
+    "4. topBuilderInstances 是家族内实例粒度(如 blockrazor virginia/nyc),可指出主力实例。",
+    "5. 格局正常就说稳定,不要制造风险点。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+// ── 空块简析:validator 分布 / 时间聚集性 ──
+export async function runEmptyAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网运维分析师。分析 24h 内的空块记录(判据:gasUsed<200k,即仅系统交易、validator 未打包用户交易),中文,120 字以内,直接正文。",
+    "",
+    "要点:哪些 validator 出的、是否同一 validator 连续/聚集(节点故障信号)、还是分散偶发(mempool 时序波动,属正常)。",
+    "mempool 常年 ~900 pending 下偶发 1-2 个孤立空块无需处理;同一 validator 短时多次才值得联系运营方。",
+    "miner 为地址,不认识就用短地址,禁止编造名字。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+// ── 未知合约批量归类(交易分析子系统,结果进标签库)──
+export async function runContractLabeling(candidates) {
+  const prompt = [
+    "你是 BSC 主网链上数据分析师。下面是近 24h 交易采样中调用量最高的未识别合约,请逐个归类。",
+    "",
+    "分类 cat 只能取:meme(meme 币/发射台)| defi(DEX/借贷/质押/聚合器)| predict(预测市场,如 predict.fun/ConditionalTokens/CTF 类)| bot(套利/夹子/keeper/oracle 机器人)| infra(MEV builder/relay 支付结算地址,如 BlockRazor Payment)| bridge | cex | token(普通代币/批量分发)| other(无法判断)。",
+    "每个候选带特征:n=调用次数, swapLogs=Swap 事件数, transferLogs=Transfer 事件数, topSelectors=高频方法选择器(可能带反查出的方法签名), addrType=地址形态, codeSize=字节码大小, nonce=发送计数, balanceBNB=余额, verifiedName=BscScan verified 合约名。",
+    "地址情报判据(优先级高):verifiedName 存在直接据其定名归类;addrType='EOA' 且 nonce 极高 + 有 BNB 收支 → 支付/结算地址(如 builder payment,归 bnb,不是 bot);addrType='EIP-7702' 被高频调用 → bot(自动化钱包);addrType='contract' + codeSize 小 + 单一 selector 极高频 → bot(keeper/oracle/搬砖合约);codeSize 大 + 多方法 + 高 swapLogs → defi。",
+    "判断依据优先级:1) 你认识的知名 BSC 合约地址直接定名;2) topSelectors 里的方法签名语义(updatePrices/fulfill/perform → bot(keeper/oracle);matchOrders/swap/trade/execute → defi;checkIn/claim/airdrop/mint → token(活动分发);deposit/withdraw/stake → defi);3) swapLogs 高 → defi 或 bot(调用方集中/selector 非标准偏 bot,分散偏 defi 聚合器);4) 无事件且单一 selector 极高频 → bot;5) transferLogs 高而无 swap → token;6) vanity 地址(0x0000…/连续重复)偏 bot。",
+    "不认识且特征不明的填 other,禁止编造名字;认识的给出名字。",
+    "",
+    "只输出 JSON 数组,不要任何其他文字:",
+    '[{"addr":"0x…","cat":"defi","name":"PancakeSwap xxx 或 null"}]',
+    "",
+    "候选合约(JSON):",
+    "```json", JSON.stringify(candidates, null, 1), "```",
+  ].join("\n");
+  const text = await spawnClaude(prompt, 300_000);   // 批量归类偶尔慢,放宽超时
+  const m = text.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error("labeling: no JSON array in response");
+  return JSON.parse(m[0]);
+}
+
+// ── 链上流量特征总结(7 天交易分类数据)──
+export async function runTxnFeatureAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网链上流量分析师。基于全量区块覆盖(每分钟抓取过去一分钟全部区块)的 7 天交易分类数据,输出中文流量特征总结,markdown,300 字以内,直接正文。",
+    "",
+    "分类含义:meme=meme币/发射台交易, defi=DEX/借贷, predict=预测市场(predict.fun 等), bot=单块内同发送方≥3笔的高频合约调用+已识别机器人合约, stable=稳定币转账, bnb=纯BNB转账, token=普通代币转账, cex=交易所充提, system=系统交易, other=未识别合约调用。",
+    "",
+    "要求:",
+    "1. 今日流量结构:各类笔数占比(catPct24),结合 catTrend(dYest=较昨日、dAvg7=较7天日均,单位 pp)点出明显变化(±3pp 以上才算);趋势数据为 null 说明历史不足,不要编造。",
+    "2. gas 占比视角(catGasPct24):对比笔数占比与 gas 占比的差异 —— 指出哪些类'笔数多但 gas 轻'(如 BNB 转账/稳定币)、哪些'笔数少但吃满执行资源'(如 DeFi swap/复杂合约)。这是链上负载归因的关键。",
+    "3. meme / defi / bot 三类重点解读:热度趋势、top 合约里它们是谁。",
+    "3. topContracts 中 ai=true 是模型自动归类的,名字可信度一般,表述留有余地。",
+    "4. 数据为全量区块统计(2026-07-08 之前的历史时段为每分钟 1 块采样,笔数口径不同,跨该日对比看占比不看绝对量)。",
+    "5. 结构稳定就说稳定,不要制造异常。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 1), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+// ── 自由问答:基于监控快照回答主网运行状态问题 ──
+export async function runAsk(question, context) {
+  const prompt = [
+    "你是「BNB Chain Ops」监控平台的 AI 助手,回答用户关于 BSC 主网运行状态的问题。",
+    "下面的快照汇聚了本平台的实时数据:链上状态(WS newHeads)、keter 集群指标、流量/reorg 历史时间线、MEV 格局、TxPool。",
+    "历史窗口见 historyWindowDays(若用户问了更长范围,系统已按需拉取对应天数,reorg.daily 为逐日明细)。",
+    "",
+    "要求:",
+    "1. 基于快照回答,引用具体数字;中文,≤250 字,直接正文。",
+    "2. 快照覆盖不到的问题,坦率说明,并指出可以看哪个子系统(Monitor / MEV / 流量 / 存储)或需要什么数据。",
+    "3. 不编造数据;正常的指标不要渲染成风险(出块 ~450ms、导入时延 p95≤800ms、MEV 90-100%、24h 0~3 次 micro-reorg 均为常态)。",
+    "4. slash 事件由 BSC 协议自动惩罚(jail/移出活跃集),外部 validator(internal=false)被 slash 只陈述事实,不给「联系运营方/核实/持续监控」类建议;仅内部运营(internal=true)才建议排查。",
+    "",
+    `用户问题:${question}`,
+    "",
+    "监控快照(JSON):",
+    "```json", JSON.stringify(context, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+function spawnClaude(prompt, timeoutMs = TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      CLAUDE_BIN,
+      ["-p", "--output-format", "text"],   // headless one-shot; prompt via stdin
+      { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: { ...process.env } }
+    );
+
+    let out = "", err = "";
+    child.stdout.on("data", (d) => { out += d.toString(); });
+    child.stderr.on("data", (d) => { err += d.toString(); });
+    child.on("error", (e) => reject(new Error("claude spawn failed: " + e.message)));
+    child.on("close", (code) => {
+      const text = out.trim();
+      // claude 会把认证/API 错误打到 stdout —— 不能当成分析正文
+      const looksLikeError = text && text.length < 300 &&
+        /(Failed to authenticate|API Error|Invalid API key|credit balance|rate limit|overloaded)/i.test(text.slice(0, 160));
+      if (text && !looksLikeError && code === 0) return resolve(text);
+      const reason = looksLikeError ? text : String(err || `claude exited with code ${code}`);
+      console.error("[ai] claude failed code=%s\n%s", code, reason);
+      reject(new Error(reason.slice(0, 800)));
+    });
+
+    child.stdin.write(prompt);
+    child.stdin.end();
+  });
+}

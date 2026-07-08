@@ -1,0 +1,945 @@
+
+<title>BSC DevOps Assistant — Architecture Design</title>
+<style>
+:root {
+  --bg:     #0A0A0A;
+  --bg1:    #111111;
+  --bg2:    #161616;
+  --bg3:    #1C1C1C;
+  --border: #222222;
+  --gold:   #F0B90B;
+  --gold2:  #C9980A;
+  --gold3:  #2A2000;
+  --green:  #22C55E;
+  --red:    #EF4444;
+  --orange: #F97316;
+  --purple: #A855F7;
+  --blue:   #38BDF8;
+  --text:   #D4D4D4;
+  --muted:  #555;
+  --mono:   'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --sans:   -apple-system, 'Helvetica Neue', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 40px 32px 60px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header */
+.doc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 20px;
+  margin-bottom: 36px;
+}
+.doc-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.doc-brand svg { flex-shrink: 0; }
+.doc-title { font-size: 20px; font-weight: 700; color: var(--gold); letter-spacing: .3px; }
+.doc-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.doc-meta { text-align: right; font-size: 10px; color: #333; font-family: var(--mono); line-height: 1.8; }
+
+/* Section label */
+.sec-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── Subsystem cards ── */
+.subsystem-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.sys-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.sys-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.sys-0::before { background: var(--gold); }
+.sys-1::before { background: var(--orange); }
+.sys-2::before { background: var(--red); }
+.sys-3::before { background: var(--purple); }
+.sys-4::before { background: var(--blue); }
+
+.sys-num {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  color: var(--muted);
+}
+.sys-0 .sys-num { color: var(--gold2); }
+.sys-1 .sys-num { color: #c2601a; }
+.sys-2 .sys-num { color: #b03030; }
+.sys-3 .sys-num { color: #8040c0; }
+.sys-4 .sys-num { color: #2090c0; }
+
+.sys-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+.sys-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.sys-features li {
+  font-size: 10px;
+  color: #888;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  line-height: 1.35;
+}
+.sys-features li::before {
+  content: '—';
+  color: #333;
+  flex-shrink: 0;
+  font-size: 9px;
+}
+.sys-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  align-self: flex-start;
+  margin-top: auto;
+}
+.badge-ai   { background: #1a0033; color: #c084fc; border: 1px solid #4a1a7a; }
+.badge-rt   { background: #001a08; color: #4ade80; border: 1px solid #14532d; }
+.badge-new  { background: var(--gold3); color: var(--gold); border: 1px solid #3a2d00; }
+.badge-ext  { background: #001a2e; color: var(--blue); border: 1px solid #0c4a6e; }
+
+/* ── Architecture layers ── */
+.arch-diagram {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 8px;
+}
+
+.layer {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 0;
+}
+.layer-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #2a2a2a;
+  font-family: var(--mono);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  align-self: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.layer-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 6px;
+}
+.layer-spacer {
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+}
+.flow-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.flow-arrow span { font-size: 8px; color: #2a2a2a; font-family: var(--mono); }
+.flow-arrow svg { color: #2a2a2a; }
+
+.node {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.node-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--mono);
+}
+.node-desc { font-size: 9px; color: var(--muted); }
+
+.node-gold   { border-color: #2a2000; background: #111000; }
+.node-orange { border-color: #2a1200; background: #110800; }
+.node-red    { border-color: #2a0000; background: #110000; }
+.node-purple { border-color: #1a0033; background: #0d0018; }
+.node-blue   { border-color: #002a3a; background: #001118; }
+.node-green  { border-color: #002200; background: #000e00; }
+.node-muted  { border-color: #1a1a1a; background: #0e0e0e; }
+
+.node-gold   .node-title { color: var(--gold); }
+.node-orange .node-title { color: var(--orange); }
+.node-red    .node-title { color: var(--red); }
+.node-purple .node-title { color: var(--purple); }
+.node-blue   .node-title { color: var(--blue); }
+.node-green  .node-title { color: var(--green); }
+.node-muted  .node-title { color: #555; }
+
+/* ── Validator Ring concept ── */
+.ring-section {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 24px;
+  margin-bottom: 8px;
+  align-items: start;
+}
+.ring-canvas-wrap {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ring-canvas-wrap canvas { display: block; margin: 0 auto; }
+.ring-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.ring-leg-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.ring-leg-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ring-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.note-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px 16px;
+}
+.note-card h3 { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.note-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.note-list li {
+  font-size: 10px;
+  color: #888;
+  display: flex;
+  gap: 8px;
+  line-height: 1.4;
+}
+.note-list .tag {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.tag-rt  { background: #001a08; color: #4ade80; }
+.tag-ai  { background: #1a0033; color: #c084fc; }
+.tag-ui  { background: #002030; color: #67e8f9; }
+.tag-new { background: var(--gold3); color: var(--gold); }
+
+/* ── Suggestions ── */
+.suggest-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.suggest-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px;
+}
+.suggest-card h3 {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.suggest-card p { font-size: 10px; color: #777; line-height: 1.55; }
+.ic { font-size: 14px; }
+
+/* ── Data flow table ── */
+.flow-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  font-family: var(--mono);
+}
+.flow-table th {
+  text-align: left;
+  padding: 7px 10px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.flow-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #141414;
+  vertical-align: top;
+  color: #888;
+}
+.flow-table td:first-child { color: var(--text); }
+.flow-table tr:last-child td { border-bottom: none; }
+.chip {
+  display: inline-block;
+  font-size: 8px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-right: 3px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+.chip-rt     { background: #001a08; color: #4ade80; }
+.chip-batch  { background: #001a2e; color: var(--blue); }
+.chip-ai     { background: #1a0033; color: #c084fc; }
+.chip-new    { background: var(--gold3); color: var(--gold); }
+
+.mb32 { margin-bottom: 32px; }
+.mb16 { margin-bottom: 16px; }
+</style>
+
+<div class="doc-header">
+  <div class="doc-brand">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L3 7v10l9 5 9-5V7L12 2z" fill="#F0B90B" opacity=".9"/>
+      <path d="M12 6l-4 2.3V13l4 2.3L16 13V8.3L12 6z" fill="#111"/>
+    </svg>
+    <div>
+      <div class="doc-title">BSC DevOps Assistant</div>
+      <div class="doc-subtitle">Architecture Design — v2.0 Full-Stack Research & Operations Platform</div>
+    </div>
+  </div>
+  <div class="doc-meta">
+    BSC Mainnet · Internal Tool<br>
+    Target: BSC Core Developers<br>
+    2026-06-28
+  </div>
+</div>
+
+<!-- Subsystems Overview -->
+<div class="mb32">
+  <div class="sec-label">五大子系统</div>
+  <div class="subsystem-grid">
+
+    <div class="sys-card sys-0">
+      <div class="sys-num">SYS-0</div>
+      <div class="sys-name">监控系统<br>Monitor</div>
+      <ul class="sys-features">
+        <li>实时出块 + Validator ring 动画</li>
+        <li>MEV 比例 / Builder 分布</li>
+        <li>Gas 利用率 / 网络流量带</li>
+        <li>Block Insert Latency p99</li>
+        <li>节点版本分布</li>
+      </ul>
+      <div class="sys-badge badge-rt">● REAL-TIME</div>
+    </div>
+
+    <div class="sys-card sys-1">
+      <div class="sys-num">SYS-1</div>
+      <div class="sys-name">交易分析<br>Tx Analysis</div>
+      <ul class="sys-features">
+        <li>大流量触发告警 + 一键分析</li>
+        <li>历史流量波形 + 峰值标注</li>
+        <li>TxPool 深度 / pending 分布</li>
+        <li>Gas price 分布 heatmap</li>
+        <li>AI 归因：MEV / 合约事件 / 外部冲击</li>
+      </ul>
+      <div class="sys-badge badge-ai">✦ AI ANALYZE</div>
+    </div>
+
+    <div class="sys-card sys-2">
+      <div class="sys-num">SYS-2</div>
+      <div class="sys-name">稳定性分析<br>Stability</div>
+      <ul class="sys-features">
+        <li>Slash 实时计数 + 一键分析</li>
+        <li>Reorg 检测 + 深度 / 频次趋势</li>
+        <li>慢块 / 超时块时序图</li>
+        <li>Fast Finality justified lag</li>
+        <li>AI 根因推断 + 修复建议</li>
+      </ul>
+      <div class="sys-badge badge-ai">✦ AI ANALYZE</div>
+    </div>
+
+    <div class="sys-card sys-3">
+      <div class="sys-num">SYS-3</div>
+      <div class="sys-name">开发辅助<br>Dev Assist</div>
+      <ul class="sys-features">
+        <li>每日拉取 GitHub Issues</li>
+        <li>Bug Bounty (Immunefi) 聚合</li>
+        <li>AI 优先级评估 + 解决思路</li>
+        <li>PR Review 辅助摘要</li>
+        <li>版本 changelog 解析</li>
+      </ul>
+      <div class="sys-badge badge-new">★ NEW</div>
+    </div>
+
+    <div class="sys-card sys-4">
+      <div class="sys-num">SYS-4</div>
+      <div class="sys-name">告警中心<br>Alerts</div>
+      <ul class="sys-features">
+        <li>Keter urgent 告警聚合</li>
+        <li>链上 + Prometheus 双源合并</li>
+        <li>AI 处理思路 / 值班指引</li>
+        <li>静默规则 / ACK 记录</li>
+        <li>Slack / 微信推送（待接入）</li>
+      </ul>
+      <div class="sys-badge badge-ext">⊕ INTEGRATE</div>
+    </div>
+  </div>
+</div>
+
+<!-- Architecture Diagram -->
+<div class="mb32">
+  <div class="sec-label">系统架构</div>
+  <div class="arch-diagram">
+
+    <!-- Frontend layer -->
+    <div class="layer-row">
+      <div class="layer-label" style="color:#2a2000;">FRONTEND</div>
+      <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+        <div style="display:grid; grid-template-columns: repeat(5,1fr); gap:6px;">
+          <div class="node node-gold">
+            <div class="node-title">Monitor</div>
+            <div class="node-desc">Validator Ring · BlockRiver · GasPanel · Latency</div>
+          </div>
+          <div class="node node-orange">
+            <div class="node-title">Tx Analysis</div>
+            <div class="node-desc">流量图 · TxPool · 一键分析触发</div>
+          </div>
+          <div class="node node-red">
+            <div class="node-title">Stability</div>
+            <div class="node-desc">Slash · Reorg · 慢块时序 · AI根因</div>
+          </div>
+          <div class="node node-purple">
+            <div class="node-title">Dev Assist</div>
+            <div class="node-desc">Issues · BugBounty · PR摘要</div>
+          </div>
+          <div class="node node-blue">
+            <div class="node-title">Alerts</div>
+            <div class="node-desc">Keter+链上 · ACK · AI指引</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+          <div class="node node-muted" style="padding: 6px 12px;">
+            <div class="node-title">React + Vite · WebSocket Client · Canvas charts</div>
+          </div>
+          <div class="node node-muted" style="padding: 6px 12px;">
+            <div class="node-title">State: useMonitor hook · useReducer · page router (no deps)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow down -->
+    <div class="layer-spacer" style="margin: 4px 0;">
+      <div class="flow-arrow">
+        <span>WebSocket push</span>
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v12M1 8l5 6 5-6" stroke="#333" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="flow-arrow">
+        <span>REST /api/*</span>
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v12M1 8l5 6 5-6" stroke="#333" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="flow-arrow">
+        <span>AI stream</span>
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v12M1 8l5 6 5-6" stroke="#333" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <!-- Backend layer -->
+    <div class="layer-row">
+      <div class="layer-label" style="color:#001a2e;">BACKEND</div>
+      <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+        <div style="display:grid; grid-template-columns: repeat(3,1fr) repeat(2,1fr); gap:6px;">
+          <div class="node node-gold">
+            <div class="node-title">BlockStreamer</div>
+            <div class="node-desc">1s 轮询 · milliTimestamp · MEV检测 · Reorg追踪 · 200块窗口统计</div>
+          </div>
+          <div class="node node-muted">
+            <div class="node-title">ChainContracts</div>
+            <div class="node-desc">ValidatorSet · SlashIndicator · StakeHub · ethers.js</div>
+          </div>
+          <div class="node node-muted">
+            <div class="node-title">KeterClient</div>
+            <div class="node-desc">Grafana /api/ds/query · JWT · node_stats · latency · disk</div>
+          </div>
+          <div class="node node-purple" style="background:#0d0018; border-color:#2a0050;">
+            <div class="node-title">GitHubFetcher</div>
+            <div class="node-desc">bnb-chain/bsc issues · Immunefi · 每日定时拉取 · 增量缓存</div>
+          </div>
+          <div class="node node-purple" style="background:#100020; border-color:#2a0050;">
+            <div class="node-title">AIEngine</div>
+            <div class="node-desc">Claude API · 流量分析 · 根因推断 · Issue优先级 · 告警解读</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+          <div class="node node-blue" style="padding:6px 12px;">
+            <div class="node-title">AlertAggregator — Keter urgent + 链上 slash/reorg + 慢块，去重 + 分级</div>
+          </div>
+          <div class="node node-muted" style="padding:6px 12px;">
+            <div class="node-title">Cache Layer — SQLite/JSON file · Issues/BugBounty/AI分析结果 持久化</div>
+          </div>
+          <div class="node node-muted" style="padding:6px 12px;">
+            <div class="node-title">Fastify Server — REST + WebSocket broadcast · CORS · /health</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow down -->
+    <div class="layer-spacer" style="margin: 4px 0;">
+      <div class="flow-arrow">
+        <span>eth_* RPC calls</span>
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v12M1 8l5 6 5-6" stroke="#333" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="flow-arrow">
+        <span>Prometheus HTTP</span>
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v12M1 8l5 6 5-6" stroke="#333" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="flow-arrow">
+        <span>GitHub API v4</span>
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v12M1 8l5 6 5-6" stroke="#333" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="flow-arrow">
+        <span>Claude API</span>
+        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v12M1 8l5 6 5-6" stroke="#333" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <!-- Data Sources layer -->
+    <div class="layer-row">
+      <div class="layer-label" style="color:#002a00;">DATA</div>
+      <div style="flex:1; display:grid; grid-template-columns:repeat(5,1fr); gap:6px;">
+        <div class="node node-green">
+          <div class="node-title">BSC RPC</div>
+          <div class="node-desc">eth_getBlockMevInfo · parlia_* · eth_getHeaderByNumber · txpool_status</div>
+        </div>
+        <div class="node node-muted">
+          <div class="node-title">Keter / Prometheus</div>
+          <div class="node-desc">dex-prod · vaas-prod · node_stats · chain_block_insert_*</div>
+        </div>
+        <div class="node node-muted">
+          <div class="node-title">GitHub API</div>
+          <div class="node-desc">bnb-chain/bsc Issues · PRs · Labels · Assignees</div>
+        </div>
+        <div class="node node-muted">
+          <div class="node-title">Immunefi / Bug Bounty</div>
+          <div class="node-desc">public reports · severity · BSC scope filter</div>
+        </div>
+        <div class="node node-purple">
+          <div class="node-title">Claude API</div>
+          <div class="node-desc">claude-sonnet-4-6 · streaming · structured output · tool use</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Validator Ring Concept -->
+<div class="mb32">
+  <div class="sec-label">Validator Ring — 动态出块可视化概念</div>
+  <div class="ring-section">
+    <div class="ring-canvas-wrap">
+      <canvas id="ring" width="388" height="320"></canvas>
+      <div class="ring-legend">
+        <div class="ring-leg-item"><div class="ring-leg-dot" style="background:#F0B90B;box-shadow:0 0 6px #F0B90B88;"></div>当前出块 validator</div>
+        <div class="ring-leg-item"><div class="ring-leg-dot" style="background:#22c55e;"></div>正常 validator</div>
+        <div class="ring-leg-item"><div class="ring-leg-dot" style="background:#f97316;"></div>slash warn</div>
+        <div class="ring-leg-item"><div class="ring-leg-dot" style="background:#ef4444;border:1px solid #ef4444;"></div>slash felony</div>
+        <div class="ring-leg-item"><div class="ring-leg-dot" style="background:#444;"></div>非当前 turn</div>
+        <div class="ring-leg-item"><div class="ring-leg-dot" style="background:#a855f7;border-radius:2px;width:9px;height:6px;"></div>MEV 区块</div>
+      </div>
+    </div>
+
+    <div class="ring-notes">
+      <div class="note-card">
+        <h3>动画设计规格</h3>
+        <ul class="note-list">
+          <li><span class="tag tag-ui">UI</span>圆形铁轨，21 个 validator 节点均匀分布在环上，每个节点展示短名称 + 版本号</li>
+          <li><span class="tag tag-rt">RT</span>当前 proposer 高亮（金色脉冲光环），新块产出时沿轨道触发一个光点向顺时针方向滑动</li>
+          <li><span class="tag tag-ui">UI</span>光点颜色 = builder 颜色（blockrazor=金色、puissant=紫色等），MEV 块光点更亮</li>
+          <li><span class="tag tag-rt">RT</span>环心显示：当前块高 / Block Time / MEV% 三行实时数据</li>
+          <li><span class="tag tag-ui">UI</span>慢块 / 超时块时，对应 validator 节点短暂变红并震动</li>
+          <li><span class="tag tag-new">NEW</span>Slash 事件触发全局警报动效：红色脉冲从受影响节点扩散</li>
+        </ul>
+      </div>
+      <div class="note-card">
+        <h3>数据来源映射</h3>
+        <ul class="note-list">
+          <li><span class="tag tag-rt">RPC</span><code style="font-size:9px;color:#888;">parlia_getTurnLength</code> → 当前 turn 的 validator 顺序</li>
+          <li><span class="tag tag-rt">RPC</span><code style="font-size:9px;color:#888;">eth_getBlockMevInfo</code> → builder / 是否 MEV</li>
+          <li><span class="tag tag-rt">RPC</span><code style="font-size:9px;color:#888;">milliTimestamp</code> diff → 精确 block time (ms)</li>
+          <li><span class="tag tag-rt">CON</span><code style="font-size:9px;color:#888;">SlashIndicator.getSlashIndicator()</code> → slash 状态</li>
+          <li><span class="tag tag-rt">KET</span><code style="font-size:9px;color:#888;">node_stats{NodeType}</code> → 版本号显示在节点旁</li>
+        </ul>
+      </div>
+      <div class="note-card">
+        <h3>交互设计</h3>
+        <ul class="note-list">
+          <li><span class="tag tag-ui">UX</span>Hover 节点 → tooltip 展示：全地址 / 版本 / slash count / 最近出块时间</li>
+          <li><span class="tag tag-ui">UX</span>Click 节点 → 侧滑面板展示该 validator 的详细历史出块记录</li>
+          <li><span class="tag tag-ai">AI</span>右键节点 → "AI 分析该 Validator" → 调用 Claude 生成运行状态摘要</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data Flow Table -->
+<div class="mb32">
+  <div class="sec-label">数据流 / API 接口规划</div>
+  <div style="background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:0;overflow:hidden;">
+  <table class="flow-table">
+    <thead>
+      <tr>
+        <th style="width:160px;">接口 / 数据</th>
+        <th style="width:90px;">模式</th>
+        <th style="width:140px;">来源</th>
+        <th>用途</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>eth_getBlockMevInfo</td>
+        <td><span class="chip chip-rt">1s poll</span></td>
+        <td>BSC RPC</td>
+        <td>MEV检测、builder识别、BlockRiver颜色</td>
+      </tr>
+      <tr>
+        <td>parlia_getTurnLength</td>
+        <td><span class="chip chip-rt">per epoch</span></td>
+        <td>BSC RPC</td>
+        <td>Validator ring 排列顺序、proposer 预测</td>
+      </tr>
+      <tr>
+        <td>txpool_status / content</td>
+        <td><span class="chip chip-rt">10s poll</span></td>
+        <td>BSC RPC</td>
+        <td>TxPool 深度图、pending 积压告警</td>
+      </tr>
+      <tr>
+        <td>chain_block_insert_*</td>
+        <td><span class="chip chip-rt">30s pull</span></td>
+        <td>Keter/Prometheus</td>
+        <td>Block insert latency p99 折线图</td>
+      </tr>
+      <tr>
+        <td>node_stats</td>
+        <td><span class="chip chip-rt">30s pull</span></td>
+        <td>Keter/Prometheus</td>
+        <td>版本分布、mining features、validator ring 节点信息</td>
+      </tr>
+      <tr>
+        <td>SlashIndicator contract</td>
+        <td><span class="chip chip-rt">60s poll</span></td>
+        <td>BSC Chain</td>
+        <td>Slash count、状态分类、告警聚合</td>
+      </tr>
+      <tr>
+        <td>GitHub Issues API</td>
+        <td><span class="chip chip-batch">daily</span></td>
+        <td>api.github.com</td>
+        <td>Dev Assist 面板、AI 优先级标注</td>
+      </tr>
+      <tr>
+        <td>Immunefi scrape</td>
+        <td><span class="chip chip-batch">daily</span></td>
+        <td>immunefi.com</td>
+        <td>Bug Bounty 聚合、BSC scope 过滤</td>
+      </tr>
+      <tr>
+        <td>Claude API (stream)</td>
+        <td><span class="chip chip-ai">on demand</span></td>
+        <td>api.anthropic.com</td>
+        <td>一键分析、Issue 摘要、告警根因推断</td>
+      </tr>
+      <tr>
+        <td>Keter AlertManager</td>
+        <td><span class="chip chip-rt">30s pull</span></td>
+        <td>Keter API</td>
+        <td>Urgent告警聚合、值班指引</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- Suggestions -->
+<div class="mb32">
+  <div class="sec-label">补充建议 — 让这个工具真正覆盖研发日常</div>
+  <div class="suggest-grid">
+    <div class="suggest-card">
+      <h3><span class="ic">⚡</span>链上事件时间轴</h3>
+      <p>把 Slash / 大流量 / 慢块 / Reorg 统一放在一条时间轴上，任意缩放。配合 AI 分析按钮，点一个事件段就能生成该时间窗口内的完整分析报告。</p>
+    </div>
+    <div class="suggest-card">
+      <h3><span class="ic">🔬</span>升级版本追踪</h3>
+      <p>实时展示各 validator 运行的 BSC 版本，自动识别哪些节点还在跑旧版、距当前 release 落后多少个版本，支持一键生成升级提醒。</p>
+    </div>
+    <div class="suggest-card">
+      <h3><span class="ic">🏗</span>Fast Finality 监控</h3>
+      <p>追踪 parlia_getJustifiedNumber，展示 justified lag（当前块 vs 已 justified 块高度差），异常时触发告警，对 BEP 快速确认场景尤其关键。</p>
+    </div>
+    <div class="suggest-card">
+      <h3><span class="ic">📦</span>合约部署跟踪</h3>
+      <p>监控系统合约（ValidatorSet / StakeHub 等）的 upgrade 事件，自动 diff ABI 变化，标注哪个 PR / commit 触发了链上变更。</p>
+    </div>
+    <div class="suggest-card">
+      <h3><span class="ic">🧪</span>一键链上复现</h3>
+      <p>针对异常块/交易，提供"在本地 fork 复现"按钮，自动生成 hardhat/foundry fork 命令，带上精确块高和 tx hash，减少开发者手动查询时间。</p>
+    </div>
+    <div class="suggest-card">
+      <h3><span class="ic">📋</span>值班日报生成</h3>
+      <p>每日自动汇总：异常块次数、Slash 情况、磁盘告警、Issue 新增数量、Bug Bounty 状态，AI 生成一段值班摘要，一键复制发到群里。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// Validator Ring animation
+(function() {
+  const canvas = document.getElementById('ring');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2 + 10;
+  const R = 128;
+
+  // Mock validators
+  const NAMES = [
+    'BNB48','Fuji','Legend','HashKey','NodeReal','Coinbase','Ankr','TW',
+    'BSCVal','Binance','OKX','Huobi','Gate','Kucoin','Bybit','Crypto',
+    'Staked','InfPool','Depool','BscScan','ApeNode'
+  ];
+  const STATES = ['ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','ok','warn','ok','ok'];
+  const N = NAMES.length;
+
+  let currentIdx = 0;
+  let particles = [];
+  let frame = 0;
+
+  const BUILDER_COLS = ['#F0B90B','#a855f7','#38bdf8','#22c55e','#f97316','#ec4899'];
+
+  function stateColor(s) {
+    if (s === 'felony') return '#ef4444';
+    if (s === 'warn')   return '#f97316';
+    return '#22c55e';
+  }
+
+  function tick() {
+    // Every ~100 frames, advance to next validator
+    if (frame % 100 === 0) {
+      const col = BUILDER_COLS[Math.floor(Math.random() * BUILDER_COLS.length)];
+      const isMev = Math.random() > 0.4;
+      // spawn particle at currentIdx, traveling to nextIdx
+      particles.push({
+        from: currentIdx,
+        to:   (currentIdx + 1) % N,
+        t:    0,
+        col:  isMev ? col : '#333',
+        bright: isMev,
+      });
+      currentIdx = (currentIdx + 1) % N;
+    }
+
+    // Update particles
+    particles = particles.filter(p => p.t <= 1);
+    particles.forEach(p => { p.t += 0.018; });
+
+    frame++;
+  }
+
+  function validatorPos(i) {
+    const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+    return {
+      x: cx + R * Math.cos(angle),
+      y: cy + R * Math.sin(angle),
+      angle,
+    };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Track ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = '#1e1e1e';
+    ctx.lineWidth = 12;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = '#252525';
+    ctx.lineWidth = 8;
+    ctx.stroke();
+
+    // Particles on track
+    particles.forEach(p => {
+      const fromAngle = validatorPos(p.from).angle;
+      const toAngle   = validatorPos(p.to  ).angle;
+      let a = fromAngle + (toAngle - fromAngle) * p.t;
+      // handle wrap-around (from last to first)
+      if (p.from === N-1 && p.to === 0) {
+        a = fromAngle + (Math.PI * 2 / N) * p.t;
+      }
+      const px = cx + R * Math.cos(a);
+      const py = cy + R * Math.sin(a);
+
+      if (p.bright) {
+        ctx.shadowColor = p.col;
+        ctx.shadowBlur = 10;
+      }
+      ctx.beginPath();
+      ctx.arc(px, py, p.bright ? 5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = p.col;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    // Validator nodes
+    for (let i = 0; i < N; i++) {
+      const pos = validatorPos(i);
+      const isActive = i === currentIdx;
+      const state = STATES[i];
+      const col = stateColor(state);
+
+      // Glow for active
+      if (isActive) {
+        const pulse = 0.5 + 0.5 * Math.sin(frame * 0.12);
+        ctx.shadowColor = '#F0B90B';
+        ctx.shadowBlur = 14 + 6 * pulse;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
+        ctx.strokeStyle = '#F0B90B';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Node circle
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, isActive ? 9 : 7, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? '#F0B90B' : (state !== 'ok' ? col : '#1a2a1a');
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#F0B90B' : col;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Label
+      const labelDist = R + 22;
+      const lx = cx + labelDist * Math.cos(pos.angle);
+      const ly = cy + labelDist * Math.sin(pos.angle);
+      ctx.font = isActive ? '700 8.5px monospace' : '8px monospace';
+      ctx.fillStyle = isActive ? '#F0B90B' : (state !== 'ok' ? col : '#555');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(NAMES[i], lx, ly);
+    }
+
+    // Center info
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.font = '700 22px monospace';
+    ctx.fillStyle = '#F0B90B';
+    ctx.fillText('#40,000,' + String(200 + Math.floor(frame / 100)).padStart(3,'0'), cx, cy - 16);
+
+    ctx.font = '11px monospace';
+    ctx.fillStyle = '#555';
+    ctx.fillText('Block Time  3.01s', cx, cy + 4);
+
+    ctx.font = '700 11px monospace';
+    ctx.fillStyle = '#a855f7';
+    ctx.fillText('MEV  68.5%', cx, cy + 20);
+  }
+
+  function loop() {
+    tick();
+    draw();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>

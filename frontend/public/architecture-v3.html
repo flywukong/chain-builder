@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BSC DevOps Assistant — 架构 v3（IA + AI 分析层）</title>
+<style>
+:root{
+  --bg:#0A0908; --bg1:#121110; --bg2:#17150f; --bg3:#1c1a15; --border:#262320;
+  --gold:#F0B90B; --gold2:#C9980A; --amber:#FFCF3F;
+  --green:#34D399; --red:#F0656F; --orange:#F59E42; --blue:#5AA6E0; --violet:#9A86F0; --teal:#3FB8A0; --cyan:#5BC8D8;
+  --text:#E4E0D6; --muted:#7A766C; --dim:#46423A;
+  --mono:'SF Mono','Fira Code','Consolas',monospace;
+  --sans:-apple-system,'Helvetica Neue',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:radial-gradient(1100px 600px at 50% -8%,#15120b 0%,transparent 56%),var(--bg);
+  color:var(--text);font-family:var(--sans);font-size:13.5px;line-height:1.62;
+  padding:46px 26px 100px;max-width:960px;margin:0 auto;-webkit-font-smoothing:antialiased;
+}
+code{font-family:var(--mono);font-size:.9em;color:#bcd;}
+h1,h2{text-wrap:balance;}
+
+.head{border-bottom:1px solid var(--border);padding-bottom:22px;margin-bottom:8px;}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:9px;}
+.head h1{font-size:25px;font-weight:700;letter-spacing:-.3px;}
+.head .sub{color:var(--muted);font-size:13px;margin-top:8px;max-width:680px;}
+.head .meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--dim);}
+.head .meta b{color:var(--muted);font-weight:400;}
+
+section{margin-top:42px;}
+.sec-label{font-family:var(--mono);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.sec-label .n{color:var(--gold);}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--border);}
+section h2{font-size:18px;font-weight:700;margin-bottom:10px;letter-spacing:-.2px;}
+section p{color:#cfcabf;margin-bottom:12px;}
+section p.note{color:var(--muted);font-size:12.5px;}
+strong{color:var(--text);font-weight:600;}
+em{color:var(--amber);font-style:normal;}
+
+/* ── IA diagram ── */
+.ia{background:var(--bg1);border:1px solid var(--border);border-radius:14px;padding:22px;margin:16px 0;}
+.home{border:1px solid #3a2d00;background:linear-gradient(180deg,#14110a,#0e0c08);border-radius:12px;padding:16px;}
+.home-top{display:flex;gap:12px;align-items:stretch;margin-bottom:14px;}
+.home-ring{flex:1.4;border:1px solid #3a2d00;border-radius:10px;background:radial-gradient(220px 120px at 50% 45%,#1a1407,transparent 70%),#0c0b08;padding:18px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative;overflow:hidden;}
+.home-ring .ring-vis{width:120px;height:62px;border:2px solid var(--gold);border-radius:50%;border-color:var(--gold) transparent var(--gold) transparent;opacity:.5;}
+.home-ring .rt{font-family:var(--mono);font-size:11px;color:var(--amber);font-weight:700;}
+.home-ring .rd{font-size:10px;color:var(--muted);}
+.home-ver{flex:1;border:1px solid var(--border);border-radius:10px;background:var(--bg2);padding:14px;}
+.home-ver .vt{font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:.5px;margin-bottom:8px;}
+.verbar{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:10.5px;color:var(--muted);}
+.verbar .bar{height:7px;border-radius:3px;}
+.home-label{text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--dim);margin:4px 0 12px;}
+.launcher{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;}
+.subcard{border:1px solid var(--border);background:var(--bg2);border-radius:9px;padding:10px 8px;text-align:center;}
+.subcard .si{font-size:17px;margin-bottom:4px;}
+.subcard .sn{font-size:10px;font-weight:700;color:var(--text);line-height:1.2;}
+.subcard .sa{font-size:8px;color:var(--violet);font-family:var(--mono);margin-top:3px;}
+.subcard.mon{border-color:#3a2d00;}
+.ia-arrow{text-align:center;font-family:var(--mono);font-size:11px;color:var(--dim);margin:14px 0;letter-spacing:.5px;}
+.subview{border:1px dashed #3a3450;background:#0e0b14;border-radius:12px;padding:16px;}
+.subview .svt{font-size:11px;color:var(--violet);font-family:var(--mono);margin-bottom:10px;letter-spacing:.5px;}
+.subview-row{display:flex;gap:10px;align-items:center;}
+.svbox{flex:1;border:1px solid var(--border);border-radius:8px;background:var(--bg2);padding:10px 12px;font-size:10.5px;color:var(--muted);}
+.aibtn{border:1px solid #4a3a00;background:linear-gradient(180deg,#2a2000,#1a1400);border-radius:8px;padding:9px 14px;font-size:11px;font-weight:700;color:var(--amber);white-space:nowrap;display:flex;align-items:center;gap:6px;}
+.aibtn.deep{border-color:#1a3a52;background:linear-gradient(180deg,#06141d,#040d14);color:var(--cyan);}
+
+/* ── subsystem matrix ── */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin:16px 0;}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px;}
+th{text-align:left;padding:9px 13px;font-family:var(--mono);font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);background:var(--bg2);border-bottom:1px solid var(--border);}
+td{padding:9px 13px;border-bottom:1px solid #161412;color:#bdb8ad;vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+td:first-child{color:var(--text);font-weight:600;white-space:nowrap;}
+.tier{display:inline-block;font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:4px;font-weight:600;white-space:nowrap;}
+.t1{background:#2a2000;color:var(--amber);border:1px solid #4a3500;}
+.t2{background:#06141d;color:var(--cyan);border:1px solid #1a3a52;}
+.t0{background:#1a1a1a;color:var(--dim);border:1px solid #2a2a2a;}
+
+/* ── AI layer flow ── */
+.flow{background:var(--bg1);border:1px solid var(--border);border-radius:12px;padding:22px;margin:16px 0;}
+.flabel{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.6px;margin:0 0 8px;}
+.frow{display:flex;align-items:stretch;gap:10px;margin-bottom:8px;}
+.fbox{flex:1;border-radius:8px;padding:10px 12px;border:1px solid var(--border);background:var(--bg2);}
+.fbox .ft{font-family:var(--mono);font-size:11px;font-weight:700;margin-bottom:3px;}
+.fbox .fd{font-size:10px;color:var(--muted);line-height:1.45;}
+.fbox.fe{border-color:#3a2d00;background:#13100a;}.fbox.fe .ft{color:var(--gold);}
+.fbox.t1b{border-color:#4a3500;background:#15100a;}.fbox.t1b .ft{color:var(--amber);}
+.fbox.t2b{border-color:#1a3a52;background:#06141d;}.fbox.t2b .ft{color:var(--cyan);}
+.fbox.fo{border-color:#3a1a6a;background:#100a18;}.fbox.fo .ft{color:var(--violet);}
+.fbox.tmcp{border-color:#14533d;background:#08160f;}.fbox.tmcp .ft{color:var(--teal);}
+.farrow{display:flex;align-items:center;color:var(--dim);font-family:var(--mono);font-size:15px;flex-shrink:0;}
+
+pre{background:#0d0c0a;border:1px solid var(--border);border-radius:9px;padding:14px 16px;overflow-x:auto;margin:14px 0;font-family:var(--mono);font-size:11.5px;line-height:1.6;color:#b8d8c8;}
+pre .c{color:var(--dim);}pre .k{color:var(--gold);}pre .s{color:var(--green);}pre .f{color:var(--blue);}
+
+/* layered arch */
+.layer{margin-bottom:8px;}
+.lrow{display:flex;gap:8px;align-items:stretch;margin-bottom:6px;}
+.llabel{writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;flex-shrink:0;white-space:nowrap;}
+.node{flex:1;border:1px solid var(--border);border-radius:7px;padding:8px 12px;background:var(--bg3);}
+.node .nt{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--text);}
+.node .nd{font-size:9.5px;color:var(--muted);margin-top:2px;}
+.n-gold{border-color:#3a2d00;background:#110f08;}.n-gold .nt{color:var(--gold);}
+.n-teal{border-color:#14443a;background:#08120f;}.n-teal .nt{color:var(--teal);}
+.n-cyan{border-color:#1a3a52;background:#06141d;}.n-cyan .nt{color:var(--cyan);}
+.n-violet{border-color:#3a1a6a;background:#0e0a18;}.n-violet .nt{color:var(--violet);}
+.layer-gap{text-align:center;color:var(--dim);font-family:var(--mono);font-size:13px;margin:4px 0;}
+
+ul.plain{list-style:none;display:flex;flex-direction:column;gap:8px;margin:12px 0;}
+ul.plain li{font-size:13px;color:#cfcabf;display:flex;gap:10px;line-height:1.55;}
+ul.plain li .b{color:var(--gold);font-family:var(--mono);font-size:11px;flex-shrink:0;margin-top:2px;}
+.src{margin-top:46px;padding-top:18px;border-top:1px solid var(--border);font-size:11px;color:var(--dim);font-family:var(--mono);line-height:1.8;}
+@media(max-width:640px){.launcher{grid-template-columns:repeat(3,1fr);}.home-top{flex-direction:column;}.frow{flex-direction:column;}.farrow{transform:rotate(90deg);}}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="eyebrow">BSC DevOps Assistant · Architecture v3</div>
+  <h1>信息架构 + AI 分析层</h1>
+  <div class="sub">进场以 Validator Ring 为主视觉，下沉式子系统导航；每个子系统内置"一键 AI 分析"。AI 采用两层设计：默认云端 API 快速分析，Codex CLI 作为代码感知的深挖工具。</div>
+  <div class="meta">
+    <span><b>状态</b> 架构设计</span>
+    <span><b>AI</b> 云端 API（默认）+ Codex CLI（深挖）</span>
+    <span><b>实时层</b> WebSocket newHeads（见 v3 采集设计）</span>
+    <span><b>日期</b> 2026-06-28</span>
+  </div>
+</div>
+
+<!-- §1 IA -->
+<section>
+  <div class="sec-label"><span class="n">01</span> 信息架构 — 进场 → 子系统</div>
+  <h2>Ring 是门面，子系统是入口</h2>
+  <p>进入即见 Validator Ring（出块轮询动效）+ 节点版本分布；下方一排子系统卡片。点任一子系统进入其详情视图，<strong>AI 分析按钮在子系统内部、贴着对应数据</strong>。</p>
+
+  <div class="ia">
+    <div class="home">
+      <div class="home-top">
+        <div class="home-ring">
+          <div class="ring-vis"></div>
+          <div class="rt">Validator Ring · 轨道核心</div>
+          <div class="rd">实时出块轮询 · proposer 连续出 8 块 · #块高 / 0.45s / MEV%</div>
+        </div>
+        <div class="home-ver">
+          <div class="vt">VERSION 节点版本分布</div>
+          <div class="verbar"><span style="width:42px">v1.7.3</span><span class="bar" style="width:70%;background:var(--teal)"></span>32</div>
+          <div class="verbar"><span style="width:42px">v1.7.2</span><span class="bar" style="width:28%;background:var(--gold)"></span>9</div>
+          <div class="verbar"><span style="width:42px">v1.6.4</span><span class="bar" style="width:10%;background:var(--orange)"></span>3 ⚠ 落后</div>
+        </div>
+      </div>
+      <div class="home-label">── 子系统入口 SUBSYSTEM LAUNCHER ──</div>
+      <div class="launcher">
+        <div class="subcard mon"><div class="si">📊</div><div class="sn">Monitor 大盘</div></div>
+        <div class="subcard"><div class="si">💎</div><div class="sn">MEV 分析</div><div class="sa">✦AI</div></div>
+        <div class="subcard"><div class="si">🌊</div><div class="sn">流量分析</div><div class="sa">✦AI</div></div>
+        <div class="subcard"><div class="si">🔍</div><div class="sn">异常分析</div><div class="sa">✦AI</div></div>
+        <div class="subcard"><div class="si">💾</div><div class="sn">存储</div><div class="sa">✦AI</div></div>
+        <div class="subcard"><div class="si">🐛</div><div class="sn">Issues/Bounty</div><div class="sa">✦AI</div></div>
+        <div class="subcard"><div class="si">🔔</div><div class="sn">告警</div><div class="sa">✦AI</div></div>
+      </div>
+    </div>
+
+    <div class="ia-arrow">↓ 点击子系统进入（例：流量分析）</div>
+
+    <div class="subview">
+      <div class="svt">🌊 流量分析子系统</div>
+      <div class="subview-row">
+        <div class="svbox">Gas 利用率趋势 · TxPool 深度 · tx 类型构成 · gas price 分布 · 大流量时段标注</div>
+        <div class="aibtn">⚡ AI 异常大流量分析</div>
+        <div class="aibtn deep">🔬 Codex 深挖</div>
+      </div>
+    </div>
+  </div>
+  <p class="note">每个子系统都是这个模式：<strong>数据视图 + 贴合该数据的「⚡ AI 分析」按钮</strong>，需要更深时点「🔬 Codex 深挖」。<strong>Monitor 大盘</strong>是一眼看完的总览（含稳定性概览 slash/reorg + 基础 MEV%），无 AI 按钮；稳定性/MEV 概览留在大盘，需要钻取+AI 的独立成「异常分析」「MEV 分析」子系统。</p>
+</section>
+
+<!-- §2 subsystem + AI matrix -->
+<section>
+  <div class="sec-label"><span class="n">02</span> 子系统 & AI 能力矩阵</div>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>子系统</th><th>核心视图</th><th>⚡ 默认 AI（云端）</th><th>🔬 深挖（Codex）</th></tr></thead>
+    <tbody>
+      <tr><td>📊 Monitor 大盘</td><td>Gas/Latency/BlockRiver + 稳定性概览(slash/reorg) + 基础 MEV% 总览</td><td><span class="tier t0">—</span> 纯监控总览</td><td><span class="tier t0">—</span></td></tr>
+      <tr><td>💎 MEV 分析</td><td>Builder分布·MEV占比趋势·v1/v2(bidblock)·bid竞争·per-builder·local块占比</td><td><span class="tier t1">T1</span> MEV格局/占比突变归因、某 builder 异常</td><td><span class="tier t2">T2</span> 结合 bid/miner 源码深挖</td></tr>
+      <tr><td>🌊 流量分析</td><td>Gas趋势·TxPool·tx构成·gas price·大流量标注</td><td><span class="tier t1">T1</span> 异常大流量归因（MEV/合约事件/外部冲击）</td><td><span class="tier t2">T2</span> 读热点合约源码深挖成因</td></tr>
+      <tr><td>🔍 异常分析</td><td>Slash·Reorg·慢块·漏槽时序（深度钻取）</td><td><span class="tier t1">T1</span> slash/reorg/漏槽 根因 + 处置建议</td><td><span class="tier t2">T2</span> 读 parlia 共识源码定位根因</td></tr>
+      <tr><td>💾 存储</td><td>节点磁盘用量·目录大小·增长趋势</td><td><span class="tier t1">T1</span> 增长异常分析 + 清理/扩容建议</td><td><span class="tier t2">T2</span> 结合 pruning/db 源码分析</td></tr>
+      <tr><td>🐛 Issues/Bounty</td><td>每日拉 bnb-chain/bsc issues + Immunefi</td><td><span class="tier t1">T1</span> 优先级评估 + 分类 + 摘要</td><td><span class="tier t2">T2</span> <strong>读 bsc 源码 → triage/根因/修复思路</strong></td></tr>
+      <tr><td>🔔 告警</td><td>Keter urgent + 链上告警聚合</td><td><span class="tier t1">T1</span> 处理思路 + 值班指引</td><td><span class="tier t2">T2</span> 关联代码/历史告警深挖</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">T1（云端 API）：秒级流式，吃后端 gather 的结构化数据。T2（Codex CLI）：分钟级，代码感知，可读 bnb-chain/bsc 源码，用于需要"读代码才能答"的深挖。<strong>Issues 子系统的 T2 是 Codex 最大价值点</strong> —— 它是编码 agent，能把 issue 对着源码分析。</p>
+</section>
+
+<!-- §3 AI layer -->
+<section>
+  <div class="sec-label"><span class="n">03</span> AI 分析层设计（推理 provider + MCP 工具箱 + Codex）</div>
+  <h2>不只吃预拉数据，AI 能在分析中按需查链上事实</h2>
+  <p>所有子系统共用 <code>AIAnalysisService</code>：按子系统装载「配方（recipe）」拉一批<strong>种子上下文</strong>，再交给推理 provider 跑 <strong>tool-use 循环</strong> —— provider 推理过程中可按需调用 <strong>MCP 工具</strong>查更多链上事实 / 文档，最后流式产出分析。这比"后端提前 gather 好全部数据"更强：AI 能顺着线索自己查。</p>
+  <p class="note">接入官方 <strong>bnbchain-mcp</strong>（链上 read-only 查询）+ <strong>AskAi MCP</strong>（BNB docs/BEP/blog 语义检索）作为工具后端。<em>MCP 仅服务 AI 层（v1.1/v1.2）—— 它的 get_latest_block 等是 RPC 轮询式，不替代 v1.0 的 WS newHeads 实时采集</em>。</p>
+
+  <div class="flow">
+    <div class="flabel">DEFAULT ─ ⚡ 一键分析（provider + MCP 工具，tool-use 循环，秒级流式）</div>
+    <div class="frow">
+      <div class="fbox fe"><div class="ft">① 子系统按钮</div><div class="fd">POST /api/ai/analyze {subsystem, params}</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox t1b"><div class="ft">② Recipe.gather</div><div class="fd">拉种子上下文（起点数据，非全部）</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox t1b"><div class="ft">③ Provider × 工具循环</div><div class="fd">CloudProvider 推理 ⇄ 按需调 MCP 工具查链上事实/文档，反复直到结论</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox fo"><div class="ft">④ SSE 渲染</div><div class="fd">markdown：现象→归因→建议（带链上事实/BEP 引用）</div></div>
+    </div>
+    <div class="flabel" style="margin-top:14px;">🧰 MCP 工具箱（provider 在循环中按需调用 · <strong>read-only</strong>）</div>
+    <div class="frow">
+      <div class="fbox tmcp"><div class="ft">bnbchain-mcp（链上）</div><div class="fd">get_block / get_transaction / get_transaction_receipt · read_contract / is_contract · get_native_balance / get_erc20_balance / get_erc20_token_info · get_chain_info</div></div>
+      <div class="fbox tmcp"><div class="ft">AskAi MCP（文档）</div><div class="fd">BNB docs / BEP / blog 语义检索：解释 issue/异常涉及的 BEP、机制、历史变更</div></div>
+    </div>
+    <div class="flabel" style="margin-top:14px;">DEEP DIVE ─ 🔬 Codex（分钟级，代码感知，按需触发；原生支持 MCP）</div>
+    <div class="frow">
+      <div class="fbox fe"><div class="ft">① 深挖按钮</div><div class="fd">POST /api/ai/deepdive {subsystem, context, repo}</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox t2b"><div class="ft">② Codex Adapter</div><div class="fd">spawn codex CLI（headless），cwd=<strong>本地 bsc 源码</strong>（BSC_SOURCE_PATH，定期 git pull），prompt 注入上下文</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox t2b"><div class="ft">③ Codex 读码分析</div><div class="fd">Codex 读相关源码/issue，推理根因/修复，stdout 流</div></div>
+      <div class="farrow">→</div>
+      <div class="fbox fo"><div class="ft">④ 流式回传</div><div class="fd">归一为 token 流 → SSE → 前端追加到分析面板</div></div>
+    </div>
+  </div>
+
+  <pre><span class="c">// 推理 provider（tool-use 循环）</span>
+<span class="k">interface</span> Provider { <span class="f">run</span>(prompt, seedCtx, tools) → AsyncIterable&lt;token&gt; }
+CloudProvider  → 云端 AI API（Claude/OpenAI），默认，function-calling
+CodexProvider  → <span class="s">"codex exec"</span> headless, cwd=<span class="k">config.bscSource.path</span>（深挖读码，原生 MCP）
+
+<span class="c">// MCP 工具后端（read-only，挂给 provider 按需调）</span>
+tools = [
+  BNBChainMcpTools,  <span class="c">// 官方 bnbchain-mcp: get_block/tx/receipt, read_contract/is_contract,</span>
+                     <span class="c">//   get_native_balance/get_erc20_*, get_chain_info</span>
+                     <span class="c">// ⚠ 只读：不配 PRIVATE_KEY + 工具白名单，禁用 transfer/write/approve</span>
+  AskAiMcpTools,     <span class="c">// BNB docs/BEP/blog 语义检索</span>
+]
+<span class="c">// 后端做 MCP client：stdio 起子进程 或 SSE 连接，把工具暴露给 provider 的 tool-use</span>
+
+<span class="c">// 每子系统一份配方：种子上下文 + 可用工具 + 模板</span>
+recipes = {
+  traffic:   { gather: gas趋势/tx构成/MEV, tools:[chain],       prompt: 大流量归因 },
+  stability: { gather: slash/reorg/漏槽,    tools:[chain],       prompt: 根因 },
+  storage:   { gather: 磁盘/目录/增长,      tools:[],            prompt: 存储分析 },
+  issues:    { gather: issue正文+标签,       tools:[chain,askai], prompt: triage, deepRepo:<span class="s">"bnb-chain/bsc"</span> },
+  alerts:    { gather: keter告警,            tools:[chain,askai], prompt: 值班指引 },
+}
+
+<span class="c">// 路由</span>
+<span class="f">POST</span> /api/ai/analyze   → CloudProvider.run(prompt, seedCtx, recipe.tools)  <span class="c">// T1 默认+工具</span>
+<span class="f">POST</span> /api/ai/deepdive  → CodexProvider（cwd=源码）+ 同 ctx + 工具            <span class="c">// T2 深挖</span>
+<span class="c">// 结果按 (subsystem + context hash + 时间桶) 缓存</span></pre>
+
+  <ul class="plain">
+    <li><span class="b">▸</span><span><strong>provider 抽象</strong>：CloudProvider / CodexProvider 同一 <code>run</code> 接口（带 tools）；换云端模型或加 provider 不动业务</span></li>
+    <li><span class="b">▸</span><span><strong>MCP 工具箱</strong>：后端作 MCP client 接 <code>bnbchain-mcp</code>（stdio/SSE），AI 在分析中按需 <code>get_block</code>/<code>get_transaction</code>/<code>read_contract</code>/balance 查链上事实；<code>AskAi MCP</code> 查 BEP/docs/blog</span></li>
+    <li><span class="b">▸</span><span><strong>⚠ 只读安全（硬约束）</strong>：bnbchain-mcp 支持转账/合约写（需 PRIVATE_KEY）。AI 层<em>绝不配 PRIVATE_KEY</em> + 工具白名单只放只读，禁止 AI 触发 transfer/write/approve</span></li>
+    <li><span class="b">▸</span><span><strong>Codex 深挖</strong>：spawn <code>codex</code> headless，cwd=本地 bsc 源码（<code>BSC_SOURCE_PATH</code>，定期 git pull）；Codex 原生支持 MCP，可同时用上面工具箱</span></li>
+    <li><span class="b">▸</span><span><strong>流式 + 缓存</strong>：SSE 复用 <code>&lt;AIAnalysisPanel&gt;</code> 渲染；结果按 (subsystem+context hash+时间桶) 缓存；Codex 深挖加队列+进度态</span></li>
+  </ul>
+</section>
+
+<!-- §4 system architecture -->
+<section>
+  <div class="sec-label"><span class="n">04</span> 系统架构（分层）</div>
+  <div class="ia" style="padding:20px;">
+    <div class="layer">
+      <div class="lrow">
+        <div class="llabel" style="color:#3a2d00;">FRONTEND</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;">
+            <div class="node n-gold"><div class="nt">Home / 进场</div><div class="nd">Validator Ring（轨道核心）+ Version 分布 + 全局 KPI</div></div>
+            <div class="node"><div class="nt">Subsystem Router</div><div class="nd">7 子系统视图切换</div></div>
+            <div class="node n-violet"><div class="nt">AIAnalysisPanel</div><div class="nd">SSE 消费 + markdown 流式渲染（共享）</div></div>
+          </div>
+          <div class="node" style="background:#0e0d0b;"><div class="nt" style="color:var(--muted)">React + Vite · WebSocket client · Canvas charts · 无重依赖</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="layer-gap">↑ WS push · REST · SSE(AI) ↓</div>
+    <div class="layer">
+      <div class="lrow">
+        <div class="llabel" style="color:#14443a;">BACKEND</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+            <div class="node n-teal"><div class="nt">BlockStreamer</div><div class="nd">WS newHeads + SeqGuard 补块/reorg + 0.45s blocktime</div></div>
+            <div class="node"><div class="nt">ChainContracts</div><div class="nd">ValidatorSet/Slash/StakeHub · parlia_*</div></div>
+            <div class="node"><div class="nt">KeterClient</div><div class="nd">Prometheus: latency/nodes/disk/version</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:6px;">
+            <div class="node"><div class="nt">GitHubFetcher</div><div class="nd">每日拉 bsc issues + Immunefi（增量缓存）</div></div>
+            <div class="node n-cyan"><div class="nt">★ AIAnalysisService</div><div class="nd">recipes + Provider（Cloud/Codex）+ <strong>MCP client（bnbchain-mcp 只读 + AskAi）</strong> + SSE + 缓存/队列</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="layer-gap">↓ RPC(WSS+HTTP) · Prometheus · GitHub · MCP · Codex/Cloud ↓</div>
+    <div class="layer">
+      <div class="lrow">
+        <div class="llabel" style="color:#2a2a2a;">SOURCES</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+            <div class="node n-teal"><div class="nt">BSC RPC</div><div class="nd">WSS newHeads + parlia_* + getBlockMevInfo + txpool（v1.0 实时链路）</div></div>
+            <div class="node"><div class="nt">Keter/Prom</div><div class="nd">dex/vaas-prod · latency/nodes/disk</div></div>
+            <div class="node"><div class="nt">GitHub/Immunefi</div><div class="nd">issues/bounty 每日拉取</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div class="node n-teal"><div class="nt">bnbchain-mcp</div><div class="nd">官方 MCP · 链上 read-only（AI 工具）</div></div>
+            <div class="node n-teal"><div class="nt">AskAi MCP</div><div class="nd">docs/BEP/blog 语义检索（AI 工具）</div></div>
+            <div class="node n-cyan"><div class="nt">Codex CLI</div><div class="nd">读本地 bsc 源码深挖</div></div>
+            <div class="node n-cyan"><div class="nt">Cloud AI API</div><div class="nd">默认推理 provider</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- §5 build order -->
+<section>
+  <div class="sec-label"><span class="n">05</span> 与执行计划的关系</div>
+  <ul class="plain">
+    <li><span class="b">v1.0</span><span>IA 重构（Home=Ring+Version → 7 子系统导航）+ Monitor/MEV/流量/异常/存储 的<strong>数据视图</strong>。采集层 WS 重写先行。AI 按钮先占位（灰）。</span></li>
+    <li><span class="b">v1.1</span><span>AIAnalysisService + CloudProvider（T1）+ <strong>bnbchain-mcp 只读工具</strong>上线，接 MEV/流量/异常/存储 的 ⚡ 一键分析；Fast Finality 监控。</span></li>
+    <li><span class="b">v1.2</span><span>CodexProvider（T2 深挖）+ <strong>AskAi MCP</strong> + Issues/Bounty 子系统（每日拉取 + Codex 读源码分析）；告警 AI 处理。</span></li>
+  </ul>
+  <p class="note">本架构图把 AI 的"位置"和"接法"定清楚，实现按 PLAN.md 分版本推进。provider + 工具抽象让 v1.1 先上云端+MCP、v1.2 再补 Codex/AskAi 不返工。MCP 只服务 AI 层，v1.0 实时采集仍走 WS newHeads。</p>
+</section>
+
+<div class="src">
+  关联文档 ── PLAN.md（执行计划）· docs/v1-scope.html（v1 功能范围）· docs/design-v3-realtime.html（WS 采集层）· docs/orbital-core.html（Ring 视觉）<br>
+  AI 接入 ── 推理：云端 AI API（默认，流式）· 工具：bnbchain-mcp（链上 read-only，无 PRIVATE_KEY）+ AskAi MCP（docs/BEP）· 深挖：Codex CLI（cwd=本地 bsc 源码 BSC_SOURCE_PATH，定期 git pull）<br>
+  MCP 边界 ── 仅 AI 层按需查事实（v1.1/v1.2）；不替代 v1.0 的 WS newHeads 实时采集
+</div>
+
+</body>
+</html>

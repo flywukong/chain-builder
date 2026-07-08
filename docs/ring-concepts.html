@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validator Ring — Design Concepts</title>
+<style>
+:root {
+  --bg:     #0A0908;
+  --bg1:    #121110;
+  --bg2:    #181614;
+  --border: #242220;
+  --gold:   #F0B90B;
+  --amber:  #FFCF3F;
+  --hot:    #FFF6D8;
+  --green:  #34D399;
+  --orange: #F97316;
+  --red:    #EF4444;
+  --text:   #E8E4DA;
+  --muted:  #6B6862;
+  --mono:   'SF Mono','Fira Code','Consolas',monospace;
+  --sans:   -apple-system,'Helvetica Neue',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background:
+    radial-gradient(900px 500px at 50% -5%, #16130d 0%, transparent 55%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 40px 28px 80px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.head { border-bottom: 1px solid var(--border); padding-bottom: 22px; margin-bottom: 34px; }
+.head h1 { font-size: 21px; font-weight: 700; color: var(--text); letter-spacing: .2px; }
+.head .gold { color: var(--gold); }
+.head p { font-size: 12px; color: var(--muted); margin-top: 6px; max-width: 640px; }
+
+.concept { margin-bottom: 30px; }
+.c-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.c-num {
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  color: var(--gold); background: #2a2000; border: 1px solid #3a2d00;
+  padding: 3px 9px; border-radius: 5px; flex-shrink: 0;
+}
+.c-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.c-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--green); background: #06231a; border: 1px solid #14533d;
+  padding: 2px 8px; border-radius: 4px;
+}
+.c-desc { font-size: 11px; color: var(--muted); margin-left: auto; max-width: 360px; text-align: right; }
+
+.stage {
+  background:
+    radial-gradient(620px 360px at 50% 42%, #15120c 0%, transparent 60%),
+    linear-gradient(180deg, #0d0c0b 0%, #090807 100%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.stage::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(#ffffff05 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff05 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(500px 300px at 50% 45%, #000 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(500px 300px at 50% 45%, #000 0%, transparent 75%);
+  pointer-events: none;
+}
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 680 / 420; height: auto; position: relative; }
+
+.note { font-size: 10px; color: #4a4843; margin-top: 8px; font-family: var(--mono); letter-spacing: .2px; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1><span class="gold">Validator Ring</span> — 三个设计方向</h1>
+  <p>把原来的"平面大圆"重做为专业级实时可视化。三个方向都带透视纵深、辉光层次与粒子动效，数据为 mock。选一个方向，我把它做进真实组件（接 parlia_getTurnLength / eth_getBlockMevInfo / SlashIndicator）。</p>
+</div>
+
+<div class="concept">
+  <div class="c-head">
+    <span class="c-num">01</span>
+    <span class="c-title">Orbital Core · 轨道核心</span>
+    <span class="c-tag">推荐</span>
+    <span class="c-desc">倾斜椭圆轨道 + 中心能量核 + proposer 能量光束。最有"立体 / 科技"冲击力。</span>
+  </div>
+  <div class="stage"><canvas id="c1"></canvas></div>
+  <div class="note">// 透视 tilt 0.52 · 景深排序 · proposer→core 光束 · builder 配色粒子拖尾 · 环境浮尘</div>
+</div>
+
+<div class="concept">
+  <div class="c-head">
+    <span class="c-num">02</span>
+    <span class="c-title">HUD Instrument · 仪表环</span>
+    <span class="c-desc">分段式刻度环，每个 validator 占一段；内嵌同心数据环（gas / mev / finality）+ 雷达扫掠。</span>
+  </div>
+  <div class="stage"><canvas id="c2"></canvas></div>
+  <div class="note">// 21 段分段轨道 · 当前段填充辉光 · 三层同心 gauge · 旋转扫掠楔形 · 刻度 tick</div>
+</div>
+
+<div class="concept">
+  <div class="c-head">
+    <span class="c-num">03</span>
+    <span class="c-title">Radar Mesh · 雷达拓扑</span>
+    <span class="c-desc">同心雷达网格 + validator 节点网状连线，旋转扫描光束扫过即点亮。偏"网络监控"气质。</span>
+  </div>
+  <div class="stage"><canvas id="c3"></canvas></div>
+  <div class="note">// 同心雷达圈 + 径向网格 · 节点 mesh 连线 · 旋转扫描波束 · 经过即激发辉光</div>
+</div>
+
+<script>
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const W = 680, H = 420;
+
+// ── shared validator data ──
+const NAMES = ['BNB48','Fuji','Legend','HashKey','NodeReal','Coinbase','Ankr','TWStake',
+  'Defibit','Binance','OKX','MathW','Stakec','Avengers','Tranchess','Pexmons',
+  'Velvet','InfStone','Everstake','Figment','Ciscox'];
+const N = NAMES.length;
+const STATE = Array(N).fill('ok');
+STATE[7] = 'warn'; STATE[14] = 'felony';
+const BUILDER_COLS = ['#F0B90B','#A855F7','#38BDF8','#34D399','#F97316','#EC4899'];
+
+function stColor(s){ return s==='felony' ? '#EF4444' : s==='warn' ? '#F97316' : '#34D399'; }
+
+function setup(id){
+  const cv = document.getElementById(id);
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  cv.width = W*dpr; cv.height = H*dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr,dpr);
+  return ctx;
+}
+function bg(ctx){
+  const g = ctx.createRadialGradient(W/2, H*0.44, 40, W/2, H*0.44, 420);
+  g.addColorStop(0, '#14110b');
+  g.addColorStop(0.55, '#0b0a08');
+  g.addColorStop(1, '#070605');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+}
+function loop(fn){
+  if (REDUCED){ fn(0); return; }
+  let f=0; (function r(){ fn(f++); requestAnimationFrame(r); })();
+}
+
+/* ════════ Concept 1 — Orbital Core ════════ */
+(function(){
+  const ctx = setup('c1');
+  const cx=W/2, cy=H*0.46, R=150, TILT=0.52;
+  let cur=0, lastHop=0, rot=0;
+  const HOP=110;
+  const dust = Array.from({length:26},(_,i)=>({
+    a: (i/26)*Math.PI*2, r: 60+Math.random()*160,
+    sp: 0.0006+Math.random()*0.001, s: Math.random()*1.4+0.3
+  }));
+  let trail=[];
+
+  function pos(angle){
+    return { x: cx + R*Math.cos(angle), y: cy + R*Math.sin(angle)*TILT, d: Math.sin(angle) };
+  }
+  function base(i){ return i*(Math.PI*2/N) - Math.PI/2; }
+
+  loop((f)=>{
+    bg(ctx);
+    rot += 0.0016;
+    if (!REDUCED && f - lastHop >= HOP){ cur=(cur+1)%N; lastHop=f; }
+    const t = REDUCED ? 1 : Math.min((f-lastHop)/HOP, 1);
+
+    // dust
+    dust.forEach(p=>{
+      if(!REDUCED) p.a += p.sp;
+      const x=cx+Math.cos(p.a)*p.r, y=cy+Math.sin(p.a)*p.r*TILT;
+      ctx.beginPath(); ctx.arc(x,y,p.s,0,7); ctx.fillStyle='rgba(240,185,11,0.10)'; ctx.fill();
+    });
+
+    // decorative outer orbit
+    ctx.save();
+    ctx.translate(cx,cy); ctx.scale(1,TILT);
+    ctx.beginPath(); ctx.arc(0,0,R+20,0,7);
+    ctx.strokeStyle='rgba(240,185,11,0.06)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,0,R,0,7);
+    ctx.strokeStyle='#1e1b14'; ctx.lineWidth=10; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,0,R,0,7);
+    ctx.strokeStyle='rgba(240,185,11,0.10)'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.restore();
+
+    const order = [...Array(N).keys()].sort((a,b)=> pos(base(a)+rot).d - pos(base(b)+rot).d);
+
+    function node(i){
+      const ang=base(i)+rot, p=pos(ang);
+      const df=(p.d+1)/2;               // 0 back .. 1 front
+      const scale=0.7+df*0.6, alpha=0.4+df*0.6;
+      const active = i===cur;
+      const sc = stColor(STATE[i]);
+      if(active){
+        const pulse=0.5+0.5*Math.sin(f*0.13);
+        ctx.shadowColor='#F0B90B'; ctx.shadowBlur=22+pulse*12;
+        ctx.beginPath(); ctx.arc(p.x,p.y,13*scale,0,7);
+        ctx.strokeStyle='rgba(255,207,63,0.9)'; ctx.lineWidth=2; ctx.stroke();
+        ctx.shadowBlur=0;
+      }
+      ctx.globalAlpha=alpha;
+      // outer ring
+      ctx.beginPath(); ctx.arc(p.x,p.y,(active?9:6.5)*scale,0,7);
+      ctx.fillStyle = active ? '#FFF6D8' : (STATE[i]!=='ok'? sc : '#13251a');
+      ctx.shadowColor = active ? '#FFCF3F' : (STATE[i]!=='ok'? sc : 'transparent');
+      ctx.shadowBlur = active ? 16 : (STATE[i]!=='ok'? 10 : 0);
+      ctx.fill(); ctx.shadowBlur=0;
+      ctx.lineWidth=1.4; ctx.strokeStyle = active ? '#FFF6D8' : sc; ctx.stroke();
+      ctx.globalAlpha=1;
+      // label
+      const ld=R+ (df*10) +20, lx=cx+ld*Math.cos(ang), ly=cy+ld*Math.sin(ang)*TILT + (p.d>0?6:-4);
+      ctx.font = active? '700 9.5px '+'monospace' : '8.5px monospace';
+      ctx.fillStyle = active ? '#FFCF3F' : (STATE[i]!=='ok'? sc : 'rgba(180,176,166,'+(0.3+df*0.5)+')');
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(NAMES[i], lx, ly);
+    }
+
+    // back nodes
+    order.filter(i=>pos(base(i)+rot).d<0).forEach(node);
+
+    // beam proposer -> core
+    const ap=pos(base(cur)+rot);
+    const bg2=ctx.createLinearGradient(ap.x,ap.y,cx,cy);
+    bg2.addColorStop(0,'rgba(255,207,63,0.55)');
+    bg2.addColorStop(1,'rgba(255,207,63,0)');
+    ctx.strokeStyle=bg2; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(ap.x,ap.y); ctx.lineTo(cx,cy); ctx.stroke();
+
+    // traveling particle + trail
+    const pang = base((cur-1+N)%N)+ (Math.PI*2/N)*t + rot;
+    const pp=pos(pang);
+    trail.push({x:pp.x,y:pp.y}); if(trail.length>16) trail.shift();
+    trail.forEach((tp,idx)=>{
+      const a=idx/trail.length;
+      ctx.beginPath(); ctx.arc(tp.x,tp.y,a*3,0,7);
+      ctx.fillStyle='rgba(255,207,63,'+(a*0.5)+')'; ctx.fill();
+    });
+    ctx.shadowColor='#FFCF3F'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(pp.x,pp.y,3.4,0,7); ctx.fillStyle='#FFF6D8'; ctx.fill();
+    ctx.shadowBlur=0;
+
+    // core
+    const cpulse=0.5+0.5*Math.sin(f*0.08);
+    const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,46+cpulse*8);
+    cg.addColorStop(0,'rgba(255,246,216,0.9)');
+    cg.addColorStop(0.25,'rgba(255,207,63,0.5)');
+    cg.addColorStop(0.6,'rgba(240,185,11,0.12)');
+    cg.addColorStop(1,'rgba(240,185,11,0)');
+    ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(cx,cy,46+cpulse*8,0,7); ctx.fill();
+
+    // front nodes (overlap core)
+    order.filter(i=>pos(base(i)+rot).d>=0).forEach(node);
+
+    // center readout
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=6;
+    ctx.font='700 21px monospace'; ctx.fillStyle='#FFF6D8';
+    ctx.fillText('#40,000,'+String(200+Math.floor(f/HOP)%800).padStart(3,'0'), cx, cy-2);
+    ctx.shadowBlur=0;
+    ctx.font='9px monospace'; ctx.fillStyle='#8a857c';
+    ctx.fillText('BLOCK TIME 3.01s', cx, cy+18);
+    ctx.font='700 9px monospace'; ctx.fillStyle='#F0B90B';
+    ctx.fillText('MEV 68.5%  ·  proposer '+NAMES[cur], cx, cy+32);
+
+    // corner HUD
+    ctx.textAlign='left'; ctx.font='8.5px monospace'; ctx.fillStyle='#4a4843';
+    ctx.fillText('EPOCH 1842 · TURN '+(cur+1)+'/'+N, 16, 20);
+    ctx.fillText('● LIVE', 16, H-16);
+    ctx.fillStyle='#34D399'; ctx.beginPath(); ctx.arc(20,H-19,2.4,0,7); ctx.fill();
+  });
+})();
+
+/* ════════ Concept 2 — HUD Instrument ════════ */
+(function(){
+  const ctx = setup('c2');
+  const cx=W/2, cy=H*0.47, R=152;
+  let cur=0, lastHop=0, sweep=0;
+  const HOP=100;
+  const seg=Math.PI*2/N, gap=seg*0.22;
+
+  loop((f)=>{
+    bg(ctx);
+    sweep += 0.012;
+    if(!REDUCED && f-lastHop>=HOP){ cur=(cur+1)%N; lastHop=f; }
+
+    // sweep wedge
+    ctx.save();
+    ctx.translate(cx,cy); ctx.rotate(sweep);
+    const sg=ctx.createConicGradient ? null : null;
+    const wedge=ctx.createLinearGradient(0,0,R,0);
+    wedge.addColorStop(0,'rgba(240,185,11,0.14)');
+    wedge.addColorStop(1,'rgba(240,185,11,0)');
+    ctx.fillStyle=wedge;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R+6,-0.5,0.04); ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // segmented outer ring
+    for(let i=0;i<N;i++){
+      const a0=i*seg - Math.PI/2 + gap/2;
+      const a1=(i+1)*seg - Math.PI/2 - gap/2;
+      const active=i===cur;
+      const recent=(cur-i+N)%N; // 0=current,1=prev...
+      const sc=stColor(STATE[i]);
+      let col='#2a2620', glow=0, lw=9;
+      if(STATE[i]!=='ok'){ col=sc; glow=8; }
+      if(recent<5){ const fade=1-recent/5; col='rgba(240,185,11,'+(0.25+fade*0.75)+')'; }
+      if(active){ col='#FFCF3F'; glow=18; lw=12; }
+      ctx.beginPath(); ctx.arc(cx,cy,R,a0,a1);
+      ctx.strokeStyle=col; ctx.lineWidth=lw; ctx.lineCap='round';
+      ctx.shadowColor=active?'#F0B90B':(glow?sc:'transparent'); ctx.shadowBlur=glow;
+      ctx.stroke(); ctx.shadowBlur=0;
+
+      // tick
+      const tm=(a0+a1)/2, ti=R+11, to=R+ (active?20:15);
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(tm)*ti, cy+Math.sin(tm)*ti);
+      ctx.lineTo(cx+Math.cos(tm)*to, cy+Math.sin(tm)*to);
+      ctx.strokeStyle=active?'#FFCF3F':'#3a352c'; ctx.lineWidth=active?2:1; ctx.stroke();
+
+      if(active){
+        const lr=R+30;
+        ctx.font='700 9px monospace'; ctx.fillStyle='#FFCF3F';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(NAMES[i], cx+Math.cos(tm)*lr, cy+Math.sin(tm)*lr);
+        // inward needle
+        ctx.beginPath();
+        ctx.moveTo(cx+Math.cos(tm)*(R-8), cy+Math.sin(tm)*(R-8));
+        ctx.lineTo(cx+Math.cos(tm)*(R-30), cy+Math.sin(tm)*(R-30));
+        ctx.strokeStyle='rgba(255,207,63,0.5)'; ctx.lineWidth=2; ctx.stroke();
+      }
+    }
+
+    // inner concentric gauges
+    const gauges=[
+      {r:R-30, val:0.685, lab:'MEV',      c:'#F0B90B'},
+      {r:R-46, val:0.763, lab:'GAS',      c:'#FFCF3F'},
+      {r:R-62, val:0.92,  lab:'FINALITY', c:'#34D399'},
+    ];
+    gauges.forEach(g=>{
+      ctx.beginPath(); ctx.arc(cx,cy,g.r, -Math.PI/2, -Math.PI/2+Math.PI*2*0.999);
+      ctx.strokeStyle='#1c1a16'; ctx.lineWidth=4; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx,cy,g.r, -Math.PI/2, -Math.PI/2+Math.PI*2*g.val);
+      ctx.strokeStyle=g.c; ctx.lineWidth=4; ctx.lineCap='round';
+      ctx.shadowColor=g.c; ctx.shadowBlur=6; ctx.stroke(); ctx.shadowBlur=0;
+    });
+
+    // center readout
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='700 20px monospace'; ctx.fillStyle='#FFF6D8';
+    ctx.fillText('#40,000,'+String(200+Math.floor(f/HOP)%800).padStart(3,'0'), cx, cy-12);
+    ctx.font='8px monospace'; ctx.fillStyle='#8a857c';
+    ctx.fillText('BLOCK TIME', cx, cy+6);
+    ctx.font='700 13px monospace'; ctx.fillStyle='#F0B90B';
+    ctx.fillText('3.01s', cx, cy+20);
+    // gauge labels
+    ctx.font='7.5px monospace'; ctx.textAlign='left';
+    gauges.forEach((g,i)=>{
+      ctx.fillStyle=g.c;
+      ctx.fillText(g.lab+' '+Math.round(g.val*100)+'%', cx-30, cy+36+i*11);
+    });
+
+    ctx.textAlign='left'; ctx.font='8.5px monospace'; ctx.fillStyle='#4a4843';
+    ctx.fillText('PARLIA TURN '+(cur+1)+'/'+N, 16, 20);
+  });
+})();
+
+/* ════════ Concept 3 — Radar Mesh ════════ */
+(function(){
+  const ctx = setup('c3');
+  const cx=W/2, cy=H*0.47, RMAX=168;
+  let cur=0, lastHop=0, sweep=0;
+  const HOP=100;
+  // node ring radius w/ slight jitter for organic feel
+  const nodes = NAMES.map((nm,i)=>{
+    const a=i*(Math.PI*2/N)-Math.PI/2;
+    const r=RMAX-8 - (i%3)*10;
+    return {a, r, nm, st:STATE[i], i};
+  });
+  function np(n){ return {x:cx+Math.cos(n.a)*n.r, y:cy+Math.sin(n.a)*n.r}; }
+
+  loop((f)=>{
+    bg(ctx);
+    sweep += 0.011;
+    if(!REDUCED && f-lastHop>=HOP){ cur=(cur+1)%N; lastHop=f; }
+
+    // radar rings
+    for(let k=1;k<=4;k++){
+      ctx.beginPath(); ctx.arc(cx,cy,RMAX*k/4,0,7);
+      ctx.strokeStyle='rgba(240,185,11,'+(0.10-k*0.012)+')'; ctx.lineWidth=1; ctx.stroke();
+    }
+    // radial spokes
+    for(let k=0;k<12;k++){
+      const a=k*Math.PI/6;
+      ctx.beginPath(); ctx.moveTo(cx,cy);
+      ctx.lineTo(cx+Math.cos(a)*RMAX, cy+Math.sin(a)*RMAX);
+      ctx.strokeStyle='rgba(255,255,255,0.03)'; ctx.lineWidth=1; ctx.stroke();
+    }
+
+    // mesh links (each node to next 2 neighbors)
+    for(let i=0;i<N;i++){
+      const a=np(nodes[i]);
+      for(let d=1;d<=2;d++){
+        const b=np(nodes[(i+d)%N]);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+        ctx.strokeStyle='rgba(240,185,11,0.05)'; ctx.lineWidth=1; ctx.stroke();
+      }
+    }
+    // a few cross links
+    [[0,7],[3,12],[9,17],[14,5],[18,10]].forEach(([i,j])=>{
+      const a=np(nodes[i]), b=np(nodes[j]);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+      ctx.strokeStyle='rgba(56,189,248,0.05)'; ctx.lineWidth=1; ctx.stroke();
+    });
+
+    // sweep beam
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(sweep);
+    const wg=ctx.createLinearGradient(0,0,RMAX,0);
+    wg.addColorStop(0,'rgba(52,211,153,0.18)');
+    wg.addColorStop(1,'rgba(52,211,153,0)');
+    ctx.fillStyle=wg;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,RMAX,-0.32,0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(52,211,153,0.5)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(RMAX,0); ctx.stroke();
+    ctx.restore();
+
+    // nodes
+    const sweepA=((sweep%(Math.PI*2))+Math.PI*2)%(Math.PI*2);
+    nodes.forEach(n=>{
+      const p=np(n);
+      let na=((n.a%(Math.PI*2))+Math.PI*2)%(Math.PI*2);
+      let diff=Math.abs(na-sweepA); if(diff>Math.PI) diff=Math.PI*2-diff;
+      const lit=Math.max(0, 1-diff/0.6);    // brighten if sweep near
+      const active=n.i===cur;
+      const sc=stColor(n.st);
+
+      if(active){
+        const pulse=0.5+0.5*Math.sin(f*0.14);
+        ctx.shadowColor='#F0B90B'; ctx.shadowBlur=18+pulse*10;
+        ctx.beginPath(); ctx.arc(p.x,p.y,11,0,7);
+        ctx.strokeStyle='#FFCF3F'; ctx.lineWidth=2; ctx.stroke(); ctx.shadowBlur=0;
+      }
+      const baseGlow = lit*12 + (n.st!=='ok'?8:0);
+      ctx.shadowColor = active?'#FFCF3F':(n.st!=='ok'?sc:'#34D399'); ctx.shadowBlur=active?16:baseGlow;
+      ctx.beginPath(); ctx.arc(p.x,p.y, active?6:4.5, 0,7);
+      ctx.fillStyle= active?'#FFF6D8':(n.st!=='ok'?sc:`rgba(52,211,153,${0.45+lit*0.55})`);
+      ctx.fill(); ctx.shadowBlur=0;
+
+      if(active || n.st!=='ok'){
+        ctx.font='8px monospace'; ctx.fillStyle=active?'#FFCF3F':sc;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        const lr=n.r+13;
+        ctx.fillText(n.nm, cx+Math.cos(n.a)*lr, cy+Math.sin(n.a)*lr);
+      }
+    });
+
+    // core
+    const cp=0.5+0.5*Math.sin(f*0.09);
+    const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,26+cp*5);
+    cg.addColorStop(0,'rgba(255,246,216,0.85)');
+    cg.addColorStop(0.5,'rgba(240,185,11,0.25)');
+    cg.addColorStop(1,'rgba(240,185,11,0)');
+    ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(cx,cy,26+cp*5,0,7); ctx.fill();
+
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='700 13px monospace'; ctx.fillStyle='#FFF6D8';
+    ctx.fillText('40,000,'+String(200+Math.floor(f/HOP)%800).padStart(3,'0'), cx, cy-1);
+    ctx.font='7.5px monospace'; ctx.fillStyle='#8a857c';
+    ctx.fillText('MEV 68.5% · 3.01s', cx, cy+13);
+
+    ctx.textAlign='left'; ctx.font='8.5px monospace'; ctx.fillStyle='#4a4843';
+    ctx.fillText('RADAR SCAN · '+N+' VALIDATORS', 16, 20);
+  });
+})();
+</script>
+</body>
+</html>

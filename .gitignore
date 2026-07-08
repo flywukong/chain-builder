@@ -1,0 +1,20 @@
+# deps & build
+node_modules/
+**/node_modules/
+frontend/dist/
+
+# secrets & env
+.env
+.env.local
+*.keter.json
+keter.json
+
+# runtime state (regenerates; label seeds live in code)
+backend/data/
+
+# dev scratch / tests with embedded endpoints
+backend/test-*.mjs
+
+# logs & os
+*.log
+.DS_Store

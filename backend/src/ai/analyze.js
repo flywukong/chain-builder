@@ -1,21 +1,41 @@
 /**
- * AI analysis backend. Two runtimes, picked at call time:
- *   - ANTHROPIC_API_KEY set  → official @anthropic-ai/sdk (server/production)
- *   - otherwise              → local Claude Code CLI `claude -p` (dev, logged-in)
+ * AI analysis backend — 可切换的 4 种运行时,由 AI_BACKEND 选择:
+ *   auto(默认)  → 有 ANTHROPIC_API_KEY 走 claude-api,否则 claude-cli
+ *   claude-cli   → 本地已登录的 Claude Code CLI `claude -p`(开发机)
+ *   claude-api   → 官方 @anthropic-ai/sdk(服务器,需 ANTHROPIC_API_KEY)
+ *   codex-cli    → 本地已登录的 Codex CLI `codex exec`(对比用,免 key)
+ *   codex-api    → OpenAI 兼容 API,Node raw fetch(需 OPENAI_API_KEY + OPENAI_MODEL)
+ *   codex-py     → OpenAI Python SDK(responses.create),Node 调 Python 脚本
+ *                  服务器 Node/glibc 有问题时用它,依赖只在 Python venv 里
  * Prompts carry explicit normal-range baselines so the model reports genuine
  * anomalies only — it must NOT manufacture "risks" out of in-range fluctuation.
  */
 
 import { spawn } from "child_process";
+import { fileURLToPath } from "url";
+import os from "os";
 import Anthropic from "@anthropic-ai/sdk";
 
+const BACKEND    = (process.env.AI_BACKEND || "auto").toLowerCase();
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
 const API_KEY    = process.env.ANTHROPIC_API_KEY || null;
 const MODEL      = process.env.ANTHROPIC_MODEL || "claude-opus-4-8";  // 可用 haiku/sonnet 降本
+const CODEX_BIN   = process.env.CODEX_BIN || "codex";
+const CODEX_MODEL = process.env.CODEX_MODEL || null;                  // 不设则用 codex 默认模型
+const OPENAI_KEY   = process.env.OPENAI_API_KEY || null;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.5";
+const OPENAI_BASE  = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+const PYTHON_BIN   = process.env.PYTHON_BIN || "python3";           // 服务器指到 venv:~/openai-venv/bin/python
+const OPENAI_PY    = fileURLToPath(new URL("./openai_client.py", import.meta.url));
 const TIMEOUT_MS = 180_000;
 
 let _client = null;
 const anthropic = () => (_client ??= new Anthropic());   // reads ANTHROPIC_API_KEY from env
+
+function resolveBackend() {
+  if (BACKEND !== "auto") return BACKEND;
+  return API_KEY ? "claude-api" : "claude-cli";
+}
 
 function buildPrompt(data) {
   return [
@@ -181,9 +201,95 @@ export async function runAsk(question, context) {
   return spawnClaude(prompt);
 }
 
-// 统一入口:有 API key 走 SDK(服务器),否则走本地已登录的 claude CLI(开发机)
+// 统一入口:按 AI_BACKEND 分发到 claude/codex × cli/api
 function spawnClaude(prompt, timeoutMs = TIMEOUT_MS) {
-  return API_KEY ? runViaApi(prompt, timeoutMs) : runViaCli(prompt, timeoutMs);
+  switch (resolveBackend()) {
+    case "claude-api": return runViaApi(prompt, timeoutMs);
+    case "codex-cli":  return runViaCodexCli(prompt, timeoutMs);
+    case "codex-api":  return runViaOpenAI(prompt, timeoutMs);
+    case "codex-py":   return runViaOpenAIPy(prompt, timeoutMs);
+    case "claude-cli":
+    default:           return runViaCli(prompt, timeoutMs);
+  }
+}
+
+// Codex CLI:codex exec --json,解析 JSONL 事件取最终 agent 消息(read-only + tmpdir 保证只答不改仓库)
+function runViaCodexCli(prompt, timeoutMs = TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    // --ignore-user-config:跳过 ~/.codex/config.toml(其 service_tier 等键可能被本版本拒),auth 仍从 CODEX_HOME 读
+    const args = ["exec", "--ignore-user-config", "--skip-git-repo-check", "--ephemeral", "-s", "read-only",
+      "--color", "never", "-C", os.tmpdir(), "--json"];
+    if (CODEX_MODEL) args.push("-m", CODEX_MODEL);
+    args.push("-");   // prompt 从 stdin 读
+    const child = spawn(CODEX_BIN, args, { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: { ...process.env } });
+    let out = "", err = "";
+    child.stdout.on("data", (d) => { out += d.toString(); });
+    child.stderr.on("data", (d) => { err += d.toString(); });
+    child.on("error", (e) => reject(new Error("codex spawn failed: " + e.message)));
+    child.on("close", (code) => {
+      const { text, error } = parseCodexJsonl(out);
+      if (text) return resolve(text);
+      const reason = error || err.trim() || `codex exited with code ${code}`;
+      console.error("[ai] codex code=%s reason=%s\n-- rawtail --\n%s", code, error, out.slice(-600));
+      reject(new Error(reason.slice(0, 800)));
+    });
+    child.stdin.write(prompt);
+    child.stdin.end();
+  });
+}
+
+// 容错解析 codex --json 的 JSONL:收集 agent 文本,捕获 error 事件
+function parseCodexJsonl(raw) {
+  let text = "", error = null;
+  for (const line of raw.split("\n")) {
+    const s = line.trim();
+    if (!s || s[0] !== "{") continue;
+    let ev; try { ev = JSON.parse(s); } catch { continue; }
+    const t = ev.type || ev.msg?.type || "";
+    if (/error/i.test(t) || ev.error) error = ev.message || ev.error?.message || ev.error || JSON.stringify(ev).slice(0, 200);
+    // 最终 agent 消息可能出现在多种字段(不同版本 schema)
+    const cand = ev.item?.text ?? ev.message?.text ?? ev.msg?.message ?? ev.text ??
+      (ev.item?.type === "agent_message" ? ev.item?.text : null) ??
+      (typeof ev.message === "string" ? ev.message : null);
+    if (typeof cand === "string" && cand.trim()) text = cand.trim();
+  }
+  return { text, error };
+}
+
+// OpenAI 兼容 API(codex-api):raw fetch,无额外依赖
+async function runViaOpenAI(prompt, timeoutMs = TIMEOUT_MS) {
+  if (!OPENAI_KEY) throw new Error("codex-api 需要 OPENAI_API_KEY");
+  if (!OPENAI_MODEL) throw new Error("codex-api 需要 OPENAI_MODEL(如 gpt-5.1 / gpt-5-codex)");
+  const r = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${OPENAI_KEY}` },
+    body: JSON.stringify({ model: OPENAI_MODEL, messages: [{ role: "user", content: prompt }] }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const j = await r.json();
+  const text = j.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error("OpenAI 返回空内容");
+  return text;
+}
+
+// OpenAI Python SDK(codex-py):Node 调 Python 脚本走 responses.create,依赖只在 venv 里
+function runViaOpenAIPy(prompt, timeoutMs = TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(PYTHON_BIN, [OPENAI_PY], { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: { ...process.env } });
+    let out = "", err = "";
+    child.stdout.on("data", (d) => { out += d.toString(); });
+    child.stderr.on("data", (d) => { err += d.toString(); });
+    child.on("error", (e) => reject(new Error("python spawn failed: " + e.message)));
+    child.on("close", (code) => {
+      const text = out.trim();
+      if (text && code === 0) return resolve(text);
+      console.error("[ai] openai-py code=%s\n%s", code, err.slice(-800));
+      reject(new Error((err.trim() || `python exited with code ${code}`).slice(-800)));
+    });
+    child.stdin.write(prompt);
+    child.stdin.end();
+  });
 }
 
 async function runViaApi(prompt, timeoutMs) {

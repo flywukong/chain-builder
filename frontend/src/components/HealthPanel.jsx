@@ -86,7 +86,7 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
   const cores = [
     { k: "流量", v: trafficHot ? "大流量" : "正常",
       sub: `Gas ${gasUtil}%`, tone: trafficHot ? "warn" : "ok" },
-    { k: "geth 最新版本", v: ver.latest ? "v" + ver.latest : "—", verCard: true,
+    { k: "Keter 节点 geth", v: ver.latest ? "v" + ver.latest : "—", verCard: true,
       sub: ver.latest ? null : "等待 keter",
       // tone 只看重点层(cabinet+candidate)的落后率
       tone: (() => {
@@ -220,7 +220,7 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
 
         <div className="hp-behind">
           <div className="hp-behind-head" onClick={() => setShowBehind((x) => !x)} role="button">
-            <span className="hp-behind-title">版本风险 · 落后节点 {ver.behind}</span>
+            <span className="hp-behind-title">Keter 节点版本风险 · 落后 {ver.behind}</span>
             <span className="hp-behind-caret">{showBehind ? "▾" : "▸"}</span>
           </div>
           {showBehind && (

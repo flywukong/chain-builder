@@ -55,8 +55,19 @@ PORT=8080
 BSC_RPC_URL=https://bsc-mainnet-ap.nodereal.io/v1/<key>
 BSC_WS_URL=wss://bsc-mainnet-ap.nodereal.io/ws/v1/<key>
 KETER_CONFIG_FILE=/etc/bnbchain-ops/keter.json   # JWT;建议申请服务账号 token(勿用个人长效 token)
-ANTHROPIC_API_KEY=<key>                          # 官方 SDK;ANTHROPIC_MODEL 可选(默认 claude-opus-4-8)
+AI_BACKEND=claude-api                            # claude-api / codex-api / codex-py(见下)
+ANTHROPIC_API_KEY=<key>                          # claude-api 用;ANTHROPIC_MODEL 可选(默认 claude-opus-4-8)
 ```
+
+**AI 后端可选(`AI_BACKEND`)**:
+- `claude-api`(默认推荐):官方 SDK + `ANTHROPIC_API_KEY`
+- `codex-api`:OpenAI 兼容 API,Node raw fetch + `OPENAI_API_KEY` / `OPENAI_MODEL`
+- `codex-py`:**Node 有问题(glibc 等)时用** —— 依赖只在 Python venv 里,Node 只负责 spawn:
+  ```bash
+  python3 -m venv ~/openai-venv && ~/openai-venv/bin/pip install -U openai
+  # .env: AI_BACKEND=codex-py  PYTHON_BIN=~/openai-venv/bin/python  OPENAI_API_KEY=<key>  OPENAI_MODEL=gpt-5.5
+  ```
+  出站需放行 `api.openai.com:443`。
 
 ## 5. 启动
 

@@ -13,8 +13,8 @@ function RingVersions({ mevStats }) {
   return (
     <div className="ring-versions">
       <div className="rv-head">
-        <span className="rv-title">全网 geth 版本</span>
-        <span className="rv-sub">{total} 验证者 · 出块 extraData</span>
+        <span className="rv-title">出块 validator 版本</span>
+        <span className="rv-sub">{total} 个出块 validator · 来自 extraData</span>
       </div>
       <div className="rv-bar">
         {versions.map((v) => (

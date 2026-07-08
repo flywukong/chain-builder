@@ -27,7 +27,7 @@ bash start.sh             # builds frontend, starts backend on :$PORT (default 8
 |-----|---------|
 | `BSC_RPC_URL` / `BSC_WS_URL` | chain data source (nodereal w/ key, or internal fullnode w/ `eth_subscribe newHeads`). Falls back to public `bsc-dataseed.bnbchain.org` (rate-limited, no WSS) |
 | `KETER_CONFIG_FILE` | keter metrics API auth (JSON w/ JWT); internal ELB only — without it the Monitor/Storage/Traffic keter panels are empty, the rest still works |
-| `ANTHROPIC_API_KEY` | AI analyses shell out to the `claude` CLI (`claude -p`); server needs it installed & authenticated |
+| `ANTHROPIC_API_KEY` | AI analyses use the official Anthropic SDK when set (server deploy). Unset → falls back to the local `claude` CLI (dev only). `ANTHROPIC_MODEL` overrides the default `claude-opus-4-8` |
 | `BSCSCAN_API_KEY` | optional — verified contract names for unknown addresses |
 | `PORT` | listen port (default 8080) |
 

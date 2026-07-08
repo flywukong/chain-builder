@@ -33,29 +33,29 @@ location / {
 |---|---|---|---|
 | BSC 主网 RPC + WSS | `bsc-mainnet-ap.nodereal.io` | 443 | HTTPS 与 WSS 同域;可用内网 fullnode 替代(需 `eth_subscribe newHeads`、`eth_getHeaderByNumber`、近数日区块体,8545/8546) |
 | Keter 指标 API | `keter-api.toolsapple.net` | 443 | 内网 ELB(ap-northeast-1),需内网 DNS 可解析 |
-| Anthropic API(AI 分析) | `api.anthropic.com` | 443 | claude CLI headless;不开通则仅 AI 按钮不可用,监控功能不受影响 |
+| Anthropic API(AI 分析) | `api.anthropic.com` | 443 | 官方 SDK(ANTHROPIC_API_KEY);不开通则仅 AI 按钮不可用,监控功能不受影响 |
 
 ## 3. 资源规格(基于本机实测)
 
 | 项 | 实测 | 建议 |
 |---|---|---|
-| 内存 | 后端稳态 ~200 MB;每个 claude AI 分析子进程运行期间(20~150s)额外 300~500 MB,并发最多 2-3 个 | **2 GB 起步 / 4 GB 舒适**;不启用 AI 则 512 MB 足够 |
-| 磁盘 | 应用+依赖 ~90 MB;运行数据 ~130 KB(24h 滚动有界);日志 ~1-3 MB/天 | **10 GB**;日志走 journald/logrotate;`~/.claude/` 会话记录每月清一次 |
-| CPU | 稳态极低(事件驱动 + 30s 轮询) | 2 vCPU |
+| 内存 | 后端稳态 ~200 MB;AI 分析走进程内 SDK(HTTP 到 api.anthropic.com,无子进程),峰值增量很小 | **1 GB 起步 / 2 GB 舒适** |
+| 磁盘 | 应用+依赖 ~120 MB;运行数据有界(txn 7d/latency 24h 等滚动 JSON,合计 <10 MB);日志 ~1-3 MB/天 | **5 GB**;日志走 journald/logrotate |
+| CPU | 稳态极低(事件驱动 + 30s 轮询 + 1min 全量交易采样) | 2 vCPU |
 
 无数据库;所有内存窗口/磁盘缓存均有界,不随运行时长增长。
 
 ## 4. 服务器环境与秘钥
 
-- Node.js ≥ 20;`npm i -g @anthropic-ai/claude-code`(AI 功能)
-- `backend/data/` 可写(latency/txpool 24h 滚动缓存,两个小 JSON)
+- Node.js ≥ 20。AI 分析用后端依赖 `@anthropic-ai/sdk`(随 `npm install` 装),**不需要**全局装 claude CLI
+- `backend/data/` 可写(txn/latency/txpool 等滚动缓存 + AI 学习的合约标签库)
 
 ```bash
 PORT=8080
 BSC_RPC_URL=https://bsc-mainnet-ap.nodereal.io/v1/<key>
 BSC_WS_URL=wss://bsc-mainnet-ap.nodereal.io/ws/v1/<key>
 KETER_CONFIG_FILE=/etc/bnbchain-ops/keter.json   # JWT;建议申请服务账号 token(勿用个人长效 token)
-ANTHROPIC_API_KEY=<key>                          # claude -p
+ANTHROPIC_API_KEY=<key>                          # 官方 SDK;ANTHROPIC_MODEL 可选(默认 claude-opus-4-8)
 ```
 
 ## 5. 启动

@@ -1,14 +1,21 @@
 /**
- * AI network analysis via the local Claude Code CLI (headless `claude -p`).
- * On-demand: summarize the last ~24h of monitoring data. The prompt carries
- * explicit normal-range baselines so the model reports genuine anomalies only —
- * it must NOT manufacture "risks" out of in-range fluctuation.
+ * AI analysis backend. Two runtimes, picked at call time:
+ *   - ANTHROPIC_API_KEY set  → official @anthropic-ai/sdk (server/production)
+ *   - otherwise              → local Claude Code CLI `claude -p` (dev, logged-in)
+ * Prompts carry explicit normal-range baselines so the model reports genuine
+ * anomalies only — it must NOT manufacture "risks" out of in-range fluctuation.
  */
 
 import { spawn } from "child_process";
+import Anthropic from "@anthropic-ai/sdk";
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude";
+const API_KEY    = process.env.ANTHROPIC_API_KEY || null;
+const MODEL      = process.env.ANTHROPIC_MODEL || "claude-opus-4-8";  // 可用 haiku/sonnet 降本
 const TIMEOUT_MS = 180_000;
+
+let _client = null;
+const anthropic = () => (_client ??= new Anthropic());   // reads ANTHROPIC_API_KEY from env
 
 function buildPrompt(data) {
   return [
@@ -174,7 +181,22 @@ export async function runAsk(question, context) {
   return spawnClaude(prompt);
 }
 
+// 统一入口:有 API key 走 SDK(服务器),否则走本地已登录的 claude CLI(开发机)
 function spawnClaude(prompt, timeoutMs = TIMEOUT_MS) {
+  return API_KEY ? runViaApi(prompt, timeoutMs) : runViaCli(prompt, timeoutMs);
+}
+
+async function runViaApi(prompt, timeoutMs) {
+  const resp = await anthropic().messages.create(
+    { model: MODEL, max_tokens: 4096, messages: [{ role: "user", content: prompt }] },
+    { timeout: timeoutMs }   // TS SDK timeout 单位是毫秒
+  );
+  const text = (resp.content ?? []).filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  if (!text) throw new Error("Anthropic API 返回空内容");
+  return text;
+}
+
+function runViaCli(prompt, timeoutMs = TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       CLAUDE_BIN,

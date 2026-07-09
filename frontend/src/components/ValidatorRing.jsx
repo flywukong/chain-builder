@@ -96,7 +96,8 @@ export default function ValidatorRing({ latestBlock, windowStats, mevStats, bloc
       canvas.width = W * dpr; canvas.height = H * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       cx = W / 2; cy = H * 0.5;
-      RX = W * 0.32;
+      const visualW = Math.min(W, 1180);
+      RX = visualW * 0.32;
       RY = Math.max(Math.min(RX * 0.56, H * 0.34), RX * 0.30);
     }
     resize();

@@ -1,6 +1,4 @@
 :root {
-  /* 界面缩放:默认 1 = 原始大小(笔记本用这个)。下面 @media 让更宽的屏自适应放大 */
-  --ui-zoom:  1;
   --bg:       #0b0a08;
   --bg2:      #14130f;
   --bg3:      #1d1b15;
@@ -17,11 +15,6 @@
   --font:     -apple-system, 'Helvetica Neue', sans-serif;
   --mono:     'SF Mono', 'Fira Code', monospace;
 }
-
-/* 宽屏自适应放大:笔记本(<1800px)保持原始 1×;屏越宽越大。断点/倍数按实测可调 */
-@media (min-width: 1800px) { :root { --ui-zoom: 1.2; } }
-@media (min-width: 2200px) { :root { --ui-zoom: 1.4; } }
-@media (min-width: 2560px) { :root { --ui-zoom: 1.6; } }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -55,9 +48,8 @@ body::before {
 /* ── Shell ── */
 .app-shell {
   display: flex;
-  zoom: var(--ui-zoom, 1);
-  width: calc(100vw / var(--ui-zoom, 1));
-  height: calc(100vh / var(--ui-zoom, 1));
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
 }
 

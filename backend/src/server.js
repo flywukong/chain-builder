@@ -288,35 +288,37 @@ app.register(async (fastify) => {
 });
 
 // REST endpoints (for initial page load)
+// keter 不可达时优雅降级:失败返回 null(前端组件均已用 ?. / ?? [] 兜底),避免刷 500
+const safe = (p) => Promise.resolve(p).then((x) => x, () => null);
 app.get("/api/slash",     async () => contracts.getSlashStatus());
-app.get("/api/nodes",     async () => latest.nodeStats ?? fetchNodeStats(cfg.keterConfigPath));
-app.get("/api/gas-used",  async () => fetchGasUsed(cfg.keterConfigPath));
+app.get("/api/nodes",     async () => latest.nodeStats ?? safe(fetchNodeStats(cfg.keterConfigPath)));
+app.get("/api/gas-used",  async () => safe(fetchGasUsed(cfg.keterConfigPath)));
 app.get("/api/latency",   async () => latencyStore.getView());
 app.get("/api/txpool",    async () => txpoolStore.getView());
 app.get("/api/empty-blocks", async () => emptyStore.view());
-app.get("/api/sync-errors", async () => latest.syncErrors ?? fetchSyncErrors(cfg.keterConfigPath));
+app.get("/api/sync-errors", async () => latest.syncErrors ?? safe(fetchSyncErrors(cfg.keterConfigPath)));
 app.get("/api/slash-events", async () => slashEvents.view());
 app.get("/api/db-stats", async (req) => {
   const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 24, 1), 168);
-  return fetchDbStats(cfg.keterConfigPath, hours);
+  return safe(fetchDbStats(cfg.keterConfigPath, hours));
 });
 let insertLatCache = { at: 0, hours: 0, data: null };
 app.get("/api/insert-latency", async (req) => {
   const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 24, 1), 72);
   if (insertLatCache.data && insertLatCache.hours === hours && Date.now() - insertLatCache.at < 55_000) return insertLatCache.data;
-  const data = await fetchInsertLatency(cfg.keterConfigPath, hours);
-  insertLatCache = { at: Date.now(), hours, data };
+  const data = await safe(fetchInsertLatency(cfg.keterConfigPath, hours));
+  if (data) insertLatCache = { at: Date.now(), hours, data };   // 只缓存成功结果,失败下次重试
   return data;
 });
-app.get("/api/reorg",     async () => latest.reorgTimeline ? { reorg24h: reorg24hFiltered(), source: "keter · ≥2节点" } : fetchReorgStats(cfg.keterConfigPath));
+app.get("/api/reorg",     async () => latest.reorgTimeline ? { reorg24h: reorg24hFiltered(), source: "keter · ≥2节点" } : safe(fetchReorgStats(cfg.keterConfigPath)));
 app.get("/api/reorg-events", async () => ({
   keterEvents: (latest.reorgTimeline?.events ?? []).slice(0, 10),   // 链级(≥2节点),小时粒度
   observed: reorgObs.view(),                                        // 本机 WS 观测,含精确高度
 }));
-app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? fetchReorgTimeline(cfg.keterConfigPath));
-app.get("/api/block-gas", async () => latest.blockGas ?? fetchBlockGas(cfg.keterConfigPath));
-app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? fetchTrafficTimeline(cfg.keterConfigPath));
-app.get("/api/disk",      async () => fetchDiskAlerts(cfg.keterConfigPath));
+app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReorgTimeline(cfg.keterConfigPath)));
+app.get("/api/block-gas", async () => latest.blockGas ?? safe(fetchBlockGas(cfg.keterConfigPath)));
+app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath)));
+app.get("/api/disk",      async () => safe(fetchDiskAlerts(cfg.keterConfigPath)));
 app.get("/api/window",    async () => windowStatsPlus());
 app.get("/api/blocks",    async () => streamer.window.slice(-120));   // recent blocks for ring/river polling
 app.get("/api/mev",       async () => mevAgg.getStats());

@@ -331,55 +331,32 @@ body::before {
 .health-panel .panel-header > span:first-child::before { height: 13px; }
 .health-panel .panel-header .sub { font-size: 10.5px; color: #6d675a; }
 .health-panel .hp-chain-chip { font-size: 11px; padding: 2.5px 11px; }
-.hp-chain-chip { margin-left: 8px; font-size: 9px; font-weight: 700; padding: 1.5px 8px; border-radius: 20px; letter-spacing: .5px; vertical-align: 1px; }
-.hp-chain-chip.ok   { color: var(--green); background: #07140d; border: 1px solid #1d5b3a; }
-.hp-chain-chip.warn { color: var(--orange); background: #1a1006; border: 1px solid #5b3a1d; }
-.hp-core { display: flex; flex-direction: column; gap: 2px; padding: 8px 9px; background: linear-gradient(180deg,#16140f,#110f0b); border: 1px solid #34290d; border-left: 2px solid var(--green); border-radius: 10px; }
-.hp-core.tone-warn { border-left-color: var(--orange); }
-.hp-core.tone-bad  { border-left-color: var(--red); }
-.hp-core-v { font-family: var(--mono); font-size: 15px; font-weight: 700; line-height: 1.05; white-space: nowrap; }
-.hp-core.tone-ok   .hp-core-v { color: var(--green);  text-shadow: 0 0 10px rgba(34,197,94,.45); }
-.hp-core.tone-warn .hp-core-v { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
-.hp-core.tone-bad  .hp-core-v { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
-.hp-core-k { font-size: 9px; color: var(--muted); letter-spacing: .3px; }
-.hp-core-sub { font-family: var(--mono); font-size: 8.5px; color: var(--dim); margin-top: 1px; }
-/* 版本卡:重点信息,渐变描边 + 发光 + 升级覆盖率进度条 */
-.hp-core-ver { border: 1px solid transparent; border-left-width: 2px; }
-.hp-core-ver.tone-warn {
-  background: linear-gradient(180deg, rgba(46,29,10,.92), rgba(22,14,6,.95)) padding-box,
-              linear-gradient(135deg, rgba(255,138,0,.85), rgba(255,159,28,.25) 55%, rgba(240,185,11,.55)) border-box;
-  box-shadow: 0 0 16px rgba(255,138,0,.18);
-}
-.hp-core-ver.tone-ok {
-  background: linear-gradient(180deg, rgba(10,36,22,.9), rgba(6,20,13,.95)) padding-box,
-              linear-gradient(135deg, rgba(34,197,94,.8), rgba(34,197,94,.2) 55%, rgba(240,185,11,.4)) border-box;
-  box-shadow: 0 0 16px rgba(34,197,94,.15);
-}
-.hp-core-ver .hp-core-v { font-size: 22px; }
-/* 占满一行:左侧版本号,右侧升级覆盖率 */
-.hp-core-ver { padding: 10px 14px; display: grid; grid-template-columns: auto 1fr; gap: 2px 20px; align-items: center; }
-.hp-ver-left { display: flex; flex-direction: column; gap: 2px; }
-.hp-core-ver .hp-ver-tiers { margin-top: 0; }
-.hp-core-ver .hp-ver-tier em { font-size: 9px; width: 62px; }
-.hp-core-ver .hp-ver-tier b { font-size: 9.5px; width: 38px; }
-.hp-core-ver .hp-ver-track { height: 5px; }
-.hp-core-ver .hp-core-sub { color: var(--muted); }
-.hp-ver-tiers { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
-.hp-ver-tier { display: flex; align-items: center; gap: 5px; }
-.hp-ver-tier em { font-style: normal; font-family: var(--mono); font-size: 8px; color: var(--gold); width: 52px; flex-shrink: 0; letter-spacing: .3px; }
-.hp-ver-tier b { font-family: var(--mono); font-size: 8.5px; font-weight: 600; color: var(--text); width: 30px; text-align: right; flex-shrink: 0; }
-.hp-ver-tier.dim em, .hp-ver-tier.dim b { color: var(--dim); }
-.hp-ver-tier.dim .hp-ver-fill { background: #4a463c; }
-.hp-ver-track { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.07); overflow: hidden; }
-.hp-ver-fill { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--orange), var(--gold)); transition: width .5s; }
-.hp-core-ver.tone-ok .hp-ver-fill { background: linear-gradient(90deg, var(--green), #6fe0a8); }
-.hp-behind-tier { font-family: var(--mono); font-size: 7.5px; font-weight: 700; letter-spacing: .4px; padding: 0 4px; border-radius: 3px; margin: 0 6px; }
+/* 两行纵向健康卡:链运行(链是否正常+异常项) / 节点版本(升级是否有风险) */
+.hp-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px;
+  background: linear-gradient(180deg,#16140f,#110f0b); border: 1px solid #26231a; border-left: 3px solid var(--green); }
+.hp-row.tone-warn { border-left-color: var(--orange); }
+.hp-row.tone-bad  { border-left-color: var(--red); }
+.hp-row-head { display: flex; align-items: baseline; gap: 10px; }
+.hp-row-k { font-size: 10.5px; color: var(--muted); letter-spacing: .3px; flex-shrink: 0; }
+.hp-row-v { font-family: var(--mono); font-size: 19px; font-weight: 700; line-height: 1; }
+.hp-row.tone-ok   .hp-row-v { color: var(--green);  text-shadow: 0 0 10px rgba(34,197,94,.45); }
+.hp-row.tone-warn .hp-row-v { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
+.hp-row.tone-bad  .hp-row-v { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
+.hp-row-aux { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--dim); }
+/* 版本层级覆盖:Cabinet 9/9 · Candidate 12/15 · Inactive 1/13 */
+.hp-tier-line { display: flex; gap: 16px; font-family: var(--mono); font-size: 10px; }
+.hp-tier { color: var(--muted); }
+.hp-tier b { font-weight: 600; }
+.hp-tier.full b { color: var(--green); }
+.hp-tier.part b { color: var(--orange); }
+.hp-tier.dim, .hp-tier.dim b { color: var(--dim); }
+.hp-behind-tier { font-family: var(--mono); font-size: 7.5px; font-weight: 700; letter-spacing: .4px; padding: 0 4px; border-radius: 3px; }
 .ht-cabinet   { color: var(--gold);  background: rgba(240,185,11,.12); border: 1px solid rgba(240,185,11,.3); }
 .ht-candidate { color: #38bdf8; background: rgba(56,189,248,.1); border: 1px solid rgba(56,189,248,.28); }
 .ht-inactive  { color: var(--dim); }
 
-/* 空块/Disk/Sync 三枚 severity chips:数值+标签连读,点开明细 */
-.hp-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; padding: 8px 0; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a; }
+/* 空块/Disk/Sync 三枚 severity chips:数值+标签连读,点开明细(在「链运行」卡内) */
+.hp-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .hp-chip { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 6px;
   border-radius: 8px; border: 1px solid; cursor: pointer; transition: all .15s; }
 .hp-chip b { font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1; }
@@ -411,9 +388,11 @@ body::before {
 .hp-behind-more:hover { color: var(--gold); border-color: rgba(240,185,11,.4); }
 .hp-behind-ok { font-size: 10px; color: var(--green); }
 .hp-behind-list { display: flex; flex-direction: column; gap: 3px; max-height: 236px; overflow: auto; }
-.hp-behind-row { display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 9.5px; background: #141414; border: 1px solid #222; border-radius: 4px; padding: 2px 7px; }
+/* 固定三列:IP 左 / tier 徽标居中列 / 版本右 —— 徽标不随 IP 长度漂移 */
+.hp-behind-row { display: grid; grid-template-columns: 1fr 64px 62px; align-items: center; font-family: var(--mono); font-size: 9.5px; background: #141414; border: 1px solid #222; border-radius: 4px; padding: 2px 7px; }
 .hp-behind-ip { color: var(--muted); }
-.hp-behind-ver { color: var(--orange); }
+.hp-behind-tier { justify-self: center; }
+.hp-behind-ver { color: var(--orange); text-align: right; }
 
 /* ── AI analysis panel ── */
 .ai-panel { min-height: 0; }

@@ -27,8 +27,13 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("uiZoomPref", String(zoomPref));
     const fit = () => {
-      const s = Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H);
-      const z = Math.min(2.6, Math.max(0.7, Math.min(2.2, Math.max(0.75, s)) * zoomPref));
+      const iw = window.innerWidth, ih = window.innerHeight;
+      const s = Math.min(iw / BASE_W, ih / BASE_H);
+      // 视距补偿:屏比基准大时超线性放大(s^1.35)——大屏通常看得更远,线性 fit 会显小。
+      // floor(iw/1150, ih/660)保证布局最小设计尺寸,不被放大挤破。
+      const boosted = s <= 1 ? s : Math.pow(s, 1.35);
+      const z0 = Math.min(boosted, iw / 1150, ih / 660, 2.2);
+      const z = Math.min(2.6, Math.max(0.7, Math.max(0.75, z0) * zoomPref));
       document.documentElement.style.setProperty("--ui-zoom", z.toFixed(4));
     };
     fit();

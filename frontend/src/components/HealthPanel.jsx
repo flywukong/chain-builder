@@ -49,7 +49,7 @@ function versionInfo(nodeStats) {
   return { latest, latestPct, total, behind: behindList.length, behindList, tiers };
 }
 
-export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool, reorgStats, syncErrors }) {
+export default function HealthPanel({ windowStats, nodeStats, diskAlerts, reorgStats, syncErrors }) {
   const [showAllBehind, setShowAllBehind] = useState(false);   // 默认只看风险 Top 5
   const [detail, setDetail] = useState(null);            // null | 'empty' | 'disk'
   const [emptyView, setEmptyView] = useState(null);      // /api/empty-blocks 结果
@@ -78,26 +78,18 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
   const reorg = reorgStats?.reorg24h ?? 0;                 // Keter ground truth (24h)
   // BSC nodes routinely sit at 85%+ disk (large chain data); only ≥90% warrants attention
   const disk = (diskAlerts ?? []).filter((d) => (d.usedPct ?? 0) >= 90).length;
-  const gasUtil = ws?.avgGasUtilPct ?? 0;
-  const trafficHot = gasUtil >= 90 || !!txpool?.anomalyNow;   // 复合口径:gas≥90% 或 pending>4000
   const ver = useMemo(() => versionInfo(nodeStats), [nodeStats]);
 
   // chain-level health = consensus liveness. Keter reorg is the ground truth,
   // tolerating normal micro-reorgs; disk/slash are node/validator sub-items.
   const chainWarn = reorg > REORG_ALERT;
 
-  const cores = [
-    { k: "流量", v: trafficHot ? "大流量" : "正常",
-      sub: `Gas ${gasUtil}%`, tone: trafficHot ? "warn" : "ok" },
-    { k: "Keter 节点 geth", v: ver.latest ? "v" + ver.latest : "—", verCard: true,
-      sub: ver.latest ? null : "等待 keter",
-      // tone 只看重点层(cabinet+candidate)的落后率
-      tone: (() => {
-        const c = ver.tiers.cabinet, cd = ver.tiers.candidate;
-        const tot = c.total + cd.total, ok = c.ok + cd.ok;
-        return tot && (tot - ok) / tot > 0.2 ? "warn" : "ok";
-      })() },
-  ];
+  // 版本卡 tone 只看重点层(cabinet+candidate)的落后率
+  const verTone = (() => {
+    const c = ver.tiers.cabinet, cd = ver.tiers.candidate;
+    const tot = c.total + cd.total, ok = c.ok + cd.ok;
+    return tot && (tot - ok) / tot > 0.2 ? "warn" : "ok";
+  })();
   const TIER_LABELS = [["cabinet", "Cabinet"], ["candidate", "Candidate"], ["inactive", "Inactive"]];
 
   const subs = [
@@ -115,28 +107,28 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
       </div>
       <div className="panel-body health-body">
         <div className="hp-cores">
-          {cores.map((c) => (
-            <div key={c.k} className={`hp-core tone-${c.tone} ${c.verCard ? "hp-core-ver" : ""}`}>
-              <span className="hp-core-v">{c.v}</span>
-              <span className="hp-core-k">{c.k}</span>
-              {c.verCard && ver.latest && (
-                <span className="hp-ver-tiers">
-                  {TIER_LABELS.map(([t, label]) => {
-                    const d = ver.tiers[t];
-                    if (!d.total) return null;
-                    return (
-                      <span key={t} className={`hp-ver-tier ${t === "inactive" ? "dim" : ""}`}>
-                        <em>{label}</em>
-                        <span className="hp-ver-track"><span className="hp-ver-fill" style={{ width: `${d.pct}%` }} /></span>
-                        <b>{d.ok}/{d.total}</b>
-                      </span>
-                    );
-                  })}
-                </span>
-              )}
-              {c.sub && <span className="hp-core-sub">{c.sub}</span>}
+          <div className={`hp-core hp-core-ver tone-${verTone}`}>
+            <div className="hp-ver-left">
+              <span className="hp-core-v">{ver.latest ? "v" + ver.latest : "—"}</span>
+              <span className="hp-core-k">Keter 节点 geth</span>
+              {!ver.latest && <span className="hp-core-sub">等待 keter</span>}
             </div>
-          ))}
+            {ver.latest && (
+              <span className="hp-ver-tiers">
+                {TIER_LABELS.map(([t, label]) => {
+                  const d = ver.tiers[t];
+                  if (!d.total) return null;
+                  return (
+                    <span key={t} className={`hp-ver-tier ${t === "inactive" ? "dim" : ""}`}>
+                      <em>{label}</em>
+                      <span className="hp-ver-track"><span className="hp-ver-fill" style={{ width: `${d.pct}%` }} /></span>
+                      <b>{d.ok}/{d.total}</b>
+                    </span>
+                  );
+                })}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="hp-chips">

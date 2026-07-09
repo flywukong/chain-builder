@@ -41,8 +41,8 @@ function SafetyEventsCard({ slashStatus, slashEvents, reorgTimeline, trafficTime
       icon: "🌊", label: `大流量 · 近 7 天`, nav: "traffic",
       val: liveHot ? "进行中" : `${traffic7d} 次`, tone: traffic7d > 0 || liveHot ? "warn" : "ok",
       sub: liveHot ? (txpool?.anomalyNow ? `pending ${txpool.current?.toLocaleString()} 超阈` : `Gas ${gasUtil}% ≥ ${hotPct}%`)
-        : trafficLast ? `最近 ${fmtDay(trafficLast.peakT)} · ${epDesc(trafficLast)}`
-        : `pending>4000 或 gas≥${hotPct}% · 30d 无`,
+        : trafficLast ? `当前 Gas ${gasUtil ?? "--"}% 正常 · 最近 ${fmtDay(trafficLast.peakT)} · ${epDesc(trafficLast)}`
+        : `当前 Gas ${gasUtil ?? "--"}% 正常 · 30d 无大流量`,
     },
   ];
 
@@ -87,7 +87,6 @@ export default function HomePage({ state, onNav }) {
             slashStatus={state.slashStatus}
             nodeStats={state.nodeStats}
             diskAlerts={state.diskAlerts}
-            txpool={tx}
             reorgStats={state.reorgStats}
             syncErrors={state.syncErrors}
           />

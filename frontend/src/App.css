@@ -325,7 +325,7 @@ body::before {
 
 /* ── Health overview panel (home right) ── */
 .health-body { padding: 9px 10px; display: flex; flex-direction: column; gap: 9px; overflow: auto; }
-.hp-cores { display: grid; grid-template-columns: 1fr 1.6fr; gap: 6px; }
+.hp-cores { display: grid; grid-template-columns: 1fr; gap: 6px; }
 /* 健康总览头部整体放大一档,更醒目 */
 .health-panel .panel-header { font-size: 13px; color: #c9c2ad; padding: 10px 12px 8px; }
 .health-panel .panel-header > span:first-child::before { height: 13px; }
@@ -356,7 +356,10 @@ body::before {
   box-shadow: 0 0 16px rgba(34,197,94,.15);
 }
 .hp-core-ver .hp-core-v { font-size: 22px; }
-.hp-core-ver { padding: 10px 12px; }
+/* 占满一行:左侧版本号,右侧升级覆盖率 */
+.hp-core-ver { padding: 10px 14px; display: grid; grid-template-columns: auto 1fr; gap: 2px 20px; align-items: center; }
+.hp-ver-left { display: flex; flex-direction: column; gap: 2px; }
+.hp-core-ver .hp-ver-tiers { margin-top: 0; }
 .hp-core-ver .hp-ver-tier em { font-size: 9px; width: 62px; }
 .hp-core-ver .hp-ver-tier b { font-size: 9.5px; width: 38px; }
 .hp-core-ver .hp-ver-track { height: 5px; }

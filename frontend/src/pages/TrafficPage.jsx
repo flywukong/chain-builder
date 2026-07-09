@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import GasPanel from "../components/GasPanel.jsx";
 import TxpoolPanel from "../components/TxpoolPanel.jsx";
 
+const API = import.meta.env.VITE_API_BASE ?? "";
 const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:00`; };
 const fmtDay = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()}`; };
 
@@ -137,26 +138,52 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
 // ── 流量历史面板:范围切换 + pending/gas 双图 + 事件列表 ──
 const RANGES = [5, 7, 10, 30];
 
-// 单类大流量事件列表(pending 与 gas 独立展示,只读)
-function EventList({ title, episodes, metric, emptyText }) {
+// 单类大流量事件列表(pending 与 gas 独立展示),每行可触发 AI 归因
+function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, busyLabel }) {
   return (
     <div className="tf-evgroup">
       <div className="re-title">{title}</div>
       {episodes.length === 0
         ? <div className="re-empty">✓ {emptyText}</div>
-        : [...episodes].reverse().map((e) => (
-            <div key={e.start} className="re-row">
-              <span className="re-time">{fmtT(e.start)}</span>
-              <span className="re-cnt">{metric(e)}</span>
-              <span className="re-orph">{e.peakGasM}M</span>
-            </div>
-          ))}
+        : [...episodes].reverse().map((e) => {
+            const busy = loading && busyLabel === fmtT(e.start);
+            return (
+              <div key={e.start} className="re-row">
+                <span className="re-time">{fmtT(e.start)}</span>
+                <span className="re-cnt">{metric(e)}</span>
+                <span className="re-orph">{e.peakGasM}M</span>
+                <button className={`tf-ep-btn ${busy ? "busy" : ""}`} disabled={loading} onClick={() => onAnalyze?.(e)}>
+                  {busy ? "分析中…↓" : "⚡ 分析"}
+                </button>
+              </div>
+            );
+          })}
     </div>
   );
 }
 
 function TrafficHistoryPanel({ tl }) {
   const [rangeDays, setRangeDays] = useState(7);
+  // 事件行「分析」的独立结果区(不依赖已移除的 AI 面板)
+  const [ep, setEp] = useState({ loading: false, label: null, text: null, at: null, err: null });
+
+  const analyze = async (e) => {
+    if (ep.loading) return;
+    const label = fmtT(e.start);
+    setEp({ loading: true, label, text: null, at: null, err: null });
+    setTimeout(() => document.getElementById("tf-ep-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+    try {
+      const r = await fetch(API + "/api/ai/traffic", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ episodeStart: e.start }),
+      });
+      const d = await r.json();
+      if (d.error) setEp({ loading: false, label, text: null, at: null, err: d.error });
+      else if (d.running) setEp({ loading: false, label, text: null, at: null, err: "已有分析进行中，请稍候" });
+      else setEp({ loading: false, label, text: d.text, at: d.at, err: null });
+    } catch (err) { setEp({ loading: false, label, text: null, at: null, err: String(err) }); }
+  };
   const sum = tl?.summary;
   const thr = tl?.threshold ?? 4000;
   const hotPct = tl?.hotPct ?? 90;
@@ -202,14 +229,34 @@ function TrafficHistoryPanel({ tl }) {
               title={`Pending 拥堵事件(pending>${thr/1000}k)`}
               episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending"))}
               metric={(e) => e.peakPending.toLocaleString()}
-              emptyText="30d 内无 pending 拥堵" />
+              emptyText="30d 内无 pending 拥堵"
+              onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
             <EventList
               title={`Gas 高占用事件(gas≥${hotPct}%)`}
               episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas"))}
               metric={(e) => `${e.peakGasPct}%`}
-              emptyText={`30d 内无 gas≥${hotPct}%`} />
+              emptyText={`30d 内无 gas≥${hotPct}%`}
+              onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
           </div>
         </div>
+
+        {(ep.loading || ep.text || ep.err) && (
+          <div className="tf-ep-result" id="tf-ep-result">
+            <div className="tf-ep-head">
+              <span>🤖 事件归因 · {ep.label}</span>
+              {ep.at && <em className="ai-at">{new Date(ep.at).toLocaleTimeString()}</em>}
+              {!ep.loading && <button className="tf-ep-close" onClick={() => setEp({ loading: false, label: null, text: null, at: null, err: null })}>×</button>}
+            </div>
+            {ep.loading && (
+              <div className="tf-ai-loading">
+                <span className="tf-ai-spin" />
+                <span>claude 分析中…目标事件 {ep.label},链上取证采样历史区块归因合约,约 30–40s</span>
+              </div>
+            )}
+            {ep.err && <div className="ai-err">⚠ {ep.err}</div>}
+            {ep.text && <div className="ai-result">{ep.text}</div>}
+          </div>
+        )}
       </div>
     </div>
   );

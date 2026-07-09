@@ -967,6 +967,13 @@ body::before {
 .traffic-stat.hot b { color: var(--orange); }
 .tf-evgroup { display: flex; flex-direction: column; gap: 4px; }
 .tf-evgroup + .tf-evgroup { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1d1b15; }
+/* 事件行「⚡分析」的内联结果区 */
+.tf-ep-result { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: rgba(240,185,11,.03); border: 1px solid #2a2415; border-radius: 8px; }
+.tf-ep-head { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 700; color: var(--gold); }
+.tf-ep-head .ai-at { font-weight: 400; }
+.tf-ep-close { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; }
+.tf-ep-close:hover { color: var(--text); }
+.tf-ep-result .ai-result { max-height: 300px; }
 .tf-panel { }
 .tf-body { display: flex; flex-direction: column; gap: 9px; padding: 10px 12px; }
 .tf-chips { grid-template-columns: repeat(5, 1fr); }

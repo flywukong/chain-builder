@@ -349,7 +349,7 @@ body::before {
 .hp-row .hp-row-v.t-warn { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
 .hp-row .hp-row-v.t-bad  { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
 /* 节点版本卡:重点信息,整体放大一档 + 渐变描边发光 */
-.hp-row-ver { padding: 12px 14px; gap: 10px; border: 1px solid transparent; border-left-width: 3px; }
+.hp-row-ver { padding: 18px 16px; gap: 16px; border: 1px solid transparent; border-left-width: 3px; }
 .hp-row-ver.tone-ok {
   background: linear-gradient(180deg, rgba(10,36,22,.9), rgba(6,20,13,.95)) padding-box,
               linear-gradient(135deg, rgba(34,197,94,.8), rgba(34,197,94,.2) 55%, rgba(240,185,11,.4)) border-box;
@@ -364,14 +364,14 @@ body::before {
 .hp-row-ver .hp-row-v { font-size: 26px; }
 .hp-row-ver .hp-row-aux { font-size: 11.5px; color: var(--muted); }
 /* 版本层级覆盖:三行,label + 进度条 + 数字 */
-.hp-tier-rows { display: flex; flex-direction: column; gap: 7px; }
+.hp-tier-rows { display: flex; flex-direction: column; gap: 13px; }
 .hp-tier-row { display: flex; align-items: center; gap: 9px; font-family: var(--mono); }
 .hp-tier-row em { font-style: normal; font-size: 11px; color: var(--gold); width: 82px; flex-shrink: 0; letter-spacing: .3px; }
 .hp-tier-row b { font-size: 12px; font-weight: 700; color: var(--text); width: 48px; text-align: right; flex-shrink: 0; }
 .hp-tier-row.full b { color: var(--green); }
 .hp-tier-row.part b { color: var(--orange); }
 .hp-tier-row.dim em, .hp-tier-row.dim b { color: var(--dim); }
-.hp-tier-track { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.hp-tier-track { flex: 1; height: 7px; border-radius: 3.5px; background: rgba(255,255,255,.08); overflow: hidden; }
 .hp-tier-fill { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--green), #6fe0a8); transition: width .5s; }
 .hp-tier-row.part .hp-tier-fill { background: linear-gradient(90deg, var(--orange), var(--gold)); }
 .hp-tier-row.dim .hp-tier-fill { background: #4a463c; }

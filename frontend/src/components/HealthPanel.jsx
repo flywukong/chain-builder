@@ -47,7 +47,7 @@ function versionInfo(nodeStats) {
 }
 
 export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats, syncErrors }) {
-  const [showAllBehind, setShowAllBehind] = useState(false);   // 默认只看风险 Top 5
+  const [showAllBehind, setShowAllBehind] = useState(false);   // 默认只看风险 Top 3
   const [showSync, setShowSync] = useState(false);
 
   const ws = windowStats;
@@ -149,13 +149,13 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
         <div className="hp-behind">
           <div className="hp-behind-head">
             <span className="hp-behind-title">Keter 节点版本风险 · 落后 {ver.behind}</span>
-            {ver.behind > 0 && <span className="hp-behind-hint">风险 Top {Math.min(ver.behind, 5)}</span>}
+            {ver.behind > 0 && <span className="hp-behind-hint">风险 Top {Math.min(ver.behind, 3)}</span>}
           </div>
           {ver.behind === 0
             ? <div className="hp-behind-ok">✓ 全部节点已是最新版 v{ver.latest}</div>
             : <>
                 <div className="hp-behind-list">
-                  {(showAllBehind ? ver.behindList : ver.behindList.slice(0, 5)).map((b, i) => (
+                  {(showAllBehind ? ver.behindList : ver.behindList.slice(0, 3)).map((b, i) => (
                     <div key={i} className="hp-behind-row">
                       <span className="hp-behind-ip">{b.ip}</span>
                       <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : b.ver === "unknown" ? "?" : "—"}</span>
@@ -163,7 +163,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
                     </div>
                   ))}
                 </div>
-                {ver.behind > 5 && (
+                {ver.behind > 3 && (
                   <button className="hp-behind-more" onClick={() => setShowAllBehind((x) => !x)}>
                     {showAllBehind ? "收起 ▴" : `展开全部 ${ver.behind} ▾`}
                   </button>

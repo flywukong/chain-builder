@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import GasPanel from "../components/GasPanel.jsx";
 import TxpoolPanel from "../components/TxpoolPanel.jsx";
 
-const API = import.meta.env.VITE_API_BASE ?? "";
 const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:00`; };
 const fmtDay = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()}`; };
 
@@ -136,7 +135,25 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
 // ── 流量历史面板:范围切换 + pending/gas 双图 + 事件列表 ──
 const RANGES = [5, 7, 10, 30];
 
-function TrafficHistoryPanel({ tl, onAnalyzeEpisode, aiLoading, aiEpLabel }) {
+// 单类大流量事件列表(pending 与 gas 独立展示,只读)
+function EventList({ title, episodes, metric, emptyText }) {
+  return (
+    <div className="tf-evgroup">
+      <div className="re-title">{title}</div>
+      {episodes.length === 0
+        ? <div className="re-empty">✓ {emptyText}</div>
+        : [...episodes].reverse().map((e) => (
+            <div key={e.start} className="re-row">
+              <span className="re-time">{fmtT(e.start)}</span>
+              <span className="re-cnt">{metric(e)}</span>
+              <span className="re-orph">{e.peakGasM}M</span>
+            </div>
+          ))}
+    </div>
+  );
+}
+
+function TrafficHistoryPanel({ tl }) {
   const [rangeDays, setRangeDays] = useState(7);
   const sum = tl?.summary;
   const thr = tl?.threshold ?? 4000;
@@ -179,91 +196,18 @@ function TrafficHistoryPanel({ tl, onAnalyzeEpisode, aiLoading, aiEpLabel }) {
               label={`Gas 利用率(小时均值 · 阈值 ${hotPct}% · 上限 140M)`} fmtV={(v) => `${v}`} />
           </div>
           <div className="reorg-events tf-events">
-            <div className="re-title">大流量事件(pending&gt;{(thr/1000)}k 或 gas≥{hotPct}%)</div>
-            {(tl?.episodes ?? []).length === 0
-              ? <div className="re-empty">✓ 30d 内无大流量</div>
-              : [...tl.episodes].reverse().map((e) => {
-                  const busy = aiLoading && aiEpLabel === fmtT(e.start);
-                  return (
-                    <div key={e.start} className="re-row">
-                      <span className="re-time">{fmtT(e.start)}</span>
-                      <span className="re-cnt">{e.trigger?.includes("pending") ? e.peakPending.toLocaleString() : `${e.peakGasPct}%`}</span>
-                      <span className="re-orph">{e.peakGasM}M</span>
-                      <span className="re-nodes">{e.trigger}</span>
-                      <button className={`tf-ep-btn ${busy ? "busy" : ""}`} disabled={aiLoading} onClick={() => onAnalyzeEpisode?.(e)}>
-                        {busy ? "分析中…↓" : "⚡ 分析"}
-                      </button>
-                    </div>
-                  );
-                })}
+            <EventList
+              title={`Pending 拥堵事件(pending>${thr/1000}k)`}
+              episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending"))}
+              metric={(e) => e.peakPending.toLocaleString()}
+              emptyText="30d 内无 pending 拥堵" />
+            <EventList
+              title={`Gas 高占用事件(gas≥${hotPct}%)`}
+              episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas"))}
+              metric={(e) => `${e.peakGasPct}%`}
+              emptyText={`30d 内无 gas≥${hotPct}%`} />
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── AI 分析(两个按钮 + 事件行「分析」共用一个结果区)──
-function useTrafficAi() {
-  const [s, setS] = useState({ key: null, loading: false, text: null, at: null, err: null, epLabel: null });
-
-  useEffect(() => {
-    Promise.all([
-      fetch(API + "/api/ai/traffic").then(r => r.json()).catch(() => null),
-      fetch(API + "/api/ai/txpool").then(r => r.json()).catch(() => null),
-    ]).then(([a, b]) => {
-      const best = [ {k:"traffic",d:a}, {k:"txpool",d:b} ].filter(x => x.d?.text).sort((x,y) => (y.d.at??0)-(x.d.at??0))[0];
-      if (best) setS({ key: best.k, loading: false, text: best.d.text, at: best.d.at, err: null, epLabel: null });
-    });
-  }, []);
-
-  const run = async (key, path, body = null, epLabel = null) => {
-    setS({ key, loading: true, text: null, at: null, err: null, epLabel });
-    try {
-      const r = await fetch(API + path, {
-        method: "POST",
-        ...(body ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}),
-      });
-      const d = await r.json();
-      if (d.error) setS({ key, loading: false, text: null, at: null, err: d.error, epLabel });
-      else if (d.running) setS((x) => ({ ...x, loading: false, err: "已有分析进行中，请稍候" }));
-      else setS({ key, loading: false, text: d.text, at: d.at, err: null, epLabel });
-    } catch (e) { setS({ key, loading: false, text: null, at: null, err: String(e), epLabel }); }
-  };
-
-  const runEpisode = (e) => run("traffic", "/api/ai/traffic", { episodeStart: e.start }, fmtT(e.start));
-  return { s, run, runEpisode };
-}
-
-function AiBox({ ai }) {
-  const { s, run } = ai;
-  const TITLES = { traffic: "大流量分析", txpool: "TxPool 拥堵诊断" };
-  return (
-    <div className="panel tf-ai" id="tf-ai-box">
-      <div className="panel-header">
-        <span>🤖 AI 流量分析</span>
-        <span className="sub">claude code · 事件归因到合约</span>
-      </div>
-      <div className="panel-body tf-ai-body">
-        <div className="tf-ai-btns">
-          <button className="st-auto-btn" disabled={s.loading} onClick={() => run("traffic", "/api/ai/traffic")}>
-            {s.loading && s.key === "traffic" ? "分析中…约 40s" : "⚡ 大流量分析"}
-          </button>
-          <button className="st-auto-btn" disabled={s.loading} onClick={() => run("txpool", "/api/ai/txpool")}>
-            {s.loading && s.key === "txpool" ? "分析中…约 30s" : "🚦 TxPool 拥堵诊断"}
-          </button>
-          {s.at && <span className="ai-at">{TITLES[s.key]}{s.epLabel ? ` · 事件 ${s.epLabel}` : ""} · {new Date(s.at).toLocaleTimeString()}</span>}
-        </div>
-        {s.err && <div className="ai-err">⚠ {s.err}</div>}
-        {s.text
-          ? <div className="ai-result tf-ai-result">{s.text}</div>
-          : !s.loading && <div className="ai-empty">「大流量分析」定位最近一次大流量事件;事件列表每行「⚡分析」针对该次事件的高度区间采样归因;「拥堵诊断」判断当前 TxPool 形态</div>}
-        {s.loading && (
-          <div className="tf-ai-loading">
-            <span className="tf-ai-spin" />
-            <span>claude 分析中…{s.epLabel ? ` 目标事件 ${s.epLabel},` : ""} 链上取证采样 8 个历史区块归因合约,约 30–40s</span>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -273,40 +217,33 @@ export default function TrafficPage({ state }) {
   const util = state.windowStats?.avgGasUtilPct ?? 0;
   const hotPct = state.trafficTimeline?.hotPct ?? 90;
   const tx = state.txpool;
-  const high = util >= hotPct || !!tx?.anomalyNow;   // 复合口径
-  const ai = useTrafficAi();
-
-  // 点击事件行「分析」:触发后平滑滚到结果区,避免"点了没反应"的错觉
-  const analyzeEpisode = (e) => {
-    ai.runEpisode(e);
-    setTimeout(() => document.getElementById("tf-ai-box")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-  };
+  const pendingHot = !!tx?.anomalyNow;   // pending 拥堵(独立判断)
+  const gasHot = util >= hotPct;         // gas 高占用(独立判断)
 
   return (
     <div className="subpage">
       <div className="subpage-head">
         <div>
           <h1>🌊 流量分析</h1>
-          <p>大流量 = pending&gt;4000 或 gas≥{hotPct}% · 30d 小时级历史 · AI 归因</p>
+          <p>pending 拥堵(&gt;4000)与 gas 高占用(≥{hotPct}%)分别统计 · 30d 小时级历史</p>
         </div>
       </div>
 
       <div className="subpage-body">
-        {high ? (
-          <div className="traffic-alert">
-            ⚠ 检测到大流量
-            {tx?.anomalyNow && ` —— pending ${tx.current?.toLocaleString()} > ${tx.threshold?.toLocaleString()}`}
-            {util >= hotPct && ` —— Gas 利用率 ${util}% ≥ ${hotPct}%`}
-            ，可点击「大流量分析」归因
+        <div className="traffic-status2">
+          <div className={`traffic-stat ${pendingHot ? "hot" : "ok"}`}>
+            <b>{pendingHot ? "⚠ Pending 拥堵" : "✓ Pending 正常"}</b>
+            <em>pending {tx?.current?.toLocaleString() ?? "--"}{pendingHot && tx?.threshold ? ` > ${tx.threshold.toLocaleString()}` : ""}</em>
           </div>
-        ) : (
-          <div className="traffic-ok">✓ 当前无大流量（pending {tx?.current?.toLocaleString() ?? "--"} · Gas {util}%）</div>
-        )}
+          <div className={`traffic-stat ${gasHot ? "hot" : "ok"}`}>
+            <b>{gasHot ? "⚠ Gas 高占用" : "✓ Gas 正常"}</b>
+            <em>Gas 利用率 {util}%{gasHot ? ` ≥ ${hotPct}%` : ""}</em>
+          </div>
+        </div>
 
-        <TrafficHistoryPanel tl={state.trafficTimeline} onAnalyzeEpisode={analyzeEpisode} aiLoading={ai.s.loading} aiEpLabel={ai.s.epLabel} />
+        <TrafficHistoryPanel tl={state.trafficTimeline} />
 
         <div className="tf-row2">
-          <AiBox ai={ai} />
           <div className="traffic-cell"><GasPanel gasUsed={state.gasUsed} windowStats={state.windowStats} /></div>
           <div className="traffic-cell"><TxpoolPanel txpool={tx} /></div>
         </div>

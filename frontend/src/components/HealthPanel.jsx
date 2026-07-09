@@ -105,7 +105,7 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
   return (
     <div className="panel health-panel">
       <div className="panel-header">
-        <span>健康总览</span>
+        <span>内部节点健康总览</span>
         <span className="sub">{ver.total} nodes</span>
       </div>
       <div className="panel-body health-body">

@@ -62,7 +62,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
     gasUtil >= 90 ? { v: "超大流量", tone: "bad" } :
     gasUtil >= 60 ? { v: "大流量", tone: "warn" } :
     gasUtil >= 30 ? { v: "中等", tone: "mid" } :
-    { v: "低 Gas", tone: "ok" };
+    { v: "低", tone: "ok" };
   traffic.aux = `Gas ${gasUtil}%`;
   if (txpool?.anomalyNow) {   // pending 积压是独立拥堵信号,叠加提示
     traffic.aux = `pending ${txpool.current?.toLocaleString()} · Gas ${gasUtil}%`;

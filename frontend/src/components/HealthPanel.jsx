@@ -127,21 +127,23 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
         </div>
 
         {/* 第二行:节点版本是否需要处理 → 下方列表看哪些落后 */}
-        <div className={`hp-row tone-${verTone}`}>
+        <div className={`hp-row hp-row-ver tone-${verTone}`}>
           <div className="hp-row-head">
             <span className="hp-row-k">节点版本</span>
             <span className="hp-row-v">{ver.latest ? "v" + ver.latest : "—"}</span>
             <span className="hp-row-aux">{ver.latest ? `重点覆盖 ${keyOk}/${keyTot}` : "等待 keter"}</span>
           </div>
           {ver.latest && (
-            <div className="hp-tier-line">
+            <div className="hp-tier-rows">
               {TIER_LABELS.map(([t, label]) => {
                 const d = ver.tiers[t];
                 if (!d.total) return null;
                 return (
-                  <span key={t} className={`hp-tier ${t === "inactive" ? "dim" : d.ok === d.total ? "full" : "part"}`}>
-                    {label} <b>{d.ok}/{d.total}</b>
-                  </span>
+                  <div key={t} className={`hp-tier-row ${t === "inactive" ? "dim" : d.ok === d.total ? "full" : "part"}`}>
+                    <em>{label}</em>
+                    <span className="hp-tier-track"><span className="hp-tier-fill" style={{ width: `${d.pct}%` }} /></span>
+                    <b>{d.ok}/{d.total}</b>
+                  </div>
                 );
               })}
             </div>

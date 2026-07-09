@@ -149,9 +149,12 @@ export default function LatencyPanel() {
 
   const onMove = (e) => {
     if (!d?.times?.length) return;
-    const rect = canvasRef.current.getBoundingClientRect();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const sx = rect.width / (canvas.offsetWidth || rect.width) || 1;   // 界面 zoom 系数
+    const x = (e.clientX - rect.left) / sx;                            // 换算回设计 px
     const padL = 40, padR = 10;
-    const f = (e.clientX - rect.left - padL) / Math.max(rect.width - padL - padR, 1);
+    const f = (x - padL) / Math.max(canvas.offsetWidth - padL - padR, 1);
     if (f < 0 || f > 1) { setHover(null); return; }
     const t0 = d.times[0], t1 = d.times[d.times.length - 1];
     const target = t0 + f * (t1 - t0);

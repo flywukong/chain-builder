@@ -46,10 +46,13 @@ body::before {
 ::-webkit-scrollbar-thumb:hover { background: #3a3527; }
 
 /* ── Shell ── */
+/* fit-to-screen:--ui-zoom 由 App.jsx 按 视口/基准画布(1440×780) 连续计算;
+   zoom 放大 × 逆向宽高 = 任何屏都按同一比例精确铺满,无断点 */
 .app-shell {
   display: flex;
-  width: 100vw;
-  height: 100vh;
+  zoom: var(--ui-zoom, 1);
+  width: calc(100vw / var(--ui-zoom, 1));
+  height: calc(100vh / var(--ui-zoom, 1));
   overflow: hidden;
 }
 
@@ -863,6 +866,14 @@ body::before {
 .topbar-dot   { width: 7px; height: 7px; border-radius: 50%; }
 .dot-ok       { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .dot-err      { background: var(--red);   box-shadow: 0 0 5px var(--red); }
+/* 界面大小 A−/A+(个人偏好,localStorage 记忆) */
+.zoom-ctl { display: flex; align-items: center; gap: 3px; margin-left: 2px; }
+.zoom-ctl button { width: 17px; height: 17px; display: grid; place-items: center; cursor: pointer;
+  background: #14120c; border: 1px solid #26231a; border-radius: 4px; color: var(--muted);
+  font-size: 11px; line-height: 1; transition: all .15s; }
+.zoom-ctl button:hover { color: var(--gold); border-color: rgba(240,185,11,.5); }
+.zc-val { font-family: var(--mono); font-size: 8.5px; color: var(--muted); min-width: 30px; text-align: center; cursor: pointer; }
+.zc-val:hover { color: var(--text); }
 
 /* ── ValidatorGrid ── */
 .validator-panel { }

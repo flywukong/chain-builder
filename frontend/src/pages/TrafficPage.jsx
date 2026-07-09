@@ -118,9 +118,11 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
     const canvas = ref.current;
     if (!canvas || !times?.length) return;
     const rect = canvas.getBoundingClientRect();
+    const sx = rect.width / (canvas.offsetWidth || rect.width) || 1;   // 界面 zoom 系数
+    const x = (e.clientX - rect.left) / sx;                            // 换算回设计 px
     const padL = 44, padR = 10;
-    const iw = rect.width - padL - padR;
-    const i = Math.round(((e.clientX - rect.left - padL) / Math.max(iw, 1)) * (times.length - 1));
+    const iw = canvas.offsetWidth - padL - padR;
+    const i = Math.round(((x - padL) / Math.max(iw, 1)) * (times.length - 1));
     setHover({ i: Math.min(Math.max(i, 0), times.length - 1) });
   };
 

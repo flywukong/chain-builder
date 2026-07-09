@@ -1,4 +1,4 @@
-export default function Topbar({ latestBlock, windowStats, mevStats, connected, page }) {
+export default function Topbar({ latestBlock, windowStats, mevStats, connected, page, zoomPref = 1, onZoomPref }) {
   // MEV% from the 2000-block aggregator — same source as the MEV page, so the
   // headline never contradicts the local-block count shown there.
   const mevPct   = (mevStats?.mevPct ?? windowStats?.mevPct)?.toFixed(1) ?? "--";
@@ -40,6 +40,11 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
           </>
         )}
         <div className={`topbar-dot ${connected ? "dot-ok" : "dot-err"}`} title={connected ? "WS connected" : "WS disconnected"} />
+        <div className="zoom-ctl" title="界面大小 · 本机记忆">
+          <button onClick={() => onZoomPref?.(Math.max(0.7, +(zoomPref - 0.1).toFixed(2)))}>−</button>
+          <span className="zc-val" onClick={() => onZoomPref?.(1)} title="点击重置 100%">{Math.round(zoomPref * 100)}%</span>
+          <button onClick={() => onZoomPref?.(Math.min(1.5, +(zoomPref + 0.1).toFixed(2)))}>+</button>
+        </div>
       </div>
     </div>
   );

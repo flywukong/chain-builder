@@ -1,8 +1,9 @@
 import BlockGasPanel from "../components/BlockGasPanel.jsx";
 import LatencyPanel from "../components/LatencyPanel.jsx";
 import ReorgPanel   from "../components/ReorgPanel.jsx";
+import EmptyBlocksPanel from "../components/EmptyBlocksPanel.jsx";
 
-// Monitor 大盘 — Block Gas(执行视角) / Latency / Reorg 分析
+// Monitor 大盘 — Block Gas(执行视角) / Latency / Reorg / 空块
 // 利用率/流量视角在流量子系统,这里看执行吞吐与块负载
 export default function MonitorPage({ state }) {
   return (
@@ -11,7 +12,10 @@ export default function MonitorPage({ state }) {
         <BlockGasPanel blockGas={state.blockGas} />
         <LatencyPanel />
       </div>
-      <ReorgPanel data={state.reorgTimeline} />
+      <div className="panel-row panel-row-m2">
+        <ReorgPanel data={state.reorgTimeline} />
+        <EmptyBlocksPanel />
+      </div>
     </div>
   );
 }

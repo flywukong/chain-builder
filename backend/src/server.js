@@ -318,7 +318,11 @@ app.get("/api/reorg-events", async () => ({
 app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReorgTimeline(cfg.keterConfigPath)));
 app.get("/api/block-gas", async () => latest.blockGas ?? safe(fetchBlockGas(cfg.keterConfigPath)));
 app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath)));
-app.get("/api/disk",      async () => safe(fetchDiskAlerts(cfg.keterConfigPath)));
+app.get("/api/disk",      async (req) => {
+  // threshold=0 返回全部节点水位(topk 100),存储页磁盘总览用;默认 80 供告警
+  const t = req.query?.threshold != null ? Math.max(Number(req.query.threshold) || 0, 0) : 80;
+  return safe(fetchDiskAlerts(cfg.keterConfigPath, t));
+});
 app.get("/api/window",    async () => windowStatsPlus());
 app.get("/api/blocks",    async () => streamer.window.slice(-120));   // recent blocks for ring/river polling
 app.get("/api/mev",       async () => mevAgg.getStats());

@@ -1,7 +1,4 @@
 import { useMemo, useState } from "react";
-import { lookupValidator } from "../data/validators.js";
-
-const API = import.meta.env.VITE_API_BASE ?? "";
 
 // BSC fast-finality produces occasional harmless 1-block micro-reorgs; only a
 // 24h count above this signals real consensus trouble.
@@ -49,58 +46,30 @@ function versionInfo(nodeStats) {
   return { latest, latestPct, total, behind: behindList.length, behindList, tiers };
 }
 
-export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool, reorgStats, syncErrors }) {
+export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats, syncErrors }) {
   const [showAllBehind, setShowAllBehind] = useState(false);   // 默认只看风险 Top 5
-  const [detail, setDetail] = useState(null);            // null | 'empty' | 'disk'
-  const [emptyView, setEmptyView] = useState(null);      // /api/empty-blocks 结果
-  const [emptyAi, setEmptyAi] = useState({ loading: false, text: null, err: null });
+  const [showSync, setShowSync] = useState(false);
 
-  const toggleDetail = (k) => {
-    const next = detail === k ? null : k;
-    setDetail(next);
-    if (next === "empty") {
-      fetch(API + "/api/empty-blocks").then((r) => r.json()).then(setEmptyView).catch(() => {});
-    }
-  };
-
-  const runEmptyAi = async () => {
-    setEmptyAi({ loading: true, text: null, err: null });
-    try {
-      const r = await fetch(API + "/api/ai/empty", { method: "POST" });
-      const d = await r.json();
-      if (d.error) setEmptyAi({ loading: false, text: null, err: d.error });
-      else setEmptyAi({ loading: false, text: d.text, err: null });
-    } catch (e) { setEmptyAi({ loading: false, text: null, err: String(e) }); }
-  };
   const ws = windowStats;
-  const anomalies = ws?.empty24h ?? ws?.anomalyCount ?? 0;   // 空块 24h 滚动计数
-  const missed = ws?.missedCount ?? 0;
   const reorg = reorgStats?.reorg24h ?? 0;                 // Keter ground truth (24h)
-  // BSC nodes routinely sit at 85%+ disk (large chain data); only ≥90% warrants attention
-  const disk = (diskAlerts ?? []).filter((d) => (d.usedPct ?? 0) >= 90).length;
   const gasUtil = ws?.avgGasUtilPct ?? 0;
   const trafficHot = gasUtil >= 90 || !!txpool?.anomalyNow;   // 复合口径:gas≥90% 或 pending>4000
   const ver = useMemo(() => versionInfo(nodeStats), [nodeStats]);
 
-  // 第一行「链运行」:回答"链现在是否正常"。reorg(共识活性)优先于流量
-  const chain = reorg > REORG_ALERT
-    ? { v: "异常", tone: "bad", aux: `Reorg 24h ${reorg}` }
-    : trafficHot
+  // 第一行:链运行(共识活性,看 reorg)与 流量状态,两个并列大字
+  const chain = reorg > REORG_ALERT ? { v: "异常", tone: "bad" } : { v: "正常", tone: "ok" };
+  const traffic = trafficHot
     ? { v: "大流量", tone: "warn", aux: txpool?.anomalyNow ? `pending ${txpool.current?.toLocaleString()}` : `Gas ${gasUtil}%` }
     : { v: "正常", tone: "ok", aux: `Gas ${gasUtil}%` };
+  const rowTone = chain.tone === "bad" ? "bad" : traffic.tone === "warn" ? "warn" : "ok";
+
+  const syncCount = syncErrors?.count ?? null;
 
   // 第二行「节点版本」:重点覆盖 = cabinet + candidate
   const keyOk = ver.tiers.cabinet.ok + ver.tiers.candidate.ok;
   const keyTot = ver.tiers.cabinet.total + ver.tiers.candidate.total;
   const verTone = keyTot && (keyTot - keyOk) / keyTot > 0.2 ? "warn" : "ok";
   const TIER_LABELS = [["cabinet", "Cabinet"], ["candidate", "Candidate"], ["inactive", "Inactive"]];
-
-  const subs = [
-    { k: "空块", v: anomalies, tone: anomalies > 0 ? "warn" : "ok", detail: "empty", title: "24h 滚动计数 · 点击看明细" },
-    { k: "Disk ≥90%", v: disk, tone: disk > 0 ? "warn" : "ok", detail: "disk", title: "磁盘使用率 ≥90% 节点 · 点击看明细" },
-    { k: "Sync Error", v: syncErrors?.count ?? "--", tone: (syncErrors?.count ?? 0) > 0 ? "warn" : "ok", detail: "sync", title: "同步异常节点 · 点击看明细" },
-  ];
-  const disks90 = (diskAlerts ?? []).filter((d) => (d.usedPct ?? 0) >= 90).sort((a, b) => b.usedPct - a.usedPct);
 
   return (
     <div className="panel health-panel">
@@ -109,20 +78,21 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
         <span className="sub">{ver.total} nodes</span>
       </div>
       <div className="panel-body health-body">
-        {/* 第一行:链是否正常 → 有没有异常项 */}
-        <div className={`hp-row tone-${chain.tone}`}>
+        {/* 第一行:链运行 + 流量,并列大字;Sync 异常 chip */}
+        <div className={`hp-row tone-${rowTone}`}>
           <div className="hp-row-head">
             <span className="hp-row-k">链运行</span>
-            <span className="hp-row-v">{chain.v}</span>
-            <span className="hp-row-aux">{chain.aux}</span>
+            <span className={`hp-row-v t-${chain.tone}`}>{chain.v}</span>
+            <span className="hp-row-k hp-k2">流量</span>
+            <span className={`hp-row-v t-${traffic.tone}`}>{traffic.v}</span>
+            <span className="hp-row-aux">{traffic.aux}</span>
           </div>
           <div className="hp-chips">
-            {subs.map((s) => (
-              <button key={s.k} className={`hp-chip tone-${s.tone}`} title={s.title} onClick={() => toggleDetail(s.detail)}>
-                <b>{s.v}</b>
-                <span>{s.k}</span>
-              </button>
-            ))}
+            <button className={`hp-chip tone-${(syncCount ?? 0) > 0 ? "warn" : "ok"}`}
+                    title="同步异常节点 · 点击看明细" onClick={() => setShowSync(true)}>
+              <b>{syncCount ?? "--"}</b>
+              <span>Sync 异常</span>
+            </button>
           </div>
         </div>
 
@@ -150,71 +120,28 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
           )}
         </div>
 
-        {detail && (
-          <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setDetail(null); }}>
+        {showSync && (
+          <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowSync(false); }}>
             <div className="ai-modal hp-modal">
               <div className="ai-modal-head">
-                <span className="hp-modal-title">
-                  {detail === "empty" ? "空块明细 · 24h" : detail === "sync" ? "Sync Error 节点" : "Disk 使用率 ≥90%"}
-                </span>
+                <span className="hp-modal-title">Sync 异常节点</span>
                 <span className="ai-modal-meta">
-                  {detail === "empty" ? `判据 gasUsed < 200k · ${emptyView?.count ?? "…"} 块`
-                    : detail === "sync" ? `${syncErrors?.windowMin ?? 10}min 增长 < ${syncErrors?.threshold ?? 600} 判异常 · 预期 ~${syncErrors?.expected ?? 1333}`
-                    : `${disks90.length} 节点`}
+                  {syncErrors?.windowMin ?? 10}min 增长 &lt; {syncErrors?.threshold ?? 600} 判异常 · 预期 ~{syncErrors?.expected ?? 1333}
                 </span>
-                <button className="robot-close" onClick={() => setDetail(null)}>×</button>
+                <button className="robot-close" onClick={() => setShowSync(false)}>×</button>
               </div>
-
-              {detail === "empty" && (
-                !emptyView ? <div className="hpd-empty">加载中…</div>
-                  : emptyView.count === 0 ? <div className="hpd-empty">✓ 24h 内无空块</div>
-                  : <>
-                      <div className="hpd-list">
-                        {emptyView.recent.map((b) => (
-                          <div key={b.number} className="hpd-row">
-                            <span className="hpd-num">#{b.number.toLocaleString()}</span>
-                            <span className="hpd-mid">{b.miner ? lookupValidator(b.miner).name : "—"}</span>
-                            <span className="hpd-end">{new Date(b.t).toLocaleString("zh-CN", { hour12: false })}</span>
-                          </div>
-                        ))}
+              {!syncErrors ? <div className="hpd-empty">加载中…</div>
+                : syncErrors.count === 0
+                ? <div className="hpd-empty">✓ 全部节点同步正常({syncErrors.total} 节点 · {syncErrors.windowMin}min 增长 ≥{syncErrors.threshold},预期 ~{syncErrors.expected})</div>
+                : <div className="hpd-list">
+                    {syncErrors.nodes.map((n) => (
+                      <div key={n.instance} className="hpd-row">
+                        <span className="hpd-num">{n.instance}</span>
+                        <span className="hpd-mid">{n.job || ""}</span>
+                        <span className="hpd-end" style={{ color: "var(--orange)" }}>{n.grew} / {syncErrors.expected} 块·{syncErrors.windowMin}min</span>
                       </div>
-                      <div className="hpd-foot">
-                        <button className="st-auto-btn hpd-btn" onClick={runEmptyAi} disabled={emptyAi.loading}>
-                          {emptyAi.loading ? "分析中… ~20s" : "⚡ AI 简析"}
-                        </button>
-                      </div>
-                      {emptyAi.err && <div className="ai-err">⚠ {emptyAi.err}</div>}
-                      {emptyAi.text && <div className="hpd-ai">{emptyAi.text}</div>}
-                    </>
-              )}
-
-              {detail === "sync" && (
-                !syncErrors ? <div className="hpd-empty">加载中…</div>
-                  : syncErrors.count === 0
-                  ? <div className="hpd-empty">✓ 全部节点同步正常({syncErrors.total} 节点 · {syncErrors.windowMin}min 增长 ≥{syncErrors.threshold},预期 ~{syncErrors.expected})</div>
-                  : <div className="hpd-list">
-                      {syncErrors.nodes.map((n) => (
-                        <div key={n.instance} className="hpd-row">
-                          <span className="hpd-num">{n.instance}</span>
-                          <span className="hpd-mid">{n.job || ""}</span>
-                          <span className="hpd-end" style={{ color: "var(--orange)" }}>{n.grew} / {syncErrors.expected} 块·{syncErrors.windowMin}min</span>
-                        </div>
-                      ))}
-                    </div>
-              )}
-
-              {detail === "disk" && (
-                disks90.length === 0 ? <div className="hpd-empty">✓ 无 ≥90% 节点</div>
-                  : <div className="hpd-list">
-                      {disks90.map((d, i) => (
-                        <div key={i} className="hpd-row">
-                          <span className="hpd-num">{d.instance}</span>
-                          <span className="hpd-mid">{d.instanceName || d.mountpoint || ""}</span>
-                          <span className="hpd-end" style={{ color: "var(--orange)" }}>{d.usedPct}%</span>
-                        </div>
-                      ))}
-                    </div>
-              )}
+                    ))}
+                  </div>}
             </div>
           </div>
         )}

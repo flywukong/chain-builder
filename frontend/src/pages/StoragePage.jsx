@@ -81,6 +81,51 @@ function MultiLine({ series, unit }) {
   return <canvas ref={ref} className="db-canvas" />;
 }
 
+// ── 磁盘整体水位(keter 全节点,60s 刷新)──
+const diskColor = (p) => (p >= 90 ? "var(--red)" : p >= 85 ? "var(--orange)" : p >= 80 ? "var(--gold)" : "#3FB8A0");
+
+function DiskOverviewPanel() {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch("/api/disk?threshold=0").then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  const nodes = d ?? [];
+  const n90 = nodes.filter((x) => x.usedPct >= 90).length;
+  const n80 = nodes.filter((x) => x.usedPct >= 80 && x.usedPct < 90).length;
+
+  return (
+    <div className="panel disk-panel">
+      <div className="panel-header">
+        <span>磁盘水位 · 全节点</span>
+        <span className="sub">keter 实时 · 60s 刷新 · BSC 节点常年 85%+ 属正常,≥90% 需关注</span>
+      </div>
+      <div className="panel-body disk-body">
+        <div className="reorg-chips disk-chips">
+          <div className="reorg-chip tone-ok"><span className="rc-v">{nodes.length || "--"}</span><span className="rc-l">节点总数</span></div>
+          <div className={`reorg-chip ${n90 > 0 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{d ? n90 : "--"}</span><span className="rc-l">≥90% 需关注</span></div>
+          <div className="reorg-chip tone-ok"><span className="rc-v">{d ? n80 : "--"}</span><span className="rc-l">80~90% 观察</span></div>
+        </div>
+        {nodes.length === 0
+          ? <div className="hpd-empty">{d ? "keter 无磁盘数据" : "加载中…"}</div>
+          : <div className="disk-list">
+              {nodes.map((x, i) => (
+                <div key={i} className="disk-row">
+                  <span className="disk-ip">{x.instance}{x.isValidator ? <i className="disk-val">VAL</i> : null}</span>
+                  <span className="disk-track"><i style={{ width: `${Math.min(x.usedPct, 100)}%`, background: diskColor(x.usedPct) }} /></span>
+                  <b style={{ color: diskColor(x.usedPct) }}>{x.usedPct.toFixed(1)}%</b>
+                </div>
+              ))}
+            </div>}
+      </div>
+    </div>
+  );
+}
+
 const DB_RANGES = [6, 12, 24, 72];
 
 function DbStatsPanel() {
@@ -176,6 +221,8 @@ export default function StoragePage() {
           <div className="stat-card"><div className="sc-v" style={{ color: "#3FB8A0" }}>{snapLast.v} GiB</div><div className="sc-l">Snapshot · {snapLast.delta}(storage 占 93%)</div></div>
           <div className="stat-card"><div className="sc-v">{nonLast.v} GiB</div><div className="sc-l">Trie+Code+状态历史 · {nonLast.delta}</div></div>
         </div>
+
+        <DiskOverviewPanel />
 
         <DbStatsPanel />
 

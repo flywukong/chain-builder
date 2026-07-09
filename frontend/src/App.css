@@ -343,6 +343,11 @@ body::before {
 .hp-row.tone-warn .hp-row-v { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
 .hp-row.tone-bad  .hp-row-v { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
 .hp-row-aux { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--dim); }
+/* 链运行卡:双状态并列(链运行 | 流量),两个大字各自着色 */
+.hp-k2 { margin-left: 12px; padding-left: 14px; border-left: 1px solid #26231a; }
+.hp-row .hp-row-v.t-ok   { color: var(--green);  text-shadow: 0 0 10px rgba(34,197,94,.45); }
+.hp-row .hp-row-v.t-warn { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
+.hp-row .hp-row-v.t-bad  { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
 /* 节点版本卡:重点信息,整体放大一档 + 渐变描边发光 */
 .hp-row-ver { padding: 12px 14px; gap: 10px; border: 1px solid transparent; border-left-width: 3px; }
 .hp-row-ver.tone-ok {
@@ -375,8 +380,8 @@ body::before {
 .ht-candidate { color: #38bdf8; background: rgba(56,189,248,.1); border: 1px solid rgba(56,189,248,.28); }
 .ht-inactive  { color: var(--dim); }
 
-/* 空块/Disk/Sync 三枚 severity chips:数值+标签连读,点开明细(在「链运行」卡内) */
-.hp-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+/* severity chips:数值+标签连读,点开明细(在「链运行」卡内,按枚数自适应占满) */
+.hp-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 7px; }
 .hp-chip { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 6px;
   border-radius: 8px; border: 1px solid; cursor: pointer; transition: all .15s; }
 .hp-chip b { font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1; }
@@ -509,6 +514,28 @@ body::before {
 
 /* ── Monitor 大盘 ── */
 .dash-monitor { flex: 1; display: grid; grid-template-rows: 1fr 132px; gap: 6px; padding: 7px; min-height: 0; }
+/* 监控第二行:Reorg + 空块详情 */
+.panel-row-m2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 6px; min-height: 0; }
+/* 空块详情面板 */
+.eb-panel { display: flex; flex-direction: column; min-height: 0; }
+.eb-body { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; min-height: 0; }
+.eb-top { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: stretch; flex-shrink: 0; }
+.eb-count { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 8px 18px; border-radius: 10px; border: 1px solid; }
+.eb-count b { font-family: var(--mono); font-size: 26px; font-weight: 700; line-height: 1; }
+.eb-count span { font-size: 9.5px; color: var(--muted); }
+.eb-count.ok   { border-color: rgba(34,197,94,.28);  background: rgba(34,197,94,.05); }
+.eb-count.ok b { color: #43d089; }
+.eb-count.warn   { border-color: rgba(249,115,22,.4); background: rgba(249,115,22,.08); }
+.eb-count.warn b { color: var(--orange); }
+.eb-miners { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
+.eb-miner { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; }
+.eb-miner em { font-style: normal; color: var(--text); width: 108px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eb-miner b { width: 26px; text-align: right; color: var(--orange); flex-shrink: 0; }
+.eb-mbar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
+.eb-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
+.eb-none { font-size: 11px; color: #43d089; }
+.eb-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
+.eb-foot { flex-shrink: 0; }
 .panel-row-3 { display: grid; grid-template-columns: 1fr 1fr 240px; gap: 6px; min-height: 0; }
 .panel-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-height: 0; }
 
@@ -598,6 +625,16 @@ body::before {
 .st-db-panel { max-width: 1080px; margin-bottom: 14px; }
 .st-db-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; }
 .db-chips { grid-template-columns: repeat(3, 1fr); }
+/* 磁盘水位总览(存储页) */
+.disk-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.disk-chips { grid-template-columns: repeat(3, 1fr); }
+.disk-list { display: flex; flex-direction: column; gap: 3px; max-height: 320px; overflow: auto; }
+.disk-row { display: grid; grid-template-columns: minmax(150px, 220px) 1fr 58px; gap: 12px; align-items: center; font-family: var(--mono); font-size: 10px; background: #141414; border: 1px solid #1e1c16; border-radius: 4px; padding: 3px 9px; }
+.disk-ip { color: var(--muted); display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.disk-val { font-style: normal; font-size: 7.5px; font-weight: 700; color: var(--gold); border: 1px solid rgba(240,185,11,.4); border-radius: 3px; padding: 0 3px; flex-shrink: 0; }
+.disk-track { height: 7px; border-radius: 3.5px; background: rgba(255,255,255,.06); overflow: hidden; }
+.disk-track i { display: block; height: 100%; border-radius: 3.5px; }
+.disk-row b { text-align: right; font-size: 10.5px; }
 .db-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .db-canvas { width: 100%; height: 150px; display: block; }
 .db-stall-row { border-top: 1px solid var(--line, #1f1c15); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }

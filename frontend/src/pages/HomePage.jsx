@@ -86,7 +86,6 @@ export default function HomePage({ state, onNav }) {
             windowStats={state.windowStats}
             slashStatus={state.slashStatus}
             nodeStats={state.nodeStats}
-            diskAlerts={state.diskAlerts}
             txpool={tx}
             reorgStats={state.reorgStats}
             syncErrors={state.syncErrors}

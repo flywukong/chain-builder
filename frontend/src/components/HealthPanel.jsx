@@ -25,13 +25,16 @@ function versionInfo(nodeStats) {
   const total = Object.values(map).reduce((s, a) => s + a.length, 0);
   const latestCount = latest ? map[latest].length : 0;
   const latestPct = latest && total ? Math.round((latestCount / total) * 100) : 0;
-  // every node not on latest = "behind" (includes unknown), sorted oldest first
+  // every node not on latest = "behind" (includes unknown)
   const behindList = [];
   Object.entries(map).forEach(([v, nodes]) => {
     if (v === latest) return;
     nodes.forEach((n) => behindList.push({ ip: n.ip, ver: v, tier: n.tier }));
   });
-  behindList.sort((a, b) => (a.ver === "unknown" ? 1 : b.ver === "unknown" ? -1 : cmpVer(a.ver, b.ver)));
+  // 风险排序:Cabinet 落后 > Candidate 落后 > Inactive 落后 > unknown 版本;组内版本越旧越靠前
+  const TIER_RANK = { cabinet: 0, candidate: 1, inactive: 2 };
+  const risk = (b) => (b.ver === "unknown" ? 3 : TIER_RANK[b.tier] ?? 2);
+  behindList.sort((a, b) => risk(a) - risk(b) || (a.ver === "unknown" ? 0 : cmpVer(a.ver, b.ver)));
   // 分层升级覆盖率:cabinet(出块中) / candidate(当选) 是重点,inactive 参考
   const tiers = {};
   for (const t of ["cabinet", "candidate", "inactive"]) tiers[t] = { total: 0, ok: 0 };
@@ -47,7 +50,7 @@ function versionInfo(nodeStats) {
 }
 
 export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool, reorgStats, syncErrors }) {
-  const [showBehind, setShowBehind] = useState(true);
+  const [showAllBehind, setShowAllBehind] = useState(false);   // 默认只看风险 Top 5
   const [detail, setDetail] = useState(null);            // null | 'empty' | 'disk'
   const [emptyView, setEmptyView] = useState(null);      // /api/empty-blocks 结果
   const [emptyAi, setEmptyAi] = useState({ loading: false, text: null, err: null });
@@ -98,9 +101,9 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
   const TIER_LABELS = [["cabinet", "Cabinet"], ["candidate", "Candidate"], ["inactive", "Inactive"]];
 
   const subs = [
-    { k: "空块 / 24h", v: anomalies, tone: anomalies > 0 ? "warn" : "ok", detail: "empty" },
-    { k: "Sync Error", v: syncErrors?.count ?? "--", tone: (syncErrors?.count ?? 0) > 0 ? "warn" : "ok", detail: "sync" },
-    { k: "Disk ≥90%", v: disk, tone: disk > 0 ? "warn" : "ok", detail: "disk" },
+    { k: "空块", v: anomalies, tone: anomalies > 0 ? "warn" : "ok", detail: "empty", title: "24h 滚动计数 · 点击看明细" },
+    { k: "Disk ≥90%", v: disk, tone: disk > 0 ? "warn" : "ok", detail: "disk", title: "磁盘使用率 ≥90% 节点 · 点击看明细" },
+    { k: "Sync Error", v: syncErrors?.count ?? "--", tone: (syncErrors?.count ?? 0) > 0 ? "warn" : "ok", detail: "sync", title: "同步异常节点 · 点击看明细" },
   ];
   const disks90 = (diskAlerts ?? []).filter((d) => (d.usedPct ?? 0) >= 90).sort((a, b) => b.usedPct - a.usedPct);
 
@@ -136,16 +139,12 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
           ))}
         </div>
 
-        <div className="hp-subs">
+        <div className="hp-chips">
           {subs.map((s) => (
-            <div key={s.k} className={`hp-sub tone-${s.tone} ${s.detail ? "hp-sub-click" : ""}`}
-                 onClick={s.detail ? () => toggleDetail(s.detail) : undefined}
-                 role={s.detail ? "button" : undefined}>
-              <span className="hp-sub-dot" />
-              <span className="hp-sub-v">{s.v}</span>
-              <span className="hp-sub-k">{s.k}</span>
-              {s.detail && <span className="hp-sub-caret">{detail === s.detail ? "▾" : "▸"}</span>}
-            </div>
+            <button key={s.k} className={`hp-chip tone-${s.tone}`} title={s.title} onClick={() => toggleDetail(s.detail)}>
+              <b>{s.v}</b>
+              <span>{s.k}</span>
+            </button>
           ))}
         </div>
 
@@ -219,23 +218,28 @@ export default function HealthPanel({ windowStats, nodeStats, diskAlerts, txpool
         )}
 
         <div className="hp-behind">
-          <div className="hp-behind-head" onClick={() => setShowBehind((x) => !x)} role="button">
+          <div className="hp-behind-head">
             <span className="hp-behind-title">Keter 节点版本风险 · 落后 {ver.behind}</span>
-            <span className="hp-behind-caret">{showBehind ? "▾" : "▸"}</span>
+            {ver.behind > 0 && <span className="hp-behind-hint">风险 Top {Math.min(ver.behind, 5)}</span>}
           </div>
-          {showBehind && (
-            ver.behind === 0
-              ? <div className="hp-behind-ok">✓ 全部节点已是最新版 v{ver.latest}</div>
-              : <div className="hp-behind-list">
-                  {ver.behindList.map((b, i) => (
+          {ver.behind === 0
+            ? <div className="hp-behind-ok">✓ 全部节点已是最新版 v{ver.latest}</div>
+            : <>
+                <div className="hp-behind-list">
+                  {(showAllBehind ? ver.behindList : ver.behindList.slice(0, 5)).map((b, i) => (
                     <div key={i} className="hp-behind-row">
                       <span className="hp-behind-ip">{b.ip}</span>
-                      <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : "—"}</span>
-                      <span className="hp-behind-ver">{b.ver === "unknown" ? "?" : "v" + b.ver}</span>
+                      <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : b.ver === "unknown" ? "?" : "—"}</span>
+                      <span className="hp-behind-ver">{b.ver === "unknown" ? "未知版本" : "v" + b.ver}</span>
                     </div>
                   ))}
                 </div>
-          )}
+                {ver.behind > 5 && (
+                  <button className="hp-behind-more" onClick={() => setShowAllBehind((x) => !x)}>
+                    {showAllBehind ? "收起 ▴" : `展开全部 ${ver.behind} ▾`}
+                  </button>
+                )}
+              </>}
         </div>
       </div>
     </div>

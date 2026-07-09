@@ -8,8 +8,14 @@
 
 import fs from "fs";
 import path from "path";
+import http from "node:http";
+import https from "node:https";
 
-const KETER_API_BASE = "https://keter-api.toolsapple.net";
+// keter 端点可用 env 覆盖(内网走 Host 路由时用):
+//   KETER_API_BASE=http://nodereal-nonprod.vminsert.internal
+//   KETER_HOST_HEADER=keter-api.monitor.internal
+const KETER_API_BASE = process.env.KETER_API_BASE || "https://keter-api.toolsapple.net";
+const KETER_HOST_HEADER = process.env.KETER_HOST_HEADER || null;
 
 // Datasource registry (from references/datasource-info.md)
 export const DATASOURCES = {
@@ -28,6 +34,35 @@ function loadToken(configPath) {
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
   const tenant = config.default_tenant || "nodereal";
   return config.tenants[tenant].token;
+}
+
+// HTTP(S) POST JSON,支持自定义 Host 头。用 node:http 而非 fetch —— undici 会丢弃
+// Host 这个 forbidden 请求头,而内网 keter 正是靠 Host 路由。
+function httpPostJson(urlStr, bodyObj, headers = {}, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlStr);
+    const mod = u.protocol === "https:" ? https : http;
+    const body = JSON.stringify(bodyObj);
+    const req = mod.request(
+      {
+        hostname: u.hostname,
+        port: u.port || (u.protocol === "https:" ? 443 : 80),
+        path: u.pathname + u.search,
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body), ...headers },
+      },
+      (res) => {
+        let data = "";
+        res.setEncoding("utf8");
+        res.on("data", (c) => (data += c));
+        res.on("end", () => resolve({ status: res.statusCode, text: data }));
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(timeoutMs, () => req.destroy(new Error("keter request timeout")));
+    req.write(body);
+    req.end();
+  });
 }
 
 /**
@@ -65,19 +100,14 @@ export async function grafanaQuery(datasourceUid, expr, opts = {}) {
     to,
   };
 
-  const res = await fetch(`${KETER_API_BASE}/api/grafana/datasources/query`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const headers = { "Authorization": `Bearer ${token}` };
+  if (KETER_HOST_HEADER) headers["Host"] = KETER_HOST_HEADER;
 
-  if (!res.ok) {
-    throw new Error(`Keter API ${res.status}: ${await res.text()}`);
+  const { status, text } = await httpPostJson(`${KETER_API_BASE}/api/grafana/datasources/query`, body, headers);
+  if (status < 200 || status >= 300) {
+    throw new Error(`Keter API ${status}: ${text}`);
   }
-  return res.json();
+  return JSON.parse(text);
 }
 
 /**

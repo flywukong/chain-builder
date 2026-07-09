@@ -53,15 +53,22 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
   const ws = windowStats;
   const reorg = reorgStats?.reorg24h ?? 0;                 // Keter ground truth (24h)
   const gasUtil = ws?.avgGasUtilPct ?? 0;
-  const trafficHot = gasUtil >= 90 || !!txpool?.anomalyNow;   // 复合口径:gas≥90% 或 pending>4000
   const ver = useMemo(() => versionInfo(nodeStats), [nodeStats]);
 
-  // 第一行:链运行(共识活性,看 reorg)与 流量状态,两个并列大字
+  // 第一行:链运行(共识活性,看 reorg)与 流量分级,两个并列大字
   const chain = reorg > REORG_ALERT ? { v: "异常", tone: "bad" } : { v: "正常", tone: "ok" };
-  const traffic = trafficHot
-    ? { v: "大流量", tone: "warn", aux: txpool?.anomalyNow ? `pending ${txpool.current?.toLocaleString()}` : `Gas ${gasUtil}%` }
-    : { v: "正常", tone: "ok", aux: `Gas ${gasUtil}%` };
-  const rowTone = chain.tone === "bad" ? "bad" : traffic.tone === "warn" ? "warn" : "ok";
+  // 流量按 Gas 利用率分级:<30 低 / 30~60 中等 / 60~90 大流量 / ≥90 超大流量
+  const traffic =
+    gasUtil >= 90 ? { v: "超大流量", tone: "bad" } :
+    gasUtil >= 60 ? { v: "大流量", tone: "warn" } :
+    gasUtil >= 30 ? { v: "中等", tone: "mid" } :
+    { v: "低 Gas", tone: "ok" };
+  traffic.aux = `Gas ${gasUtil}%`;
+  if (txpool?.anomalyNow) {   // pending 积压是独立拥堵信号,叠加提示
+    traffic.aux = `pending ${txpool.current?.toLocaleString()} · Gas ${gasUtil}%`;
+    if (traffic.tone === "ok" || traffic.tone === "mid") traffic.tone = "warn";
+  }
+  const rowTone = chain.tone === "bad" || traffic.tone === "bad" ? "bad" : traffic.tone === "warn" ? "warn" : "ok";
 
   const syncCount = syncErrors?.count ?? null;
 

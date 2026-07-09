@@ -266,10 +266,12 @@ body::before {
   gap: 7px; padding: 7px; min-height: 0; overflow: hidden;
 }
 .home-hero { display: grid; grid-template-columns: minmax(0, 1fr) clamp(320px, 19vw, 390px); gap: 7px; min-height: 0; }
-.home-right { display: grid; grid-template-rows: auto auto auto; align-content: start; gap: 7px; min-height: 0; }
+/* 末行 1fr:安全事件卡拉伸填满,右栏不留底部空白 */
+.home-right { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 7px; min-height: 0; }
+.se-card { display: flex; flex-direction: column; min-height: 0; }
 
 /* 安全 & 近期事件卡 */
-.se-body { display: flex; flex-direction: column; padding: 4px 6px 6px; }
+.se-body { display: flex; flex-direction: column; justify-content: space-evenly; flex: 1; min-height: 0; padding: 4px 6px 6px; }
 .se-row { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 8px; cursor: pointer; transition: background .15s; border-bottom: 1px solid #17150f; }
 .se-row:last-child { border-bottom: none; }
 .se-row:hover { background: rgba(240,185,11,.05); }
@@ -346,6 +348,7 @@ body::before {
 /* 链运行卡:双状态并列(链运行 | 流量),两个大字各自着色 */
 .hp-k2 { margin-left: 12px; padding-left: 14px; border-left: 1px solid #26231a; }
 .hp-row .hp-row-v.t-ok   { color: var(--green);  text-shadow: 0 0 10px rgba(34,197,94,.45); }
+.hp-row .hp-row-v.t-mid  { color: var(--gold);   text-shadow: 0 0 10px rgba(240,185,11,.45); }
 .hp-row .hp-row-v.t-warn { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
 .hp-row .hp-row-v.t-bad  { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
 /* 节点版本卡:重点信息,整体放大一档 + 渐变描边发光 */

@@ -326,6 +326,11 @@ body::before {
 /* ── Health overview panel (home right) ── */
 .health-body { padding: 9px 10px; display: flex; flex-direction: column; gap: 9px; overflow: auto; }
 .hp-cores { display: grid; grid-template-columns: 1fr 1.6fr; gap: 6px; }
+/* 健康总览头部整体放大一档,更醒目 */
+.health-panel .panel-header { font-size: 13px; color: #c9c2ad; padding: 10px 12px 8px; }
+.health-panel .panel-header > span:first-child::before { height: 13px; }
+.health-panel .panel-header .sub { font-size: 10.5px; color: #6d675a; }
+.health-panel .hp-chain-chip { font-size: 11px; padding: 2.5px 11px; }
 .hp-chain-chip { margin-left: 8px; font-size: 9px; font-weight: 700; padding: 1.5px 8px; border-radius: 20px; letter-spacing: .5px; vertical-align: 1px; }
 .hp-chain-chip.ok   { color: var(--green); background: #07140d; border: 1px solid #1d5b3a; }
 .hp-chain-chip.warn { color: var(--orange); background: #1a1006; border: 1px solid #5b3a1d; }

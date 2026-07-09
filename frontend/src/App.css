@@ -262,8 +262,8 @@ body::before {
   flex: 1; display: grid; grid-template-rows: 1fr;
   gap: 7px; padding: 7px; min-height: 0; overflow: hidden;
 }
-.home-hero { display: grid; grid-template-columns: 1fr 320px; gap: 7px; min-height: 0; }
-.home-right { display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 7px; min-height: 0; }
+.home-hero { display: grid; grid-template-columns: minmax(0, 1fr) clamp(320px, 19vw, 390px); gap: 7px; min-height: 0; }
+.home-right { display: grid; grid-template-rows: auto auto auto; align-content: start; gap: 7px; min-height: 0; }
 
 /* 安全 & 近期事件卡 */
 .se-body { display: flex; flex-direction: column; padding: 4px 6px 6px; }

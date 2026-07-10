@@ -375,3 +375,29 @@ export async function fetchDiskAlerts(configPath, threshold = 80) {
   }
   return alerts.sort((a, b) => b.usedPct - a.usedPct);
 }
+
+// ── Bid 指标(validator 节点):模拟耗时 p50 + best bid gasUsed ────────────
+// bid_sim_duration 为 summary(ns),取 quantile 0.5 → ms;worker_bestBidGasUsed 已是 M gas
+export async function fetchBidMetrics(configPath, hours = 6) {
+  const dsUid = DATASOURCES["dex-prod"];
+  const jobs = DS_JOBS["dex-prod"];
+  const from = `now-${hours}h`;
+  const opts = { configPath, from, maxDataPoints: 400 };
+  const [simRaw, gasRaw] = await Promise.all([
+    rangeQuery(dsUid, `bid_sim_duration{job=~"${jobs}",quantile="0.5"}`, opts),
+    rangeQuery(dsUid, `worker_bestBidGasUsed{job=~"${jobs}"}`, opts),
+  ]);
+  const toSeries = (raw, mapV) => extractSeries(raw)
+    .map((s) => ({
+      instance: s.labels.instance,
+      times: s.times,
+      values: s.values.map((v) => (typeof v === "number" ? mapV(v) : null)),
+    }))
+    .filter((s) => s.values.some((v) => v > 0))   // 只留有 bid 活动的节点
+    .sort((a, b) => (a.instance || "").localeCompare(b.instance || ""));
+  return {
+    hours,
+    sim: toSeries(simRaw, (v) => +(v / 1e6).toFixed(2)),
+    gas: toSeries(gasRaw, (v) => +v.toFixed(2)),
+  };
+}

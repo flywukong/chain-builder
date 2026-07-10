@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -308,6 +308,14 @@ app.get("/api/insert-latency", async (req) => {
   if (insertLatCache.data && insertLatCache.hours === hours && Date.now() - insertLatCache.at < 55_000) return insertLatCache.data;
   const data = await safe(fetchInsertLatency(cfg.keterConfigPath, hours));
   if (data) insertLatCache = { at: Date.now(), hours, data };   // 只缓存成功结果,失败下次重试
+  return data;
+});
+let bidMetricsCache = { at: 0, hours: 0, data: null };
+app.get("/api/bid-metrics", async (req) => {
+  const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 6, 1), 24);
+  if (bidMetricsCache.data && bidMetricsCache.hours === hours && Date.now() - bidMetricsCache.at < 60_000) return bidMetricsCache.data;
+  const data = await safe(fetchBidMetrics(cfg.keterConfigPath, hours));
+  if (data) bidMetricsCache = { at: Date.now(), hours, data };
   return data;
 });
 app.get("/api/reorg",     async () => latest.reorgTimeline ? { reorg24h: reorg24hFiltered(), source: "keter · ≥2节点" } : safe(fetchReorgStats(cfg.keterConfigPath)));

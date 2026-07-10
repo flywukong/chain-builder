@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { lookupValidator } from "../data/validators.js";
+import BidMetricsPanel from "../components/BidMetricsPanel.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
@@ -167,6 +168,8 @@ export default function MevPage({ state }) {
             </div>
           </div>
         )}
+
+        <BidMetricsPanel />
 
         {mev.recent?.length > 0 && (
           <div className="panel" style={{ maxWidth: 860 }}>

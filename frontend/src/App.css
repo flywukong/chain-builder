@@ -1025,6 +1025,11 @@ body::before {
 .bm-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9px; color: var(--muted); }
 .bm-item i { width: 8px; height: 3px; border-radius: 2px; flex-shrink: 0; }
 .bm-item b { margin-left: auto; color: var(--text); font-weight: 600; }
+.bm-ctls { display: flex; gap: 10px; align-items: center; }
+.bm-item.bm-avg { color: #e8dcb8; font-weight: 700; }
+.bm-item.bm-avg b { color: var(--gold); }
+.bm-item.bm-out { color: #ef8f8f; }
+.bm-item.bm-out b { color: var(--red); }
 
 /* MEV:instance 环比 Δ + Validator→Builder 关系表 */
 .mi-delta { font-family: var(--mono); font-size: 9px; width: 48px; text-align: right; flex-shrink: 0; }

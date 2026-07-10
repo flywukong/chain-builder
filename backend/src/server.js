@@ -315,7 +315,13 @@ app.get("/api/bid-metrics", async (req) => {
   const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 6, 1), 24);
   if (bidMetricsCache.data && bidMetricsCache.hours === hours && Date.now() - bidMetricsCache.at < 60_000) return bidMetricsCache.data;
   const data = await safe(fetchBidMetrics(cfg.keterConfigPath, hours));
-  if (data) bidMetricsCache = { at: Date.now(), hours, data };
+  if (data) {
+    // 注入 validator tier(cabinet/candidate/inactive),前端按层筛选;端口后缀剥离后匹配
+    const tierOf = {};
+    (latest.nodeStats ?? []).forEach((n) => { const ip = (n.instance || "").split(":")[0]; if (ip) tierOf[ip] = n.tier || null; });
+    for (const arr of [data.sim, data.gas]) arr.forEach((s) => { s.tier = tierOf[(s.instance || "").split(":")[0]] ?? null; });
+    bidMetricsCache = { at: Date.now(), hours, data };
+  }
   return data;
 });
 app.get("/api/reorg",     async () => latest.reorgTimeline ? { reorg24h: reorg24hFiltered(), source: "keter · ≥2节点" } : safe(fetchReorgStats(cfg.keterConfigPath)));

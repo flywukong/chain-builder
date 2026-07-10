@@ -169,6 +169,7 @@ function Conclusion({ d }) {
 export default function TxnPage() {
   const [d, setD] = useState(null);
   const [openAddr, setOpenAddr] = useState(null);   // 展开完整地址 + 复制
+  const [distMode, setDistMode] = useState("24h");  // 分类分布口径:24h / all(历史累计)
   const { s: ai, run: runAi } = TxnAiBox();
 
   const clickAddr = (addr) => {
@@ -259,40 +260,66 @@ export default function TxnPage() {
           </div>
         </div>
 
-        <div className="panel" style={{ maxWidth: 820 }}>
-          <div className="panel-header"><span>24h 分类分布</span><span className="sub">{d?.total24?.toLocaleString() ?? "…"} 笔 · 全量</span></div>
-          <div className="panel-body txn-dist">
-            <div className="txn-dist-head">
-              <span>类别</span>
-              <span className="tdr-r">笔数</span>
-              <span>笔数占比</span>
-              <span>Gas 占比<InfoTip text="按各类交易消耗的 gasUsed 总量占比,反映对区块执行资源的占用(而非笔数)。DeFi swap / 复杂合约调用 gas 重,BNB 转账 / 稳定币转账 gas 轻。gasPrice 相近时≈手续费占比。" /></span>
-              <span className="tdr-r">环比 vs 7d</span>
-            </div>
-            {listCats.map((c) => {
-              const t = trend(c);
-              return (
-                <div key={c} className="txn-dist-row">
-                  <span className="tdr-label" style={{ color: CAT_META[c].color }}>
-                    {CAT_META[c].label}{CAT_INFO[c] && <InfoTip text={CAT_INFO[c]} />}
+        {(() => {
+          // 分布口径切换:24h vs 历史累计(持久化,重启续算)
+          const at = distMode === "all" ? d?.allTime : null;
+          const dcnt = (c) => (at ? at.catCount?.[c] ?? 0 : cnt(c));
+          const dpct = (c) => (at ? at.catPct?.[c] ?? 0 : pct(c));
+          const dgpct = (c) => (at ? at.catGasPct?.[c] ?? 0 : gpct(c));
+          const rows = CAT_KEYS.filter((c) => dcnt(c) > 0).sort((a, b) => dcnt(b) - dcnt(a));
+          const mTx = Math.max(0.1, ...rows.map(dpct));
+          const mGas = Math.max(0.1, ...rows.map(dgpct));
+          const sinceStr = at?.since ? `${new Date(at.since).getMonth() + 1}/${new Date(at.since).getDate()}` : null;
+          return (
+            <div className="panel" style={{ maxWidth: 820 }}>
+              <div className="panel-header">
+                <span>{at ? "历史累计分类分布" : "24h 分类分布"}</span>
+                <span className="txn-dist-ctl">
+                  <span className="sub">
+                    {at ? `自 ${sinceStr} · ${at.total.toLocaleString()} 笔累计` : `${d?.total24?.toLocaleString() ?? "…"} 笔 · 全量`}
                   </span>
-                  <span className="tdr-count">{cnt(c).toLocaleString()}</span>
-                  <span className="tdr-metric">
-                    <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(pct(c) / maxTxPct) * 100}%`, background: CAT_META[c].color }} /></span>
-                    <span className="tdr-pct">{pct(c)}%</span>
+                  <span className="tf-ranges">
+                    <button className={`tf-range ${distMode === "24h" ? "on" : ""}`} onClick={() => setDistMode("24h")}>24H</button>
+                    <button className={`tf-range ${distMode === "all" ? "on" : ""}`} onClick={() => setDistMode("all")}>历史累计</button>
                   </span>
-                  <span className="tdr-metric">
-                    <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(gpct(c) / maxGasPct) * 100}%`, background: CAT_META[c].color, opacity: .55 }} /></span>
-                    <span className="tdr-pct">{gpct(c)}%</span>
-                  </span>
-                  <span className="tdr-trend" title={`较昨日 ${t.dYest == null ? "—" : (t.dYest > 0 ? "+" : "") + t.dYest + "pp"} · 较 7d 日均 ${t.dAvg7 == null ? "—" : (t.dAvg7 > 0 ? "+" : "") + t.dAvg7 + "pp"}`}>
-                    <Delta v={t.dAvg7} />
-                  </span>
+                </span>
+              </div>
+              <div className="panel-body txn-dist">
+                <div className="txn-dist-head">
+                  <span>类别</span>
+                  <span className="tdr-r">笔数</span>
+                  <span>笔数占比</span>
+                  <span>Gas 占比<InfoTip text="按各类交易消耗的 gasUsed 总量占比,反映对区块执行资源的占用(而非笔数)。DeFi swap / 复杂合约调用 gas 重,BNB 转账 / 稳定币转账 gas 轻。gasPrice 相近时≈手续费占比。" /></span>
+                  <span className="tdr-r">{at ? "环比" : "环比 vs 7d"}</span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
+                {rows.map((c) => {
+                  const t = trend(c);
+                  return (
+                    <div key={c} className="txn-dist-row">
+                      <span className="tdr-label" style={{ color: CAT_META[c].color }}>
+                        {CAT_META[c].label}{CAT_INFO[c] && <InfoTip text={CAT_INFO[c]} />}
+                      </span>
+                      <span className="tdr-count">{dcnt(c).toLocaleString()}</span>
+                      <span className="tdr-metric">
+                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(dpct(c) / mTx) * 100}%`, background: CAT_META[c].color }} /></span>
+                        <span className="tdr-pct">{dpct(c)}%</span>
+                      </span>
+                      <span className="tdr-metric">
+                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(dgpct(c) / mGas) * 100}%`, background: CAT_META[c].color, opacity: .55 }} /></span>
+                        <span className="tdr-pct">{dgpct(c)}%</span>
+                      </span>
+                      {at
+                        ? <span className="tdr-trend" style={{ color: "var(--dim)" }}>—</span>
+                        : <span className="tdr-trend" title={`较昨日 ${t.dYest == null ? "—" : (t.dYest > 0 ? "+" : "") + t.dYest + "pp"} · 较 7d 日均 ${t.dAvg7 == null ? "—" : (t.dAvg7 > 0 ? "+" : "") + t.dAvg7 + "pp"}`}>
+                            <Delta v={t.dAvg7} />
+                          </span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="panel" style={{ maxWidth: 900 }}>
           <div className="panel-header"><span>24h 热门合约</span><span className="sub">标注(身份) · 分类(行为)+ 依据 · AI 标注带 ✦</span></div>

@@ -15,8 +15,27 @@ export class TxnStore {
   constructor(file) {
     this.file = file;
     this.buckets = [];
+    // 历史累计(不滚动,重启续算):since + blocks/txs + 分类 n/gas
+    this.allTime = { since: Date.now(), blocks: 0, txs: 0, cats: {} };
     try {
-      if (fs.existsSync(file)) this.buckets = JSON.parse(fs.readFileSync(file, "utf8")) || [];
+      if (fs.existsSync(file)) {
+        const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+        if (Array.isArray(raw)) {
+          // 旧格式(纯桶数组):迁移 —— 用现有 7d 数据预填累计
+          this.buckets = raw;
+          this.allTime.since = raw[0]?.t ?? Date.now();
+          for (const b of raw) {
+            this.allTime.blocks += b.blocks; this.allTime.txs += b.txs;
+            for (const [c, v] of Object.entries(b.cats ?? {})) {
+              const a = (this.allTime.cats[c] ??= { n: 0, gas: 0 });
+              a.n += v.n; a.gas += v.gas || 0;
+            }
+          }
+        } else if (raw) {
+          this.buckets = raw.buckets ?? [];
+          this.allTime = raw.allTime ?? this.allTime;
+        }
+      }
     } catch { this.buckets = []; }
   }
 
@@ -38,10 +57,14 @@ export class TxnStore {
   addBlock(now, classified) {
     const b = this._bucket(now);
     b.blocks++;
+    this.allTime.blocks++;
     for (const c of classified) {
       b.txs++;
       const cat = (b.cats[c.cat] ??= { n: 0, gas: 0 });
       cat.n++; cat.gas += c.gas;
+      this.allTime.txs++;
+      const ac = (this.allTime.cats[c.cat] ??= { n: 0, gas: 0 });
+      ac.n++; ac.gas += c.gas;
       if (c.to && ["other", "meme", "defi", "bot", "predict", "token", "infra"].includes(c.cat)) {
         const ct = (b.contracts[c.to] ??= { n: 0, gas: 0, cat: c.cat, sels: {}, swap: 0, xfer: 0 });
         ct.n++; ct.gas += c.gas;
@@ -72,7 +95,7 @@ export class TxnStore {
           Object.entries(b.contracts).sort((a, x) => x[1].n - a[1].n).slice(0, 80)
         ),
       }));
-      fs.writeFileSync(this.file, JSON.stringify(slim));
+      fs.writeFileSync(this.file, JSON.stringify({ buckets: slim, allTime: this.allTime }));
     } catch { /* non-fatal */ }
   }
 
@@ -156,8 +179,19 @@ export class TxnStore {
         dAvg7: tP != null && aP != null ? +(tP - aP).toFixed(1) : null,
       };
     }
+    // 历史累计视图(自 since,持久化,重启续算)
+    const atGasTotal = Object.values(this.allTime.cats).reduce((s, v) => s + (v.gas || 0), 0);
+    const allTime = {
+      since: this.allTime.since,
+      total: this.allTime.txs,
+      blocks: this.allTime.blocks,
+      catCount: Object.fromEntries(CATS.map((c) => [c, this.allTime.cats[c]?.n ?? 0])),
+      catPct: Object.fromEntries(CATS.map((c) => [c, this.allTime.txs ? +((100 * (this.allTime.cats[c]?.n ?? 0)) / this.allTime.txs).toFixed(1) : 0])),
+      catGasPct: Object.fromEntries(CATS.map((c) => [c, atGasTotal ? +((100 * (this.allTime.cats[c]?.gas ?? 0)) / atGasTotal).toFixed(1) : 0])),
+    };
     return {
       sampledSince: this.buckets[0]?.t ?? null,
+      allTime,
       daily: Object.values(days),
       hourly24: h24,
       total24,

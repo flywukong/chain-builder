@@ -694,6 +694,7 @@ body::before {
 
 /* 24h 分类分布:笔数占比 + Gas 占比 + 环比 对照表 */
 .txn-dist { padding: 8px 14px 12px; overflow: visible; display: flex; flex-direction: column; gap: 4px; }
+.txn-dist-ctl { display: inline-flex; align-items: center; gap: 10px; }
 .txn-dist-head, .txn-dist-row { display: grid; grid-template-columns: 104px 62px 1fr 1fr 88px; align-items: center; gap: 12px; }
 .txn-dist-head { font-size: 8.5px; color: var(--dim); letter-spacing: .3px; padding-bottom: 4px; border-bottom: 1px solid #1c1a14; margin-bottom: 2px; }
 .txn-dist-head .tdr-r, .txn-dist-row .tdr-count { text-align: right; }

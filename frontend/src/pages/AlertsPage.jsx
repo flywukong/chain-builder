@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { lookupValidator } from "../data/validators.js";
 
 const SEVERITY = { felony: "sev-crit", misdemeanor: "sev-high", warn: "sev-warn", ok: "sev-ok" };
 const SEV_LABEL = { felony: "CRITICAL", misdemeanor: "HIGH", warn: "WARN", ok: "OK" };
@@ -9,14 +10,18 @@ export default function AlertsPage({ slashStatus, recentBlocks }) {
   const slashActive = (slashStatus ?? []).filter(v => v.slashCount > 0);
 
   const allAlerts = [
-    ...slashActive.map(v => ({
-      id:       `slash-${v.consensusAddr}`,
-      category: "Slash",
-      severity: v.slashCount >= 600 ? "felony" : v.slashCount >= 200 ? "misdemeanor" : "warn",
-      title:    `Validator slash count: ${v.slashCount}`,
-      detail:   v.consensusAddr,
-      ts:       null,
-    })),
+    ...slashActive.map(v => {
+      const info = lookupValidator(v.consensusAddr);
+      return {
+        id:       `slash-${v.consensusAddr}`,
+        category: "Slash",
+        severity: v.slashCount >= 600 ? "felony" : v.slashCount >= 200 ? "misdemeanor" : "warn",
+        title:    `Validator ${info.name} · slash count ${v.slashCount}`,
+        internal: info.group === "internal",   // 内部运营节点,列表额外标注
+        detail:   v.consensusAddr,
+        ts:       null,
+      };
+    }),
     ...anomalies.slice(-20).map(b => ({
       id:       `anomaly-${b.number}`,
       category: "Block",
@@ -55,7 +60,7 @@ export default function AlertsPage({ slashStatus, recentBlocks }) {
                 <div className="alert-sev-badge">{SEV_LABEL[a.severity]}</div>
                 <div className="alert-cat">{a.category}</div>
                 <div className="alert-body">
-                  <div className="alert-title">{a.title}</div>
+                  <div className="alert-title">{a.title}{a.internal && <i className="v-internal">内部</i>}</div>
                   {a.detail && <div className="alert-detail">{a.detail}</div>}
                 </div>
                 {a.ts && (

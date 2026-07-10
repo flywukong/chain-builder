@@ -24,13 +24,20 @@ function SafetyEventsCard({ slashStatus, slashEvents, reorgTimeline, trafficTime
   const epDesc = (e) => e.trigger?.includes("gas") && !e.trigger?.includes("pending")
     ? `gas ${e.peakGasPct}%` : `pending ${e.peakPending?.toLocaleString()}`;
 
+  // validator 名 + 内部运营标注
+  const vName = (addr) => {
+    const info = lookupValidator(addr);
+    return <>{info.name}{info.group === "internal" && <i className="v-internal">内部</i>}</>;
+  };
   const rows = [
     {
       icon: "🛡", label: "Slash · 24h 事件", nav: "alerts",
       val: `${slashEvents?.count ?? 0} 笔`, tone: (slashEvents?.count ?? 0) > 0 || slashed.length ? "warn" : "ok",
       sub: (slashEvents?.count ?? 0) > 0
-        ? `最近 ${lookupValidator(slashEvents.recent[0].validator).name} · #${slashEvents.recent[0].block?.toLocaleString()}`
-        : slashed.length ? `计数中:${slashed.slice(0, 2).map((v) => lookupValidator(v.consensusAddr).name).join(" · ")}` : "全网无 slash",
+        ? <>最近 {vName(slashEvents.recent[0].validator)} · #{slashEvents.recent[0].block?.toLocaleString()}</>
+        : slashed.length
+        ? <>计数中:{slashed.slice(0, 2).map((v, i) => <span key={v.consensusAddr}>{i > 0 && " · "}{vName(v.consensusAddr)}</span>)}</>
+        : "全网无 slash",
     },
     {
       icon: "⛓", label: "Reorg · 近 7 天", nav: "monitor",

@@ -43,11 +43,19 @@ export default function MevPage({ state }) {
     );
   }
 
-  const fams = mev.builderFamilies ?? [];
+  // 四卡:24h 小时桶口径(旧后端无 day24 时回退 2000 窗口)
+  const d24 = mev.day24 ?? null;
+  const tc = mev.typeCounts ?? {};
+  const cards = d24
+    ? { mevPct: d24.mevPct, v2Pct: d24.v2Pct, v1: d24.v1Count, local: d24.localCount }
+    : { mevPct: mev.mevPct, v2Pct: mev.v2Pct, v1: tc.mev_v1 ?? 0, local: tc.local ?? 0 };
+  // builder 分布:历史累计(重启续算);旧后端回退 2000 窗口
+  const fams = mev.buildersAll ?? mev.builderFamilies ?? [];
   const maxFam = Math.max(1, ...fams.map((f) => f[1]));
+  const famTotal = fams.reduce((s, f) => s + f[1], 0);
+  const famSince = mev.buildersSince ? new Date(mev.buildersSince) : null;
   const miners = mev.topMiners ?? [];
   const maxMiner = Math.max(1, ...miners.map((m) => m[1]));
-  const tc = mev.typeCounts ?? {};
   // validator 运行版本(extraData 解析);最新版绿、落后橙
   const vers = mev.minerVersions ?? {};
   const verKey = (v) => (v || "").replace("v", "").split(".").map(Number);
@@ -61,7 +69,7 @@ export default function MevPage({ state }) {
       <div className="subpage-head">
         <div>
           <h1>💎 MEV 分析</h1>
-          <p>Builder 出块格局 · MEV 占比 · v1/v2 (BEP-675) 路径 · 窗口 {mev.total} 块</p>
+          <p>Builder 出块格局 · MEV 占比 · v1/v2 (BEP-675) 路径 · 指标窗口 24 小时</p>
         </div>
         <div className="ai-bar">
           <button className="st-auto-btn" onClick={runAi} disabled={ai.loading}>
@@ -79,26 +87,29 @@ export default function MevPage({ state }) {
           </div>
         )}
         <div className="stat-cards">
-          <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{mev.mevPct}%</div><div className="sc-l">MEV 占比</div></div>
+          <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{cards.mevPct}%</div><div className="sc-l">MEV 占比 · 24h</div></div>
           <div className="stat-card sc-card-v2">
-            <div className="sc-v" style={{ color: "#FF9F1C" }}><span className="sc-ico">⚡</span>{mev.v2Pct}%</div>
-            <div className="sc-l">mev-v2 (bid-block) 占比<span className="sc-bep">BEP-675</span></div>
+            <div className="sc-v" style={{ color: "#FF9F1C" }}><span className="sc-ico">⚡</span>{cards.v2Pct}%</div>
+            <div className="sc-l">mev-v2 (bid-block) 占比 · 24h<span className="sc-bep">BEP-675</span></div>
           </div>
           <div className="stat-card">
-            <div className="sc-v" style={{ color: "var(--green)" }}><span className="sc-ico">◇</span>{tc.mev_v1 ?? 0}</div>
-            <div className="sc-l">mev-v1 (bid) 块</div>
+            <div className="sc-v" style={{ color: "var(--green)" }}><span className="sc-ico">◇</span>{cards.v1.toLocaleString()}</div>
+            <div className="sc-l">mev-v1 (bid) 块 · 24h</div>
           </div>
-          <div className="stat-card"><div className="sc-v" style={{ color: "var(--muted)" }}>{tc.local ?? 0}</div><div className="sc-l">local（非MEV）块</div></div>
+          <div className="stat-card"><div className="sc-v" style={{ color: "var(--muted)" }}>{cards.local.toLocaleString()}</div><div className="sc-l">local（非MEV）块 · 24h</div></div>
         </div>
 
         <div className="panel" style={{ maxWidth: 640 }}>
-          <div className="panel-header"><span>Builder 分布</span><span className="sub">按系列</span></div>
+          <div className="panel-header">
+            <span>Builder 分布</span>
+            <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} MEV 块</span>
+          </div>
           <div className="panel-body mev-bars">
             {fams.map(([f, c]) => (
               <div key={f} className="ver-row">
                 <span className="ver-tag" style={{ width: 88, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
                 <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
-                <span className="ver-count">{c}<em>· {Math.round((c / mev.total) * 100)}%</em></span>
+                <span className="ver-count">{c.toLocaleString()}<em>· {famTotal ? Math.round((c / famTotal) * 100) : 0}%</em></span>
               </div>
             ))}
           </div>
@@ -137,7 +148,7 @@ export default function MevPage({ state }) {
           </div>
         </div>
 
-        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别，滚动窗口 {mev.total} 块）。当前主网 ~99% 是 mev_v1，v2 bidblock 尚未起量。v1.1 接 AI 后支持 builder 占比突变归因。</div>
+        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算),最近出块/validator 榜为滚动 {mev.total} 块。当前主网 ~99% 是 mev_v1，v2 bidblock 尚未起量。</div>
       </div>
     </div>
   );

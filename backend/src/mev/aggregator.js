@@ -58,11 +58,11 @@ export class MevAggregator extends EventEmitter {
     const hk = Math.floor(now / HOUR);
     const b = (this.day.buckets[hk] ??= { total: 0, mev: 0, v2: 0 });
     b.total++;
-    if (type !== "local") {
-      b.mev++;
-      this.day.builderTotals[fam] = (this.day.builderTotals[fam] || 0) + 1;   // 历史累计,不滚动
-    }
+    if (type !== "local") b.mev++;
     if (type === "mev_v2") b.v2++;
+    // builder 历史累计:捕获到的所有块,local(非 MEV)也计为一类
+    const famKey = type === "local" ? "local" : fam;
+    this.day.builderTotals[famKey] = (this.day.builderTotals[famKey] || 0) + 1;
     // validator 版本:记最近一次出块所用版本;旧版本一直保留,直到该 validator 用新版本出块覆盖
     if (block.miner && block.version && block.version !== "unknown") {
       this.day.minerVers[block.miner] = { ver: block.version, t: now };

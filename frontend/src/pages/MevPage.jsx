@@ -26,6 +26,7 @@ const FAMILY_COLORS = {
   blockrazor: "#F0B90B", "48club": "#45B8FF", blockroute: "#38bdf8", jetbldr: "#22c55e",
   nodereal: "#f97316", txboost: "#ec4899", blockbus: "#5BC8D8", darwin: "#B6CC52",
   inblock: "#9A86F0", unknown: "#8A8F99", xzbuilder: "#8A8F99", trustnet: "#8A8F99",
+  local: "#6d675a",
 };
 
 export default function MevPage({ state }) {
@@ -102,7 +103,7 @@ export default function MevPage({ state }) {
         <div className="panel" style={{ maxWidth: 640 }}>
           <div className="panel-header">
             <span>Builder 分布</span>
-            <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} MEV 块</span>
+            <span className="sub">历史累计 · 全部块{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块</span>
           </div>
           <div className="panel-body mev-bars">
             {fams.map(([f, c]) => (

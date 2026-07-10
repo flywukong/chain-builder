@@ -55,8 +55,19 @@ export default function MevPage({ state }) {
   const maxFam = Math.max(1, ...fams.map((f) => f[1]));
   const famTotal = fams.reduce((s, f) => s + f[1], 0);
   const famSince = mev.buildersSince ? new Date(mev.buildersSince) : null;
-  const miners = mev.topMiners ?? [];
-  const maxMiner = Math.max(1, ...miners.map((m) => m[1]));
+  // 集中度(24h)与 instance 拆分
+  const conc = mev.concentration ?? null;
+  const insts = mev.instances ?? [];
+  const maxInst = Math.max(1, ...insts.map((i) => i.n));
+  const vbRows = mev.validatorBuilders ?? [];
+  const hhiInfo = (h) => (h < 1500 ? ["分散", "var(--green)"] : h <= 2500 ? ["中等集中", "var(--gold)"] : ["高度集中", "var(--orange)"]);
+  const fmtDelta = (pct, prevPct) => {
+    if (prevPct == null) return <span style={{ color: "var(--dim)" }}>—</span>;
+    const d = pct - prevPct;
+    if (d > 0.05) return <span style={{ color: "var(--gold)" }}>▲{d.toFixed(1)}</span>;
+    if (d < -0.05) return <span style={{ color: "#3FB8A0" }}>▼{Math.abs(d).toFixed(1)}</span>;
+    return <span style={{ color: "var(--muted)" }}>—</span>;
+  };
   // validator 运行版本(extraData 解析);最新版绿、落后橙
   const vers = mev.minerVersions ?? {};
   const verKey = (v) => (v || "").replace("v", "").split(".").map(Number);
@@ -100,6 +111,30 @@ export default function MevPage({ state }) {
           <div className="stat-card"><div className="sc-v" style={{ color: "var(--muted)" }}>{cards.local.toLocaleString()}</div><div className="sc-l">local（非MEV）块 · 24h</div></div>
         </div>
 
+        {/* Builder 集中度:MEV 出块是否被少数 builder 过度集中(24h,环比上一 24h) */}
+        {conc?.top1 && (
+          <div className="stat-cards">
+            <div className="stat-card">
+              <div className="sc-v" style={{ color: FAMILY_COLORS[conc.top1.name] || "var(--gold)" }}>{conc.top1.pct}%</div>
+              <div className="sc-l">Top1 · {conc.top1.name}</div>
+            </div>
+            <div className="stat-card">
+              <div className="sc-v" style={{ color: FAMILY_COLORS[conc.top2?.name] || "var(--text)" }}>{conc.top2?.pct ?? 0}%</div>
+              <div className="sc-l">Top2 · {conc.top2?.name ?? "—"}</div>
+            </div>
+            <div className="stat-card">
+              <div className="sc-v" style={{ color: hhiInfo(conc.hhi)[1] }}>{conc.hhi.toLocaleString()}</div>
+              <div className="sc-l">HHI 集中度 · {hhiInfo(conc.hhi)[0]}</div>
+            </div>
+            <div className="stat-card">
+              <div className="sc-v" style={{ color: !conc.hasPrev ? "var(--dim)" : (conc.top1.pct - conc.top1.prevPct) > 0 ? "var(--orange)" : "var(--green)" }}>
+                {conc.hasPrev ? `${conc.top1.pct - conc.top1.prevPct >= 0 ? "+" : ""}${(conc.top1.pct - conc.top1.prevPct).toFixed(1)}` : "—"}
+              </div>
+              <div className="sc-l">{conc.hasPrev ? `${conc.top1.name} 环比 · vs 上一 24h` : "环比 · 前一窗口积累中"}</div>
+            </div>
+          </div>
+        )}
+
         <div className="panel" style={{ maxWidth: 640 }}>
           <div className="panel-header">
             <span>Builder 分布</span>
@@ -115,6 +150,23 @@ export default function MevPage({ state }) {
             ))}
           </div>
         </div>
+
+        {/* instance 拆分:定位某地区/实例异常,而非只看 family */}
+        {insts.length > 0 && (
+          <div className="panel" style={{ maxWidth: 640 }}>
+            <div className="panel-header"><span>Builder Instance 拆分</span><span className="sub">24h · Δ 为占比环比上一 24h</span></div>
+            <div className="panel-body mev-bars">
+              {insts.map((it) => (
+                <div key={it.name} className="ver-row">
+                  <span className="ver-tag" style={{ width: 150, color: FAMILY_COLORS[it.family] || "#aaa" }}>{it.name}</span>
+                  <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(it.n / maxInst) * 100}%`, background: FAMILY_COLORS[it.family] || "#888" }} /></div>
+                  <span className="ver-count">{it.n.toLocaleString()}<em>· {it.pct}%</em></span>
+                  <span className="mi-delta">{fmtDelta(it.pct, it.prevPct)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {mev.recent?.length > 0 && (
           <div className="panel" style={{ maxWidth: 860 }}>
@@ -132,17 +184,24 @@ export default function MevPage({ state }) {
           </div>
         )}
 
-        <div className="panel" style={{ maxWidth: 640 }}>
-          <div className="panel-header"><span>出块最多的 Validator</span><span className="sub">top {miners.length} · 窗口 {mev.total} 块 · 版本自 extraData</span></div>
-          <div className="panel-body mev-bars">
-            {miners.map(([m, c]) => {
-              const v = vers[m];
+        {/* 核心表:某 validator 是否只依赖一个 builder、是否 fallback local、某类是否集体异常 */}
+        <div className="panel" style={{ maxWidth: 860 }}>
+          <div className="panel-header"><span>Validator → Builder 关系</span><span className="sub">窗口 {mev.total} 块 · 版本自 extraData</span></div>
+          <div className="panel-body vb-body">
+            <div className="vb-row vb-head">
+              <span>validator</span><span>版本</span><span>出块</span><span>MEV%</span><span>主 builder</span><span>多样性</span><span>local</span>
+            </div>
+            {vbRows.map((v) => {
+              const gv = vers[v.miner];
               return (
-                <div key={m} className="ver-row">
-                  <span className="ver-tag" style={{ width: 110 }}>{minerName(m)}</span>
-                  <span className="mv-ver" style={{ color: !v ? "var(--muted)" : v === latestVer ? "var(--green)" : "var(--orange)" }}>{v ?? "—"}</span>
-                  <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxMiner) * 100}%`, background: "var(--teal, #3FB8A0)" }} /></div>
-                  <span className="ver-count">{c}</span>
+                <div key={v.miner} className="vb-row">
+                  <span className="vb-name">{minerName(v.miner)}</span>
+                  <span style={{ color: !gv ? "var(--muted)" : gv === latestVer ? "var(--green)" : "var(--orange)" }}>{gv ?? "—"}</span>
+                  <span>{v.total}</span>
+                  <span style={{ color: v.mevPct >= 99 ? "var(--green)" : v.mevPct >= 90 ? "var(--gold)" : "var(--orange)" }}>{v.mevPct}%</span>
+                  <span className="vb-main" style={{ color: FAMILY_COLORS[v.mainFam] || "#aaa" }}>{v.mainFam ?? "—"}{v.mainFam && <em>{v.mainPct}%</em>}</span>
+                  <span style={{ color: v.famCount >= 2 ? "var(--text)" : "var(--orange)" }}>{v.famCount} 家</span>
+                  <span style={{ color: v.local > 0 ? "var(--orange)" : "var(--muted)" }}>{v.local}</span>
                 </div>
               );
             })}

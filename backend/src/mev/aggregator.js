@@ -58,7 +58,13 @@ export class MevAggregator extends EventEmitter {
     const hk = Math.floor(now / HOUR);
     const b = (this.day.buckets[hk] ??= { total: 0, mev: 0, v2: 0 });
     b.total++;
-    if (type !== "local") b.mev++;
+    if (type !== "local") {
+      b.mev++;
+      // 桶级 per-family / per-instance 计数:供集中度(Top1/HHI)与 instance 拆分做 24h 环比
+      (b.fams ??= {})[fam] = (b.fams[fam] || 0) + 1;
+      const inst = (block.builder || "").trim().toLowerCase();
+      if (inst) (b.insts ??= {})[inst] = (b.insts[inst] || 0) + 1;
+    }
     if (type === "mev_v2") b.v2++;
     // builder 历史累计:捕获到的所有块,local(非 MEV)也计为一类
     const famKey = type === "local" ? "local" : fam;
@@ -97,12 +103,21 @@ export class MevAggregator extends EventEmitter {
     // floor to 1 decimal: 1993/2000 must read 99.6%, not round up to a false 100%
     const pct1 = (a, b) => (b ? Math.floor((a / b) * 1000) / 10 : 0);
 
-    // ── 24h 汇总(小时桶)──
+    // ── 24h 汇总(小时桶)+ 上一 24h 窗口(环比用)──
     const now = Date.now();
     const hkCut = Math.floor((now - 24 * HOUR) / HOUR);
-    let dTotal = 0, dMev = 0, dV2 = 0;
+    const hkPrevCut = Math.floor((now - 48 * HOUR) / HOUR);
+    let dTotal = 0, dMev = 0, dV2 = 0, prevMev = 0;
+    const famsNow = {}, famsPrev = {}, instsNow = {}, instsPrev = {};
+    const merge = (dst, src) => { for (const [k, n] of Object.entries(src || {})) dst[k] = (dst[k] || 0) + n; };
     for (const [hk, b] of Object.entries(this.day.buckets)) {
-      if (+hk >= hkCut) { dTotal += b.total; dMev += b.mev; dV2 += b.v2; }
+      if (+hk >= hkCut) {
+        dTotal += b.total; dMev += b.mev; dV2 += b.v2;
+        merge(famsNow, b.fams); merge(instsNow, b.insts);
+      } else if (+hk >= hkPrevCut) {
+        prevMev += b.mev;
+        merge(famsPrev, b.fams); merge(instsPrev, b.insts);
+      }
     }
     const day24 = {
       total: dTotal,
@@ -112,6 +127,55 @@ export class MevAggregator extends EventEmitter {
       v2Count: dV2,
       localCount: dTotal - dMev,
     };
+
+    // ── Builder 集中度(24h,分母 = MEV 块;环比 = 上一 24h 窗口)──
+    const famsSorted = Object.entries(famsNow).sort((a, b) => b[1] - a[1]);
+    const shareOf = ([name, n]) => ({
+      name, n,
+      pct: pct1(n, dMev),
+      prevPct: prevMev ? pct1(famsPrev[name] || 0, prevMev) : null,
+    });
+    let hhi = 0;
+    for (const [, n] of famsSorted) { const s = dMev ? (n / dMev) * 100 : 0; hhi += s * s; }
+    const concentration = {
+      top1: famsSorted[0] ? shareOf(famsSorted[0]) : null,
+      top2: famsSorted[1] ? shareOf(famsSorted[1]) : null,
+      hhi: Math.round(hhi),
+      hasPrev: prevMev > 0,
+    };
+
+    // ── Builder instance 拆分(24h,family 内按实例)──
+    const instances = Object.entries(instsNow)
+      .map(([name, n]) => ({
+        name, family: family(name), n,
+        pct: pct1(n, dMev),
+        prevPct: prevMev ? pct1(instsPrev[name] || 0, prevMev) : null,
+      }))
+      .sort((a, b) => b.n - a.n);
+
+    // ── Validator → Builder 关系(滚动窗口):依赖哪个 builder / 是否 fallback local ──
+    const vbMap = {};
+    for (const b of w) {
+      if (!b.miner) continue;
+      const m = (vbMap[b.miner] ??= { total: 0, mev: 0, local: 0, fams: {} });
+      m.total++;
+      if (b.type === "local") m.local++;
+      else { m.mev++; m.fams[b.family] = (m.fams[b.family] || 0) + 1; }
+    }
+    const validatorBuilders = Object.entries(vbMap)
+      .map(([miner, m]) => {
+        const top = Object.entries(m.fams).sort((a, b) => b[1] - a[1])[0] ?? null;
+        return {
+          miner,
+          total: m.total,
+          mevPct: pct1(m.mev, m.total),
+          mainFam: top ? top[0] : null,
+          mainPct: top ? pct1(top[1], m.mev) : 0,
+          famCount: Object.keys(m.fams).length,
+          local: m.local,
+        };
+      })
+      .sort((a, b) => b.total - a.total);
 
     // builder 分布:历史累计(自 since 起,重启续算)
     const buildersAll = Object.entries(this.day.builderTotals).sort((a, b) => b[1] - a[1]);
@@ -140,6 +204,9 @@ export class MevAggregator extends EventEmitter {
       day24,
       buildersAll,
       buildersSince: this.day.since,
+      concentration,
+      instances,
+      validatorBuilders,
     };
   }
 }

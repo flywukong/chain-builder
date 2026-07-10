@@ -1013,6 +1013,16 @@ body::before {
 .traffic-stat.ok b { color: #43d089; }
 .traffic-stat.hot { background: #1a1000; border-color: #3a2d00; border-left: 3px solid var(--orange); }
 .traffic-stat.hot b { color: var(--orange); }
+/* MEV:instance 环比 Δ + Validator→Builder 关系表 */
+.mi-delta { font-family: var(--mono); font-size: 9px; width: 48px; text-align: right; flex-shrink: 0; }
+.vb-body { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; max-height: 430px; overflow: auto; }
+.vb-row { display: grid; grid-template-columns: 118px 52px 40px 48px 1fr 48px 40px; gap: 8px; align-items: center;
+  font-family: var(--mono); font-size: 10px; background: #141414; border: 1px solid #1e1c16; border-radius: 4px; padding: 3px 8px; }
+.vb-row.vb-head { background: transparent; border: none; color: var(--muted); font-size: 8.5px; text-transform: uppercase; letter-spacing: .5px; padding-bottom: 0; }
+.vb-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vb-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vb-main em { font-style: normal; color: var(--dim); margin-left: 5px; }
+
 .tf-evgroup { display: flex; flex-direction: column; gap: 4px; }
 .tf-evgroup + .tf-evgroup { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1d1b15; }
 /* 事件行「⚡分析」的内联结果区 */

@@ -302,11 +302,14 @@ async function runViaApi(prompt, timeoutMs) {
   return text;
 }
 
-function runViaCli(prompt, timeoutMs = TIMEOUT_MS) {
+// 主模型额度用尽(如 Fable 5 周额度)时的回退模型
+const CLI_FALLBACK_MODEL = process.env.CLAUDE_CLI_FALLBACK_MODEL || "claude-opus-4-8";
+const LIMIT_RE = /(usage|weekly|session|5-?hour|monthly)\s*limit|limit (reached|exceeded)|rate.?limit|quota/i;
+
+function cliOnce(prompt, timeoutMs, model = null) {
   return new Promise((resolve, reject) => {
-    // 不设 CLAUDE_CLI_MODEL 时用 CLI 登录账号的默认模型
     const args = ["-p", "--output-format", "text"];   // headless one-shot; prompt via stdin
-    if (process.env.CLAUDE_CLI_MODEL) args.push("--model", process.env.CLAUDE_CLI_MODEL);
+    if (model) args.push("--model", model);
     const child = spawn(
       CLAUDE_BIN,
       args,
@@ -319,16 +322,30 @@ function runViaCli(prompt, timeoutMs = TIMEOUT_MS) {
     child.on("error", (e) => reject(new Error("claude spawn failed: " + e.message)));
     child.on("close", (code) => {
       const text = out.trim();
-      // claude 会把认证/API 错误打到 stdout —— 不能当成分析正文
+      // claude 会把认证/API/额度错误打到 stdout —— 不能当成分析正文
       const looksLikeError = text && text.length < 300 &&
-        /(Failed to authenticate|API Error|Invalid API key|credit balance|rate limit|overloaded)/i.test(text.slice(0, 160));
+        /(Failed to authenticate|API Error|Invalid API key|credit balance|rate limit|usage limit|limit reached|overloaded)/i.test(text.slice(0, 160));
       if (text && !looksLikeError && code === 0) return resolve(text);
       const reason = looksLikeError ? text : String(err || `claude exited with code ${code}`);
-      console.error("[ai] claude failed code=%s\n%s", code, reason);
+      console.error("[ai] claude failed code=%s model=%s\n%s", code, model ?? "(default)", reason);
       reject(new Error(reason.slice(0, 800)));
     });
 
     child.stdin.write(prompt);
     child.stdin.end();
   });
+}
+
+async function runViaCli(prompt, timeoutMs = TIMEOUT_MS) {
+  // 主模型:CLAUDE_CLI_MODEL,不设则用 CLI 登录账号默认(如 Fable 5)
+  const primary = process.env.CLAUDE_CLI_MODEL || null;
+  try {
+    return await cliOnce(prompt, timeoutMs, primary);
+  } catch (e) {
+    if (LIMIT_RE.test(e.message) && CLI_FALLBACK_MODEL && CLI_FALLBACK_MODEL !== primary) {
+      console.warn("[ai] 主模型额度受限,回退 %s 重试", CLI_FALLBACK_MODEL);
+      return cliOnce(prompt, timeoutMs, CLI_FALLBACK_MODEL);
+    }
+    throw e;
+  }
 }

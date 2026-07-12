@@ -145,6 +145,32 @@ export async function runMevAnalysis(data) {
   return spawnClaude(prompt);
 }
 
+// ── Block Gas 执行负载解读 ──
+export async function runBlockGasAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网运维分析师。解读执行负载(两台典型 validator 30m 均值),中文,120 字以内,直接正文。",
+    "基线:块 gas 8~25M、MGas/s 200~600、执行耗时 <25% slot(450ms)均属常态,范围内不要当风险。",
+    "要点:吞吐与块负载的水位与波动(突刺给出时间与幅度)、执行耗时占 slot 比例是否有压力;正常就一句话说稳,不要凑内容。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+// ── 区块导入时延解读:节点差异 + 超阈段 ──
+export async function runLatencyAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网运维分析师。解读我方 4 台 validator 节点的区块导入时延(insert latency,24h),中文,150 字以内,直接正文。",
+    "基线:均值 <200ms 正常;>450ms(一个出块间隔)为超阈,episodes 列出了超阈段。",
+    "要点:①整体水位(均值/峰值 vs 基线)②节点差异:某台持续显著高于其他 = 该节点问题,点名(IP)建议排查;各台接近则说一致 ③超阈段:时间/时长/峰值,孤立尖峰(<1min)多为磁盘/GC 抖动,持续段才需关注。正常就说正常。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
 // ── Reorg 解读:无节点日志,不做根因;判涉及方(自营/外部)+ 严重度 + 总结 ──
 export async function runReorgAnalysis(data) {
   const prompt = [

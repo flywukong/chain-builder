@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -454,6 +454,42 @@ app.get("/api/ai/data", async (req) => {
 });
 setTimeout(runNetworkAnalysis, 45_000);          // first pass once data is warm
 setInterval(runNetworkAnalysis, 3600_000);       // hourly auto-refresh
+
+// Block Gas 执行负载解读(30m 序列压缩为统计量)
+aiRoutes("blockgas", "/api/ai/blockgas", async () => {
+  const bg = latest.blockGas ?? await fetchBlockGas(cfg.keterConfigPath);
+  if (!bg?.mgasps?.values?.length) throw new Error("keter blockGas 数据不可用");
+  const stat = (s, scale = 1) => {
+    const v = (s?.values ?? []).filter((x) => typeof x === "number").map((x) => x / scale);
+    if (!v.length) return null;
+    const r = (x) => +x.toFixed(1);
+    return { avg: r(v.reduce((a, b) => a + b, 0) / v.length), max: r(Math.max(...v)), min: r(Math.min(...v)), last: r(v.at(-1)) };
+  };
+  return runBlockGasAnalysis({
+    sampleValidators: ["10.213.32.160", "10.213.32.78"],
+    windowMinutes: 30,
+    mgasPerSec: stat(bg.mgasps),
+    gasPerBlockM: stat(bg.gasused, 1e6),
+    txsPerBlock: stat(bg.txsize),
+  });
+});
+
+// 区块导入时延解读(24h,per-node 统计 + 超阈段)
+aiRoutes("latency", "/api/ai/latency", async () => {
+  const d = insertLatCache.data ?? await fetchInsertLatency(cfg.keterConfigPath, 24);
+  if (!d?.times?.length) throw new Error("keter insert-latency 数据不可用");
+  const nodeStat = (s) => {
+    const v = (s.values ?? []).filter((x) => typeof x === "number");
+    if (!v.length) return { instance: s.instance };
+    return { instance: s.instance, avgMs: +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1), maxMs: +Math.max(...v).toFixed(1) };
+  };
+  return runLatencyAnalysis({
+    hours: d.hours, thresholdMs: d.threshold,
+    overallMeanMs: d.mean, overallMaxMs: d.max, currentMs: d.cur,
+    perNode: (d.perNode ?? []).map(nodeStat),
+    episodesOverThreshold: (d.episodes ?? []).map((e) => ({ from: new Date(e.from).toISOString(), to: new Date(e.to).toISOString(), peakMs: e.peak })),
+  });
+});
 
 // Reorg 解读:严重度 + 涉及方(自营/外部),无日志不做根因
 aiRoutes("reorg", "/api/ai/reorg", async () => {

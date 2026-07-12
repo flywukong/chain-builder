@@ -537,8 +537,20 @@ body::before {
 
 /* ── Monitor 大盘 ── */
 .dash-monitor { flex: 1; display: grid; grid-template-rows: 1fr 132px; gap: 6px; padding: 7px; min-height: 0; }
-/* 监控第二行:Reorg + 空块详情 */
-.panel-row-m2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 6px; min-height: 0; }
+/* 监控 v2:四面板各占一整行,页面滚动,面积放开 */
+.dash-monitor-v2 { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 10px 14px 16px; overflow-y: auto; min-height: 0; }
+.dash-monitor-v2 > .panel { flex-shrink: 0; }
+.dash-monitor-v2 .bg-body, .dash-monitor-v2 .latency-body { height: auto; }
+.dash-monitor-v2 .bg-canvas { flex: none; height: 300px; cursor: crosshair; }
+.dash-monitor-v2 .latency-canvas { flex: none; height: 300px; }
+.dash-monitor-v2 .reorg-canvas { flex: none; height: 280px; }
+.dash-monitor-v2 .reorg-main { grid-template-columns: 1fr 320px; }
+.dash-monitor-v2 .eb-list { max-height: 300px; }
+/* 面板级 AI 按钮 + 结果块 */
+.panel-ai-btn { padding: 5px 12px; font-size: 10.5px; }
+.panel-ai-result { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  background: rgba(240,185,11,.03); border: 1px solid #2a2415; border-radius: 8px; flex-shrink: 0; }
+.bg-src { font-style: normal; font-family: var(--mono); font-size: 8.5px; color: var(--dim); margin-left: auto; }
 /* 空块详情面板 */
 .eb-panel { display: flex; flex-direction: column; min-height: 0; }
 .eb-body { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; min-height: 0; }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelAi, AiButton, AiResult } from "./PanelAi.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 const NODE_COLORS = ["#3FB8A0", "#9A86F0", "#38bdf8", "#ec4899"];
@@ -12,6 +13,7 @@ export default function LatencyPanel() {
   const canvasRef = useRef(null);
   const [d, setD] = useState(null);
   const [hover, setHover] = useState(null);   // index into times
+  const ai = usePanelAi("/api/ai/latency");
 
   useEffect(() => {
     let alive = true;
@@ -169,9 +171,13 @@ export default function LatencyPanel() {
     <div className="panel">
       <div className="panel-header">
         <span>Block Insert Latency</span>
-        <span className="sub">{d ? `${d.ips.length} 节点均值 · ${d.hours}h` : "…"}</span>
+        <span className="bm-ctls">
+          <span className="sub">{d ? `${d.ips.length} 节点均值 · ${d.hours}h` : "…"}</span>
+          <AiButton ai={ai} />
+        </span>
       </div>
       <div className="panel-body latency-body">
+        <AiResult ai={ai} title="导入时延解读 · 节点差异与超阈段" />
         <div className="lat-strip">
           <span className="lat-stat"><em style={{ color: "#F0B90B" }}>{d?.cur ?? "--"}</em>ms 当前</span>
           <span className="lat-stat"><em>{d?.mean ?? "--"}</em>ms 均值</span>

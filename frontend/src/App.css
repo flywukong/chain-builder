@@ -145,9 +145,9 @@ body::before {
 
 /* ── AI 机器人助手(嵌入 Ring 面板右下黑区)── */
 .robot-widget { position: absolute; right: 40px; bottom: 118px; z-index: 6; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-/* LEO 名字:头顶斜上方,金色发光 */
+/* CLICK ME:机器人头顶正上方居中悬浮,金色发光 */
 .robot-name {
-  position: absolute; top: 32px; right: 2px; z-index: 3; pointer-events: none;
+  position: absolute; top: -18px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none; white-space: nowrap;
   font-family: var(--mono); font-weight: 800; font-size: 9.6px; letter-spacing: 1.5px;
   color: var(--gold); text-shadow: 0 0 10px rgba(240,185,11,.75), 0 1px 2px rgba(0,0,0,.85);
 }

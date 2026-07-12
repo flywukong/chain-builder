@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -580,3 +580,4 @@ if (fs.existsSync(distPath)) {
 
 await app.listen({ port: cfg.port, host: "0.0.0.0" });
 console.log(`BSC Monitor running on http://localhost:${cfg.port}`);
+console.log(`[ai] backend: ${aiInfo()}`);

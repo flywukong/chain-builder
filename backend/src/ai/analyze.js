@@ -37,6 +37,19 @@ function resolveBackend() {
   return API_KEY ? "claude-api" : "claude-cli";
 }
 
+// 启动日志用:当前 AI 后端 + 模型选择的一句话描述
+export function aiInfo() {
+  const backend = resolveBackend();
+  switch (backend) {
+    case "claude-api": return `claude-api · model=${MODEL}`;
+    case "claude-cli": return `claude-cli · model=${process.env.CLAUDE_CLI_MODEL || "(CLI 账号默认)"} · 额度回退=${CLI_FALLBACK_MODEL}`;
+    case "codex-cli":  return `codex-cli · model=${CODEX_MODEL || "(codex 默认)"}`;
+    case "codex-api":  return `codex-api · model=${OPENAI_MODEL}`;
+    case "codex-py":   return `codex-py · model=${OPENAI_MODEL}`;
+    default:           return backend;
+  }
+}
+
 function buildPrompt(data) {
   return [
     `你是 BNB Chain (BSC) 主网的资深运维分析师。根据下面最近 ${data.windowDays ?? 7} 天的监控数据(部分细粒度指标为 24h,见字段名),用中文输出一份简洁的网络健康分析(markdown,200 字以内)。`,

@@ -176,6 +176,11 @@ export default function BidMetricsPanel() {
           <MetricPanel title="Best Bid GasUsed" sub={`${hours}h · ${gas.length} 节点`} series={gas} unit="M" />
         </div>
       )}
+      {/* v2 性能占位:主网 v2 尚未起量,起量后接 keter bidblock 指标 */}
+      <div className="bm-v2-placeholder">
+        <span className="bm-v2-tag">规划中</span>
+        MEV v2 (BidBlock · BEP-675) 请求性能 —— sendBidBlock 处理耗时 / 验签与 admission 耗时 / v2 与 v1 gasUsed 对比。待主网 v2 起量后接入。
+      </div>
     </div>
   );
 }

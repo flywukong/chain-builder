@@ -1055,6 +1055,10 @@ body::before {
 .bm-item i { width: 8px; height: 3px; border-radius: 2px; flex-shrink: 0; }
 .bm-item b { margin-left: auto; color: var(--text); font-weight: 600; }
 .bm-ctls { display: flex; gap: 10px; align-items: center; }
+.bm-v2-placeholder { display: flex; align-items: center; gap: 9px; font-size: 10px; color: var(--dim);
+  border: 1px dashed #2a2415; border-radius: 8px; padding: 8px 12px; }
+.bm-v2-tag { flex-shrink: 0; font-family: var(--mono); font-size: 8px; font-weight: 700; letter-spacing: .5px;
+  color: #b8a25a; background: #1d1910; border: 1px solid #33290a; border-radius: 3px; padding: 1px 6px; }
 .bm-item.bm-avg { color: #e8dcb8; font-weight: 700; }
 .bm-item.bm-avg b { color: var(--gold); }
 .bm-item.bm-out { color: #ef8f8f; }

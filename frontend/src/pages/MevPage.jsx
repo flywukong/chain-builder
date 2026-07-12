@@ -85,7 +85,7 @@ export default function MevPage({ state }) {
           <p>Builder 出块格局 · MEV 占比 · v1/v2 (BEP-675) 路径 · 指标窗口 24 小时</p>
         </div>
         <div className="ai-bar">
-          <button className="st-auto-btn" onClick={runAi} disabled={ai.loading}>
+          <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading}>
             {ai.loading ? "分析中… 约 20–30s" : "⚡ MEV 格局分析"}
           </button>
         </div>

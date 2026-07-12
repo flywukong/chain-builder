@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 // drop a mascot image at frontend/public/robot.png (透明背景 PNG 最佳) → auto-used;
@@ -13,6 +13,17 @@ export default function RobotWidget() {
   const [ans, setAns] = useState(null);
   const [err, setErr] = useState(null);
   const [imgOk, setImgOk] = useState(true);
+  const [brief, setBrief] = useState(null);   // 每小时巡检生成的 24h 基本面播报 {text, at, verdict}
+
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + "/api/ai/analyze").then((r) => r.json())
+      .then((j) => { if (alive && j?.brief) setBrief({ text: j.brief, at: j.at, verdict: j.verdict }); })
+      .catch(() => {});
+    pull();
+    const t = setInterval(pull, 5 * 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   const ask = async () => {
     const question = q.trim();
@@ -62,7 +73,15 @@ export default function RobotWidget() {
       )}
 
       <span className="robot-name">LEO</span>
-      {!open && <span className="robot-tip">我是 LEO · BSC 主网助手,点我提问</span>}
+      {!open && (brief ? (
+        <button className={`robot-brief ${brief.verdict === "alert" ? "rb-alert" : brief.verdict === "warn" ? "rb-warn" : ""}`}
+                onClick={() => setOpen(true)} title="点击提问更多">
+          <span className="rb-head">LEO · 24h 基本面{brief.at ? ` · ${new Date(brief.at).getHours()}:${String(new Date(brief.at).getMinutes()).padStart(2, "0")}` : ""}</span>
+          <span className="rb-text">{brief.text}</span>
+        </button>
+      ) : (
+        <span className="robot-tip">我是 LEO · BSC 主网助手,点我提问</span>
+      ))}
 
       <button className={`robot-btn ${open ? "robot-btn-open" : ""} ${imgOk ? "has-img" : ""}`} onClick={() => setOpen((x) => !x)}>
         {imgOk ? (

@@ -399,7 +399,14 @@ async function buildAiData(days = 7) {
   };
 }
 // Network analysis: on-demand + auto-refresh hourly (broadcast so panels update live)
-aiJobs.network = { text: null, at: null, running: false, error: null };
+aiJobs.network = { text: null, brief: null, at: null, running: false, error: null };
+// 持久化:重启后 LEO 播报/巡检结果立即可用,到点自动刷新
+const AI_NETWORK_FILE = path.join(dataDir, "ai-network.json");
+try {
+  if (fs.existsSync(AI_NETWORK_FILE)) {
+    aiJobs.network = { ...aiJobs.network, ...JSON.parse(fs.readFileSync(AI_NETWORK_FILE, "utf8")), running: false, error: null };
+  }
+} catch {}
 
 // 首行结论 → 等级:正常=ok(前端折叠) / 需关注=warn / 告警=alert
 const verdictOf = (text) => {
@@ -411,8 +418,17 @@ async function runNetworkAnalysis(days = 7, auto = true) {
   if (aiJobs.network.running) return aiJobs.network;
   aiJobs.network = { ...aiJobs.network, running: true, error: null };
   try {
-    const text = await runAnalysis(await buildAiData(days));
-    aiJobs.network = { text, verdict: verdictOf(text), windowDays: days, at: Date.now(), running: false, error: null, auto };
+    const raw = await runAnalysis(await buildAiData(days));
+    // 首行 [播报] = LEO 气泡的 24h 基本面口播;其余为巡检正文
+    let brief = null, text = raw;
+    const nl = raw.indexOf("\n");
+    const first = (nl === -1 ? raw : raw.slice(0, nl)).trim();
+    if (first.startsWith("[播报]")) {
+      brief = first.replace(/^\[播报\]\s*/, "").trim();
+      text = nl === -1 ? "" : raw.slice(nl + 1).trim();
+    }
+    aiJobs.network = { text, brief, verdict: verdictOf(text), windowDays: days, at: Date.now(), running: false, error: null, auto };
+    try { fs.writeFileSync(AI_NETWORK_FILE, JSON.stringify({ text, brief, verdict: aiJobs.network.verdict, windowDays: days, at: aiJobs.network.at, auto })); } catch {}
   } catch (err) {
     aiJobs.network = { ...aiJobs.network, running: false, error: err.message };
   }
@@ -424,7 +440,7 @@ app.post("/api/ai/analyze", async (req, reply) => {
   const days = Math.min(Math.max(parseInt(req.body?.days, 10) || 7, 1), 30);
   const r = await runNetworkAnalysis(days, false);
   if (r.error) { reply.code(500); return { error: r.error }; }
-  return { text: r.text, verdict: r.verdict, windowDays: r.windowDays, at: r.at, running: false };
+  return { text: r.text, brief: r.brief, verdict: r.verdict, windowDays: r.windowDays, at: r.at, running: false };
 });
 app.get("/api/ai/analyze", async () => aiJobs.network);
 // 详情用:返回与 AI 分析同一份维度数据(明细)

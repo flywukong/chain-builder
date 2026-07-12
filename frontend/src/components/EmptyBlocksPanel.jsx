@@ -74,7 +74,7 @@ export default function EmptyBlocksPanel() {
         )}
 
         <div className="eb-foot">
-          <button className="st-auto-btn" onClick={runAi} disabled={ai.loading || !(d?.count > 0)}>
+          <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading || !(d?.count > 0)}>
             {ai.loading ? "分析中… ~20s" : "⚡ AI 简析"}
           </button>
         </div>

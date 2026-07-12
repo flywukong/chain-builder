@@ -222,7 +222,7 @@ export default function TxnPage() {
           <p>全量覆盖:每分钟并发抓取过去一分钟全部区块 · 规则 + AI 归类 · 7 天滚动 · 已学习 {d?.learnedLabels ?? 0} 个合约标签</p>
         </div>
         <div className="ai-bar">
-          <button className="st-auto-btn" onClick={runAi} disabled={ai.loading}>
+          <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading}>
             {ai.loading ? "分析中… 约 20–30s" : "⚡ AI 流量特征总结"}
           </button>
         </div>

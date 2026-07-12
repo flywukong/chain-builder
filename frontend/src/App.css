@@ -160,6 +160,19 @@ body::before {
   opacity: 0; transform: translateX(8px); transition: opacity .18s, transform .18s;
 }
 .robot-widget:hover .robot-tip { opacity: 1; transform: translateX(0); }
+/* LEO 24h 播报气泡:常驻,像机器人在说话;点击打开问答 */
+.robot-brief { display: flex; flex-direction: column; gap: 5px; max-width: 300px; text-align: left; cursor: pointer;
+  background: linear-gradient(180deg, rgba(26,22,8,.97), rgba(16,14,8,.97)); border: 1px solid rgba(240,185,11,.5);
+  border-radius: 12px 12px 3px 12px; padding: 10px 13px; box-shadow: 0 4px 20px rgba(0,0,0,.5), 0 0 14px rgba(240,185,11,.12);
+  animation: rb-in .35s ease; }
+.robot-brief:hover { border-color: var(--gold); box-shadow: 0 4px 20px rgba(0,0,0,.5), 0 0 20px rgba(240,185,11,.25); }
+.robot-brief.rb-warn  { border-color: rgba(249,115,22,.6); }
+.robot-brief.rb-alert { border-color: rgba(239,68,68,.7); box-shadow: 0 4px 20px rgba(0,0,0,.5), 0 0 16px rgba(239,68,68,.25); }
+.rb-head { font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .6px; color: var(--gold); }
+.robot-brief.rb-warn .rb-head { color: var(--orange); }
+.robot-brief.rb-alert .rb-head { color: var(--red); }
+.rb-text { font-size: 11px; line-height: 1.7; color: #d8d2c0; }
+@keyframes rb-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .robot-btn {
   position: relative;
   width: 70px; height: 70px; border-radius: 50%; cursor: pointer;
@@ -591,6 +604,16 @@ body::before {
 /* ── MEV page ── */
 /* ── 存储分析 ── */
 .st-auto-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; border: 1px solid #4a3a00; background: linear-gradient(180deg, #2a2000, #171200); color: var(--gold); font-size: 11px; font-weight: 700; letter-spacing: .4px; cursor: pointer; transition: filter .15s, box-shadow .2s; text-shadow: 0 0 8px rgba(240,185,11,.35); }
+/* AI CTA:金渐变实底 + 呼吸光晕,页面上最醒目的动作 */
+.ai-cta { background: linear-gradient(135deg, #F0B90B, #FFD764 55%, #E8A800); color: #171204; border: none;
+  padding: 9px 18px; font-size: 12px; font-weight: 800; text-shadow: none; border-radius: 9px;
+  animation: ai-breathe 2.6s ease-in-out infinite; }
+.ai-cta:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+.ai-cta:disabled { animation: none; opacity: .75; }
+@keyframes ai-breathe {
+  0%, 100% { box-shadow: 0 0 10px rgba(240,185,11,.3); }
+  50%      { box-shadow: 0 0 24px rgba(240,185,11,.65), 0 0 40px rgba(240,185,11,.18); }
+}
 .st-auto-btn:hover { filter: brightness(1.25); box-shadow: 0 0 14px rgba(240,185,11,.22), inset 0 0 8px rgba(240,185,11,.08); }
 .st-auto-btn:active { transform: scale(.97); }
 .st-notice { background: #1a1000; border: 1px solid #3a2d00; border-left: 3px solid var(--gold); border-radius: 8px; padding: 11px 15px; font-size: 11.5px; color: #d8bc55; line-height: 1.7; max-width: 1080px; animation: st-notice-in .22s ease; }

@@ -304,9 +304,12 @@ async function runViaApi(prompt, timeoutMs) {
 
 function runViaCli(prompt, timeoutMs = TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
+    // 不设 CLAUDE_CLI_MODEL 时用 CLI 登录账号的默认模型
+    const args = ["-p", "--output-format", "text"];   // headless one-shot; prompt via stdin
+    if (process.env.CLAUDE_CLI_MODEL) args.push("--model", process.env.CLAUDE_CLI_MODEL);
     const child = spawn(
       CLAUDE_BIN,
-      ["-p", "--output-format", "text"],   // headless one-shot; prompt via stdin
+      args,
       { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: { ...process.env } }
     );
 

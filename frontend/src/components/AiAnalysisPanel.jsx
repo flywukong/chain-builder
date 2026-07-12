@@ -85,8 +85,8 @@ export default function AiAnalysisPanel() {
         ) : (
           <div className={`ai-warnline ${s.verdict === "alert" ? "alert" : ""}`} onClick={() => setExpanded(true)} role="button">
             <span className="ai-warnico">{s.verdict === "alert" ? "⛔" : "⚠"}</span>
-            <span className="ai-warntext">需要关注异常点分析</span>
-            <span className="ai-expand">查看 ▸</span>
+            <span className="ai-warntext">检测到{s.verdict === "alert" ? "告警" : "需关注"}项</span>
+            <button className={`ai-warn-cta ${s.verdict === "alert" ? "alert" : ""}`}>⚡ 分析异常 ▸</button>
           </div>
         ))}
 

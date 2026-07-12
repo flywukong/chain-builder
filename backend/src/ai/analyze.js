@@ -168,7 +168,7 @@ export async function runEmptyAnalysis(data) {
     "",
     "要点:哪些 validator 出的、是否同一 validator 连续/聚集(节点故障信号)、还是分散偶发(mempool 时序波动,属正常)。",
     "mempool 常年 ~900 pending 下偶发 1-2 个孤立空块无需处理;同一 validator 短时多次才值得联系运营方。",
-    "miner 为地址,不认识就用短地址,禁止编造名字。",
+    "称呼 validator 一律用 validator 字段的名称(如 NodeReal、Fuji),禁止报 0x 地址;internal=true 是我方自营节点,其空块聚集时明确点名建议排查。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

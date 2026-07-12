@@ -573,11 +573,15 @@ aiRoutes("mev", "/api/ai/mev", async () => {
   });
 });
 
-// 空块简析:validator 分布 / 聚集性(24h 记录)
+// 空块简析:validator 分布 / 聚集性(24h 记录);miner 补名称与归属
 aiRoutes("empty", "/api/ai/empty", async () => {
   const v = emptyStore.view();
   if (!v.count) throw new Error("24h 内无空块");
-  return runEmptyAnalysis({ count24h: v.count, blocks: v.recent });
+  const blocks = v.recent.map((b) => {
+    const info = validatorInfo(b.miner);
+    return { ...b, validator: info.name ?? (b.miner || "").slice(0, 10), internal: info.internal };
+  });
+  return runEmptyAnalysis({ count24h: v.count, blocks });
 });
 
 // TxPool 拥堵诊断:当前 24h 形态 + 30d 基线 + gas 利用率

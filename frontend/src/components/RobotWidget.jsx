@@ -50,8 +50,16 @@ export default function RobotWidget() {
             <span>🤖 BSC 主网助手</span>
             <button className="robot-close" onClick={() => setOpen(false)}>×</button>
           </div>
+          {brief ? (
+            <div className={`robot-brief ${brief.verdict === "alert" ? "rb-alert" : brief.verdict === "warn" ? "rb-warn" : ""}`}>
+              <span className="rb-head">24h 基本面{brief.at ? ` · ${new Date(brief.at).getHours()}:${String(new Date(brief.at).getMinutes()).padStart(2, "0")} 自动巡检` : ""}</span>
+              <span className="rb-text">{brief.text}</span>
+            </div>
+          ) : (
+            <div className="robot-greet">24h 基本面播报生成中(每小时自动巡检)…也可以直接提问。</div>
+          )}
           <div className="robot-greet">
-            你想咨询 BSC 主网什么问题？我了解主网的监控信息和链上状态（keter 指标 · 流量 / reorg 历史 · MEV 格局 · TxPool）。
+            继续提问:我了解主网的监控信息和链上状态（keter 指标 · 流量 / reorg 历史 · MEV 格局 · TxPool）。
           </div>
           <div className="robot-input-row">
             <input
@@ -73,15 +81,7 @@ export default function RobotWidget() {
       )}
 
       <span className="robot-name">LEO</span>
-      {!open && (brief ? (
-        <button className={`robot-brief ${brief.verdict === "alert" ? "rb-alert" : brief.verdict === "warn" ? "rb-warn" : ""}`}
-                onClick={() => setOpen(true)} title="点击提问更多">
-          <span className="rb-head">LEO · 24h 基本面{brief.at ? ` · ${new Date(brief.at).getHours()}:${String(new Date(brief.at).getMinutes()).padStart(2, "0")}` : ""}</span>
-          <span className="rb-text">{brief.text}</span>
-        </button>
-      ) : (
-        <span className="robot-tip">我是 LEO · BSC 主网助手,点我提问</span>
-      ))}
+      {!open && <span className="robot-tip">我是 LEO · 点我看 24h 基本面 / 提问</span>}
 
       <button className={`robot-btn ${open ? "robot-btn-open" : ""} ${imgOk ? "has-img" : ""}`} onClick={() => setOpen((x) => !x)}>
         {imgOk ? (

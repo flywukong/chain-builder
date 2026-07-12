@@ -80,7 +80,7 @@ export default function RobotWidget() {
         </div>
       )}
 
-      <span className="robot-name">LEO</span>
+      <span className="robot-name">CLICK ME</span>
       {!open && <span className="robot-tip">我是 LEO · 点我看 24h 基本面 / 提问</span>}
 
       <button className={`robot-btn ${open ? "robot-btn-open" : ""} ${imgOk ? "has-img" : ""}`} onClick={() => setOpen((x) => !x)}>

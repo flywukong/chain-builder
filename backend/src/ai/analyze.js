@@ -13,6 +13,8 @@
 
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
+import fs from "fs";
+import path from "path";
 import os from "os";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -37,12 +39,20 @@ function resolveBackend() {
   return API_KEY ? "claude-api" : "claude-cli";
 }
 
+// CLI 的默认模型:/model 保存默认时写入 ~/.claude/settings.json 的 model 字段
+function cliSettingsModel() {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".claude", "settings.json"), "utf8"));
+    return j.model ? `${j.model}(读自 CLI settings.json)` : null;
+  } catch { return null; }
+}
+
 // 启动日志用:当前 AI 后端 + 模型选择的一句话描述
 export function aiInfo() {
   const backend = resolveBackend();
   switch (backend) {
     case "claude-api": return `claude-api · model=${MODEL}`;
-    case "claude-cli": return `claude-cli · model=${process.env.CLAUDE_CLI_MODEL || "(CLI 账号默认)"} · 额度回退=${CLI_FALLBACK_MODEL}`;
+    case "claude-cli": return `claude-cli · model=${process.env.CLAUDE_CLI_MODEL || cliSettingsModel() || "(CLI 账号默认,settings.json 未设 model)"} · 额度回退=${CLI_FALLBACK_MODEL}`;
     case "codex-cli":  return `codex-cli · model=${CODEX_MODEL || "(codex 默认)"}`;
     case "codex-api":  return `codex-api · model=${OPENAI_MODEL}`;
     case "codex-py":   return `codex-py · model=${OPENAI_MODEL}`;

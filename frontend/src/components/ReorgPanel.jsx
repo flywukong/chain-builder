@@ -14,6 +14,19 @@ export default function ReorgPanel({ data }) {
   const days = data?.days ?? [];
   const sum = data?.summary;
   const [obs, setObs] = useState(null);   // 本机 WS 观测(精确高度,24h)
+  const [ai, setAi] = useState({ loading: false, text: null, at: null, err: null });
+
+  const runAi = async () => {
+    if (ai.loading) return;
+    setAi({ loading: true, text: null, at: null, err: null });
+    try {
+      const r = await fetch(API + "/api/ai/reorg", { method: "POST" });
+      const d = await r.json();
+      if (d.error) setAi({ loading: false, text: null, at: null, err: d.error });
+      else if (d.running) setAi((x) => ({ ...x, loading: false, err: "已有分析进行中,请稍候" }));
+      else setAi({ loading: false, text: d.text, at: d.at, err: null });
+    } catch (e) { setAi({ loading: false, text: null, at: null, err: String(e) }); }
+  };
 
   useEffect(() => {
     fetch(API + "/api/reorg-events").then((r) => r.json())
@@ -88,9 +101,25 @@ export default function ReorgPanel({ data }) {
     <div className="panel reorg-panel">
       <div className="panel-header">
         <span>Reorg 分析</span>
-        <span className="sub">近 {days.length || 14} 天 · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
+        <span className="reorg-head-r">
+          <span className="sub">近 {days.length || 14} 天 · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
+          <button className="st-auto-btn ai-cta reorg-ai-btn" onClick={runAi} disabled={ai.loading}>
+            {ai.loading ? "解读中… ~20s" : "⚡ AI 解读"}
+          </button>
+        </span>
       </div>
       <div className="panel-body reorg-body">
+        {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
+        {ai.text && (
+          <div className="reorg-ai-result">
+            <div className="tf-ep-head">
+              <span>🤖 Reorg 解读 · 严重度 + 涉及方</span>
+              {ai.at && <em className="ai-at">{new Date(ai.at).toLocaleTimeString()}</em>}
+              <button className="tf-ep-close" onClick={() => setAi({ loading: false, text: null, at: null, err: null })}>×</button>
+            </div>
+            <div className="ai-result" style={{ maxHeight: 200 }}>{ai.text}</div>
+          </div>
+        )}
         <div className="reorg-chips">
           {chips.map((c) => (
             <div key={c.l} className={`reorg-chip tone-${c.tone}`}>

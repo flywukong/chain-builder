@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -141,7 +141,11 @@ streamer.on("block", (block) => {
 streamer.on("blockMev", (block) => mevAgg.add(block));
 streamer.on("reorg", (info) => {
   console.warn("[streamer] reorg", info);
-  reorgObs.add(info.from, info.to, info.depth ?? 1);   // 本机观测高度(24h)
+  // 被重组高度上的旧块出块人(窗口里还是旧链数据)—— reorg 嫌疑方
+  const oldMiners = (streamer.window ?? [])
+    .filter((b) => b.number >= info.to && b.number <= info.from)
+    .map((b) => b.miner).filter(Boolean);
+  reorgObs.add(info.from, info.to, info.depth ?? 1, oldMiners);   // 本机观测高度(24h)
   broadcast("reorg", info);
 });
 streamer.on("status", (s) => console.log("[streamer] status", s));
@@ -450,6 +454,35 @@ app.get("/api/ai/data", async (req) => {
 });
 setTimeout(runNetworkAnalysis, 45_000);          // first pass once data is warm
 setInterval(runNetworkAnalysis, 3600_000);       // hourly auto-refresh
+
+// Reorg 解读:严重度 + 涉及方(自营/外部),无日志不做根因
+aiRoutes("reorg", "/api/ai/reorg", async () => {
+  const tl = latest.reorgTimeline ?? await fetchReorgTimeline(cfg.keterConfigPath).catch(() => null);
+  const obs = reorgObs.view();
+  const vinfo = (addr) => {
+    const v = VALIDATORS[(addr || "").toLowerCase()];
+    return v ? { name: v.name, group: v.group, internal: v.group === "internal" } : { name: (addr || "").slice(0, 10), group: "unknown", internal: false };
+  };
+  const events = [];
+  for (const e of (obs.recent ?? []).slice(0, 8)) {
+    let winner = null;
+    try {
+      const h = await streamer.http.send("eth_getHeaderByNumber", ["0x" + e.to.toString(16)]);
+      winner = h?.miner ?? null;
+    } catch {}
+    events.push({
+      time: new Date(e.t).toISOString(),
+      fromBlock: e.from, toBlock: e.to, depth: e.depth,
+      displacedValidators: (e.oldMiners ?? []).map(vinfo),
+      canonicalWinner: winner ? vinfo(winner) : null,
+    });
+  }
+  return runReorgAnalysis({
+    baseline: "fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常",
+    keter14d: { summary: tl?.summary ?? null, days: (tl?.days ?? []).slice(-14) },
+    observed24h: { count: obs.count, events },
+  });
+});
 
 // 大流量分析:最近一次大流量事件 + 峰值时段链上采样(合约归因)
 aiRoutes("traffic", "/api/ai/traffic", async (body) => {

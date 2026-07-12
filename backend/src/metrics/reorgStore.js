@@ -15,8 +15,9 @@ export class ReorgObsStore {
     try { if (fs.existsSync(file)) this.items = JSON.parse(fs.readFileSync(file, "utf8")) || []; } catch { this.items = []; }
   }
 
-  add(from, to, depth) {
-    this.items.push({ t: Date.now(), from, to, depth });
+  add(from, to, depth, oldMiners = []) {
+    // oldMiners:被重组掉的旧块出块人(嫌疑方),供 AI 判定自营/外部
+    this.items.push({ t: Date.now(), from, to, depth, oldMiners });
     this._prune();
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });

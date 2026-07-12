@@ -135,6 +135,22 @@ export async function runMevAnalysis(data) {
   return spawnClaude(prompt);
 }
 
+// ── Reorg 解读:无节点日志,不做根因;判涉及方(自营/外部)+ 严重度 + 总结 ──
+export async function runReorgAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网的资深运维分析师。基于下面的 reorg 监控数据解读,中文 markdown,180 字以内,直接正文。",
+    "",
+    "重要:手头没有节点日志,禁止推测底层根因(网络分区/时钟/代码 bug 等一律不猜)。只做三件事:",
+    "1. 严重程度:对照基线(fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常),按频率与深度给出 正常/需关注/告警。",
+    "2. 涉及方:displacedValidators 是被重组掉的出块方(嫌疑方),canonicalWinner 是重组后的胜者。区分我方自营(internal=true)与外部 validator:自营节点若反复被重组,明确点名并建议排查该节点(出块时延/网络连通);外部节点只陈述事实,不给对方运营建议。displacedValidators 为空的事件是早期数据未记 miner,只按高度/深度评估。",
+    "3. 末行一句话总结:是否需要行动。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
 // ── 空块简析:validator 分布 / 时间聚集性 ──
 export async function runEmptyAnalysis(data) {
   const prompt = [

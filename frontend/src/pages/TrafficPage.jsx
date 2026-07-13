@@ -270,7 +270,12 @@ function TrafficHistoryPanel({ tl, blockGas }) {
         <div className="panel-header">
           <span>Gas 利用率历史</span>
           <span className="bm-ctls">
-            <span className="sub">窗口跟随上方选择 · {rangeLabel} · 上限 {tl?.gasLimitM ?? 55}M</span>
+            <span className="sub">上限 {tl?.gasLimitM ?? 55}M</span>
+            <span className="tf-ranges">
+              {RANGES.map(([d, l]) => (
+                <button key={d} className={`tf-range ${rangeDays === d ? "on" : ""}`} onClick={() => setRangeDays(d)}>{l}</button>
+              ))}
+            </span>
             <button className="st-auto-btn ai-cta panel-ai-btn" disabled={ep.loading}
                     onClick={() => runAi({ days: rangeDays, focus: "gas" }, `Gas 形态 · 近 ${rangeLabel}`)}>
               {ep.loading && ep.label?.startsWith("Gas") ? "解读中… ~20s" : "⚡ AI 解读"}

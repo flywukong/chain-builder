@@ -206,6 +206,29 @@ export async function fetchSyncErrors(configPath, windowMin = 10, threshold = 60
   return { count: nodes.length, total, windowMin, threshold, expected: Math.round((windowMin * 60) / 0.45), nodes };
 }
 
+// ── Sync 详情:全节点 head 增长(不只异常)+ 24h 异常节点数历史 ──────────────
+export async function fetchSyncDetail(configPath, windowMin = 10, threshold = 600) {
+  const jobs = DS_JOBS["dex-prod"];
+  const [curRaw, histRaw] = await Promise.all([
+    grafanaQuery(DATASOURCES["dex-prod"], `increase(chain_head_block{job=~"${jobs}"}[${windowMin}m])`, { configPath }),
+    rangeQuery(DATASOURCES["dex-prod"], `sum(increase(chain_head_block{job=~"${jobs}"}[${windowMin}m]) < bool ${threshold})`,
+      { from: "now-24h", intervalMs: 1800_000, maxDataPoints: 60, configPath }),
+  ]);
+  const nodes = extractSeries(curRaw)
+    .map((s) => ({ instance: s.labels.instance, job: s.labels.job, grew: Math.round(s.values?.at(-1) ?? NaN) }))
+    .filter((n) => Number.isFinite(n.grew))
+    .sort((a, b) => a.grew - b.grew);
+  const hist = extractSeries(histRaw)[0] ?? { times: [], values: [] };
+  return {
+    windowMin, threshold,
+    expected: Math.round((windowMin * 60) / 0.45),
+    count: nodes.filter((n) => n.grew < threshold).length,
+    total: nodes.length,
+    nodes,
+    history: { times: hist.times, values: hist.values.map((v) => (typeof v === "number" ? Math.round(v) : null)) },
+  };
+}
+
 // ── Reorg / bad-block (Keter = ground truth) ────────────────────────────────
 // The WS header stream over a load-balanced RPC mis-reads tip rollbacks between
 // backends as reorgs. geth's own chain_reorg_executes counter is authoritative.

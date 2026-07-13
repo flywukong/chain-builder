@@ -210,6 +210,19 @@ export async function runReorgAnalysis(data) {
   return spawnClaude(prompt);
 }
 
+// ── 节点同步解读:head 增长分布 + 异常历史 ──
+export async function runSyncAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网运维分析师。解读自营节点的同步状态,中文,150 字以内,直接正文。",
+    `数据口径:每节点 ${data.windowMin}min 链头增长(预期 ~${data.expected} 块,<${data.threshold} 判异常);behindNow 是当前落后节点;history24h 是 24h 内异常节点数的半小时采样;diskAlerts 是磁盘告警(同步慢的常见诱因)。`,
+    "要点:①当前:全部正常就一句话说正常;有落后节点则点名(IP)并看落后程度(接近 0 = 卡死,略低于阈值 = 追赶中);②孤立 vs 集群:单节点多为本机问题(磁盘/重启),多节点同时落后指向网络/上游;③24h 历史:有异常时段给出时间;④磁盘告警与落后节点重合的明确指出。不猜没有数据支撑的根因。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
 // ── 单次 reorg 事件归因:5m 定位 + canonical miner 序列取证 ──
 export async function runReorgEventAnalysis(data) {
   const prompt = [

@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -363,6 +363,13 @@ app.get("/api/empty-blocks", async () => emptyStore.view());
 app.get("/api/sync-errors", async () => latest.syncErrors ?? safe(fetchSyncErrors(cfg.keterConfigPath)));
 app.get("/api/slash-events", async () => slashEvents.view());
 app.get("/api/keter-health", async () => ({ ...keterHealth }));
+let syncDetailCache = { at: 0, data: null };
+app.get("/api/sync-detail", async () => {
+  if (syncDetailCache.data && Date.now() - syncDetailCache.at < 55_000) return syncDetailCache.data;
+  const data = await safe(fetchSyncDetail(cfg.keterConfigPath));
+  if (data) syncDetailCache = { at: Date.now(), data };
+  return data;
+});
 app.get("/api/db-stats", async (req) => {
   const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 24, 1), 168);
   return safe(fetchDbStats(cfg.keterConfigPath, hours));
@@ -645,6 +652,22 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       events: (tl?.events ?? []).filter((e) => e.t >= cut),
     },
     observed24h: { count: obs.count, events },
+  });
+});
+
+// 节点同步解读:全节点 head 增长分布 + 24h 异常历史 → 孤立/集群性判断
+aiRoutes("sync", "/api/ai/sync", async () => {
+  const d = (syncDetailCache.data && Date.now() - syncDetailCache.at < 55_000)
+    ? syncDetailCache.data : await fetchSyncDetail(cfg.keterConfigPath);
+  if (!d?.nodes?.length) throw new Error("keter sync 数据不可用");
+  const disk = latest.diskAlerts ?? [];
+  return runSyncAnalysis({
+    windowMin: d.windowMin, threshold: d.threshold, expected: d.expected,
+    behindNow: d.nodes.filter((n) => n.grew < d.threshold),
+    totalNodes: d.total,
+    growthDistribution: { min: d.nodes[0]?.grew, p50: d.nodes[Math.floor(d.nodes.length / 2)]?.grew, max: d.nodes.at(-1)?.grew },
+    history24h: d.history,
+    diskAlerts: disk.slice(0, 5),
   });
 });
 

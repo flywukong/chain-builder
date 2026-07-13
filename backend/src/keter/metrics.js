@@ -228,9 +228,13 @@ export async function fetchReorgStats(configPath) {
 // 大流量 = 复合口径:avg pending > threshold(4000) 或 gas 利用率 ≥ hotPct(90%),
 // 任一触发即为大流量小时;事件标注触发原因(pending / gas / both)。
 // 返回 hourly 序列供前端灵活切范围(5/7/10/30d)作图。
-const GAS_LIMIT = 140e6;
+// gas 上限以链上 header 实时值为准(server 每块回写);55M 为当前主网兜底
+let LIVE_GAS_LIMIT = 55e6;
+export function setLiveGasLimit(v) { if (Number.isFinite(v) && v > 1e6) LIVE_GAS_LIMIT = v; }
+export const liveGasLimitM = () => Math.round(LIVE_GAS_LIMIT / 1e6);
 
 export async function fetchTrafficTimeline(configPath, days = 30, hotPct = 90, threshold = 4000) {
+  const GAS_LIMIT = LIVE_GAS_LIMIT;
   const opts = { from: `now-${days}d`, intervalMs: 3600_000, maxDataPoints: 24 * days + 12, configPath };
   const [pendRaw, gasRaw] = await Promise.all([
     rangeQuery(DATASOURCES["dex-prod"], `avg(txpool_pending{job=~"${DATASEED_JOBS}"})`, opts),
@@ -274,6 +278,7 @@ export async function fetchTrafficTimeline(configPath, days = 30, hotPct = 90, t
   return {
     hotPct,
     threshold,
+    gasLimitM: Math.round(GAS_LIMIT / 1e6),   // 折算口径,供前端标签与后端 AI 提示对齐
     hourly,                       // 30d 小时级序列,前端切片 5/7/10/30d
     episodes,
     lastEpisode: episodes.at(-1) ?? null,

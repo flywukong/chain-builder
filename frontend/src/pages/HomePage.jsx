@@ -96,6 +96,7 @@ export default function HomePage({ state, onNav }) {
             reorgStats={state.reorgStats}
             syncErrors={state.syncErrors}
             gasUsed={state.gasUsed}
+            gasLimit={state.latestBlock?.gasLimit}
           />
 
           <SafetyEventsCard

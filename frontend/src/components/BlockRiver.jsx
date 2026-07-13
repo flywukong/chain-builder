@@ -39,12 +39,11 @@ export default function BlockRiver({ blocks }) {
     const COUNT     = Math.min(blocks.length, Math.floor(W / 6));
     const visible   = blocks.slice(-COUNT);
     const blockW    = Math.floor((W - GAP * (COUNT - 1)) / COUNT);
-    const GAS_LIMIT = 140_000_000;
     const MAX_BT    = 6000; // ms, for block-time height encoding
 
     visible.forEach((b, i) => {
       const x      = i * (blockW + GAP);
-      const gasH   = Math.max(2, ((b.gasUsed ?? 0) / GAS_LIMIT) * (H - 12));
+      const gasH   = Math.max(2, ((b.gasUsed ?? 0) / (b.gasLimit || 55e6)) * (H - 12));
       const col    = builderColor(b.builder);
       const isAnom = b.anomaly;
 

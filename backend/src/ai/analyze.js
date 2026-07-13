@@ -114,7 +114,7 @@ export async function runTxpoolAnalysis(data) {
   const prompt = [
     "你是 BSC 主网的资深运维分析师。诊断当前 TxPool 是否异常拥堵,用中文输出 markdown,200 字以内,直接正文。",
     "",
-    "判断基线:dataseed 平均 pending 中位数见 baseline;大流量复合口径 = pending>4000 或 gas 利用率≥90%,任一触发;单节点 max 恒高(~25k)是已知卡死节点,忽略。区块 gas 上限 140M——50M 左右只是 ~36% 利用率,不要称为「打满」。",
+    `判断基线:dataseed 平均 pending 中位数见 baseline;大流量复合口径 = pending>4000 或 gas 利用率≥90%,任一触发;单节点 max 恒高(~25k)是已知卡死节点,忽略。区块 gas 上限 ${data.gasLimitM ?? 55}M(链上实时值),利用率一律按 gasUsed/上限折算,不要沿用旧的 140M 口径。`,
     "拥堵类型判别:pending 高 + 区块 gas 打满 → 需求型(链在满负荷消化);pending 高 + 区块不满 → 传播/定价异常,更值得警惕。",
     "",
     "要求:首行给结论(正常 / 轻度积压 / 异常拥堵);对比当前值与 24h 形态、30d 基线;判断类型;正常就说「TxPool 状态正常」,不要制造风险。",
@@ -150,7 +150,7 @@ export async function runBlockGasAnalysis(data) {
   const prompt = [
     "你是 BSC 主网运维分析师。解读执行负载,中文,160 字以内,直接正文。",
     "数据口径:mgasPerSec/gasPerBlockM/txsPerBlock 是图表采样的 2 台典型 validator 均值(30m);allNodes 是 keter 全部自营节点的 per-instance 统计(mgasps=MGas/s,gasusedM=每块 M gas),覆盖 dex-prod 与 vaas-prod。",
-    "基线:块 gas 8~25M、MGas/s 200~600、执行耗时 <25% slot(450ms)均属常态,范围内不要当风险。",
+    `基线:区块 gas 上限 ${data.gasLimitM ?? 55}M(链上实时值,勿用旧 140M 口径);块 gas 8~25M、MGas/s 200~600、执行耗时 <25% slot(450ms)均属常态,范围内不要当风险。`,
     "要点:①整体水位与波动(突刺给出时间与幅度)②全节点横向对比:吞吐显著低于同伴(如低 30%+)的节点点名(IP)建议关注,一致就说一致;③执行耗时占 slot 是否有压力。正常就一句话说稳,不要凑内容。",
     "",
     "数据(JSON):",

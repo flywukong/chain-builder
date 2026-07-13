@@ -8,7 +8,7 @@ import EmptyBlocksPanel from "../components/EmptyBlocksPanel.jsx";
 export default function MonitorPage({ state }) {
   return (
     <div className="dash-monitor-v2">
-      <BlockGasPanel blockGas={state.blockGas} />
+      <BlockGasPanel blockGas={state.blockGas} gasLimit={state.latestBlock?.gasLimit} />
       <LatencyPanel />
       <ReorgPanel data={state.reorgTimeline} />
       <EmptyBlocksPanel />

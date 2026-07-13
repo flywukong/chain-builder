@@ -249,7 +249,7 @@ function TrafficHistoryPanel({ tl, blockGas }) {
       <div className="panel tf-panel">
         <div className="panel-header">
           <span>Gas 利用率历史</span>
-          <span className="sub">窗口跟随上方选择 · {rangeDays} 天 · 上限 140M</span>
+          <span className="sub">窗口跟随上方选择 · {rangeDays} 天 · 上限 {tl?.gasLimitM ?? 55}M</span>
         </div>
         <div className="panel-body tf-body">
           <div className="reorg-chips tf-chips3">

@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -131,6 +131,7 @@ function broadcast(type, data) {
 // ── Start block streaming ──────────────────────────────────────────────────
 streamer.on("block", (block) => {
   broadcast("block", block);
+  if (block.gasLimit) setLiveGasLimit(block.gasLimit);   // gas 折算口径跟随链上实时上限
   if (block.empty) emptyStore.add(block.timestampMs ?? Date.now(), block.number, block.miner);
   // Every 10 blocks push window stats (~4.5s @ 0.45s blocks)
   if (block.number % 10 === 0) {
@@ -470,6 +471,7 @@ aiRoutes("blockgas", "/api/ai/blockgas", async () => {
   return runBlockGasAnalysis({
     chartSampleValidators: ["10.213.32.160", "10.213.32.78"],
     windowMinutes: 30,
+    gasLimitM: liveGasLimitM(),
     mgasPerSec: stat(bg.mgasps),
     gasPerBlockM: stat(bg.gasused, 1e6),
     txsPerBlock: stat(bg.txsize),
@@ -546,7 +548,7 @@ aiRoutes("traffic", "/api/ai/traffic", async (body) => {
   return runTrafficAnalysis({
     hotPct: tl.hotPct ?? 90,
     pendingThreshold: tl.threshold ?? 4000,
-    gasLimitM: 140,
+    gasLimitM: liveGasLimitM(),
     baseline30d: tl.summary,
     lastEpisode: ep ?? tl.lastEpisode,
     pickedByUser: !!picked,
@@ -637,6 +639,7 @@ aiRoutes("txpool", "/api/ai/txpool", async () => {
     baseline30d: tl.summary,
     recentEpisodes: tl.episodes.slice(-3),
     gasUtilPctNow: win.avgGasUtilPct ?? null,
+    gasLimitM: liveGasLimitM(),
     threshold: tl.threshold,
   });
 });

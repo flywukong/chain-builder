@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // BSC fast-finality produces occasional harmless 1-block micro-reorgs; only a
 // 24h count above this signals real consensus trouble.
 const REORG_ALERT = 5;
-const GAS_LIMIT = 140e6;
+const DEFAULT_GAS_LIMIT = 55e6;   // 兜底;实际以链上 header 实时值为准
 
 function cmpVer(a, b) {
   const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
@@ -48,7 +48,7 @@ function versionInfo(nodeStats) {
 }
 
 // Gas 利用率迷你走势(30m,2 台典型节点均值)
-function GasSpark({ gasUsed }) {
+function GasSpark({ gasUsed, gasLimit }) {
   const ref = useRef(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -61,7 +61,7 @@ function GasSpark({ gasUsed }) {
       const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
       const s = gasUsed?.avg?.[0];
-      const vals = (s?.values ?? []).filter((v) => typeof v === "number").map((v) => (v / GAS_LIMIT) * 100);
+      const vals = (s?.values ?? []).filter((v) => typeof v === "number").map((v) => (v / (gasLimit || DEFAULT_GAS_LIMIT)) * 100);
       if (!vals.length) return;
       const max = Math.max(...vals, 40) * 1.1;
       ctx.strokeStyle = "#3FB8A0"; ctx.lineWidth = 1.4; ctx.lineJoin = "round";
@@ -80,11 +80,11 @@ function GasSpark({ gasUsed }) {
     draw();
     const ro = new ResizeObserver(draw); ro.observe(canvas);
     return () => ro.disconnect();
-  }, [gasUsed]);
+  }, [gasUsed, gasLimit]);
   return <canvas ref={ref} className="hp-gas-spark" />;
 }
 
-export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats, syncErrors, gasUsed }) {
+export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats, syncErrors, gasUsed, gasLimit }) {
   const [showSync, setShowSync] = useState(false);
   const [showBehind, setShowBehind] = useState(false);
 
@@ -175,9 +175,9 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           <div className="hp-row-head">
             <span className="hp-row-k">Gas 利用率</span>
             <span className={`hp-row-v t-${gasLevel.tone}`}>{gasUtil}%</span>
-            <span className="hp-row-aux">上限 140M · 30m 走势</span>
+            <span className="hp-row-aux">上限 {Math.round((gasLimit || DEFAULT_GAS_LIMIT) / 1e6)}M · 30m 走势</span>
           </div>
-          <GasSpark gasUsed={gasUsed} />
+          <GasSpark gasUsed={gasUsed} gasLimit={gasLimit} />
         </div>
 
         {showSync && (

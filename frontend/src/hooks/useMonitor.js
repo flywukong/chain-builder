@@ -104,8 +104,8 @@ function buildMock() {
   // BSC mainnet is at 0.45s blocks (Fermi hardfork, 2026-01-14)
   const blocks = Array.from({length: 200}, (_, i) => ({
     number: 40000000 + i,
-    gasUsed: Math.floor(60e6 + Math.random() * 80e6),
-    gasLimit: 140e6,
+    gasUsed: Math.floor(10e6 + Math.random() * 40e6),
+    gasLimit: 55e6,
     blockTimeMs: 420 + Math.random() * 80,
     isMev: Math.random() > 0.35,
     builder: builders[Math.floor(Math.random() * builders.length)],

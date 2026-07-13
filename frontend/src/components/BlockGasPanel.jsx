@@ -5,8 +5,7 @@ const last = (s) => { const v = s?.values ?? []; for (let i = v.length - 1; i >=
 const fmtM = (v) => (v == null ? "--" : (v / 1e6).toFixed(1) + "M");
 const fmtT = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 
-const GAS_LIMIT = 140e6;
-const WATCH_GAS = 70e6;    // 关注阈值:块 gas > 70M
+const DEFAULT_GAS_LIMIT = 55e6;   // 兜底;实际以链上 header 实时值为准
 // 采样口径(与后端 GAS_SAMPLE_IPS 一致):两台典型 validator 的均值
 const SAMPLE_IPS = ["10.213.32.160", "10.213.32.78"];
 
@@ -27,11 +26,17 @@ const seriesStat = (s, scale = 1) => {
 };
 
 // Block Gas — 执行视角:紧凑 strip + 趋势图(70%)+ 摘要栏(30%)
-export default function BlockGasPanel({ blockGas }) {
+export default function BlockGasPanel({ blockGas, gasLimit }) {
   const canvasRef = useRef(null);
   const [hover, setHover] = useState(null);
   const [metric, setMetric] = useState("gasused");
   const ai = usePanelAi("/api/ai/blockgas");
+
+  // 上限与阈值:跟随链上实时 gasLimit;关注 = 50% 上限,高位 = 85% 上限
+  const GL = gasLimit || DEFAULT_GAS_LIMIT;
+  const glM = Math.round(GL / 1e6);
+  const WATCH_GAS = GL * 0.5;
+  const watchM = Math.round(WATCH_GAS / 1e6), highM = Math.round(GL * 0.85 / 1e6);
 
   const mg = last(blockGas?.mgasps);
   const gu = last(blockGas?.gasused);
@@ -42,12 +47,12 @@ export default function BlockGasPanel({ blockGas }) {
   const m = METRICS[metric];
   const st = seriesStat(m.src(blockGas), m.scale === 1e6 ? 1e6 : 1);   // gasused 以 M 计
   const guStat = seriesStat(blockGas?.gasused, 1e6);
-  // 异常点:块 gas 超关注阈值(70M)的采样点数
+  // 异常点:块 gas 超关注阈值(50% 上限)的采样点数
   const hotPoints = (blockGas?.gasused?.values ?? []).filter((v) => typeof v === "number" && v > WATCH_GAS).length;
 
   // 结论:正常/偏高 + 区间 + 距上限
-  const headroom = gu != null ? Math.max(0, 100 - (gu / GAS_LIMIT) * 100) : null;
-  const verdict = gu == null ? null : (gu / GAS_LIMIT) * 100 >= 60 || hotPoints > 0 ? { t: "偏高", cls: "warn" } : { t: "正常", cls: "ok" };
+  const headroom = gu != null ? Math.max(0, 100 - (gu / GL) * 100) : null;
+  const verdict = gu == null ? null : (gu / GL) * 100 >= 60 || hotPoints > 0 ? { t: "偏高", cls: "warn" } : { t: "正常", cls: "ok" };
   const aiFirstLine = ai.s.text ? ai.s.text.split("\n").find((l) => l.trim()) : null;
 
   useEffect(() => {
@@ -87,7 +92,7 @@ export default function BlockGasPanel({ blockGas }) {
         ctx.setLineDash([5, 4]); ctx.strokeStyle = "rgba(240,185,11,.5)"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(padL, yW); ctx.lineTo(W - padR, yW); ctx.stroke(); ctx.setLineDash([]);
         ctx.fillStyle = "rgba(240,185,11,.7)"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-        ctx.fillText("关注 70M", padL + 4, yW - 2);
+        ctx.fillText(`关注 ${watchM}M`, padL + 4, yW - 2);
       }
       const ts = s.times ?? [];
       if (ts.length) {
@@ -128,7 +133,7 @@ export default function BlockGasPanel({ blockGas }) {
     draw();
     const ro = new ResizeObserver(draw); ro.observe(canvas);
     return () => ro.disconnect();
-  }, [blockGas, hover, metric]);
+  }, [blockGas, hover, metric, gasLimit]);
 
   const onMove = (e) => {
     const canvas = canvasRef.current;
@@ -193,8 +198,8 @@ export default function BlockGasPanel({ blockGas }) {
             <div className="bg-side-row"><span>均值</span><b>{f1(st?.avg)}{u}</b></div>
             <div className="bg-side-row"><span>峰值</span><b>{f1(st?.max)}{u}</b></div>
             <div className="bg-side-row"><span>最低</span><b>{f1(st?.min)}{u}</b></div>
-            <div className="bg-side-row"><span>异常点(&gt;70M)</span><b style={{ color: hotPoints > 0 ? "var(--orange)" : "var(--green)" }}>{hotPoints}</b></div>
-            <div className="bg-side-ref">参考:正常 &lt;70M · 关注 70-120M · 上限 140M</div>
+            <div className="bg-side-row"><span>异常点(&gt;{watchM}M)</span><b style={{ color: hotPoints > 0 ? "var(--orange)" : "var(--green)" }}>{hotPoints}</b></div>
+            <div className="bg-side-ref">参考:正常 &lt;{watchM}M · 关注 {watchM}-{highM}M · 上限 {glM}M(链上实时)</div>
           </div>
         </div>
       </div>

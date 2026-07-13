@@ -22,6 +22,11 @@ const ITEMS = [
 export default function NavRail({ current, onNav, connected }) {
   return (
     <nav className="nav-rail">
+      {/* 常驻提示:左侧可切换子系统 */}
+      <div className="nav-hint">
+        <span className="nav-hint-arrow">◀</span>
+        <span className="nav-hint-text">点击切换子系统</span>
+      </div>
       <div className="nav-logo">
         {/* official BNB mark: top/bottom chevrons + left/center/right diamonds */}
         <svg width="28" height="28" viewBox="4 4 24 24" fill="#F0B90B">

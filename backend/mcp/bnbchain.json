@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bnbchain": {
+      "command": "npx",
+      "args": ["-y", "@bnb-chain/mcp@latest"]
+    }
+  }
+}

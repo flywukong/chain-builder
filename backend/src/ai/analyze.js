@@ -97,17 +97,19 @@ export async function runTrafficAnalysis(data) {
     "",
     "已提供事件时间线(北京时间)、30 天基线,以及事件峰值时段链上采样(若有):sampledBlocks 为采样区块,topContracts 按交易 gasLimit 份额聚合。",
     "事件的 refined 字段(若有)是 5m 精化结果:startT/peakT/endT 为精确时间,startBlock~endBlock 为事件区块高度区间——结论里引用该区间,方便读者链上取证。",
+    MCP_GUIDE,
+    "本场景取证建议:topContracts 里未识别的高份额地址,用 read_contract(name/symbol)或 get_erc20_token_info 识别实体;可疑发送方用 get_native_balance / get_transaction 抽查 1-2 个,余额仅够 gas + nonce 密集 = 脚本集群。",
     "",
     "要求:",
     "1. 概述事件:时间、持续、峰值 pending 与基线的倍数、区块 gas 是否被打满。",
-    "2. 归因:根据 topContracts 判断流量由什么合约/交易类型引起。你认识的知名 BSC 合约(如 PancakeSwap Router、四字节铭文类、known token)直接标注;不认识的地址就写「未知合约 0x…前8位」,禁止编造名字。",
+    "2. 归因:根据 topContracts 判断流量由什么合约/交易类型引起。你认识的知名 BSC 合约(如 PancakeSwap Router、四字节铭文类、known token)直接标注;不认识的地址优先用链上工具识别,识别不出再写「未知合约 0x…前8位」,禁止编造名字。",
     "3. 影响与结论:pending 消化情况、是否需要关注。",
     "4. 若无链上采样数据,基于时间线分析并说明归因需 tx 级数据。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
   ].join("\n");
-  return spawnClaude(prompt);
+  return spawnClaude(prompt, { mcp: true });
 }
 
 // ── 流量窗口解读:pending / gas 单维度形态分析(窗口跟随前端选择)──
@@ -232,11 +234,13 @@ export async function runReorgEventAnalysis(data) {
     "分析方法:被重组段在 canonical 链上不可见,但会留下痕迹——gapMs 显著大于期望值的位置就是重组回退重出的时刻,该位置之后的 miner 是重组赢家;赢家之前正常出块的 validator 里可能有被重组方,但无法从 canonical 链确认,不要断言。",
     "要求:①一句话概述(时间/规模/影响面:nodesSaw 大 = 全网可见,小 = 局部);②从 gapMs 找出异常时刻与赢家 validator(用名称,group=internal 是我方自营,明确标注);找不到明显 gap 就说明采样步长内无法分辨,不要硬凑;③严重度(孤块≥8 或单小时≥2次 值得关注)与是否需要行动。",
     "禁止编造:没有节点日志,不猜底层根因;区块区间 blockRange 在结论里报出,方便读者链上复查。",
+    MCP_GUIDE,
+    "本场景取证建议:采样序列里 gapMs 异常的位置,可用 get_block_by_number 对邻近块号逐块核查(miner/timestamp),把 reorg 边界精确到单块,并确认 gap 后首块的赢家 validator。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
   ].join("\n");
-  return spawnClaude(prompt);
+  return spawnClaude(prompt, { mcp: true });
 }
 
 // ── 空块简析:validator 分布 / 时间聚集性 ──
@@ -247,11 +251,13 @@ export async function runEmptyAnalysis(data) {
     "要点:哪些 validator 出的、是否同一 validator 连续/聚集(节点故障信号)、还是分散偶发(mempool 时序波动,属正常)。",
     "mempool 常年 ~900 pending 下偶发 1-2 个孤立空块无需处理;同一 validator 短时多次才值得联系运营方。",
     "称呼 validator 一律用 validator 字段的名称(如 NodeReal、Fuji),禁止报 0x 地址;internal=true 是我方自营节点,其空块聚集时明确点名建议排查。",
+    MCP_GUIDE,
+    "本场景取证建议:对空块聚集的 validator,用 get_block_by_number 抽查其空块前后的邻近块号(±1~3),看它同时段是否连续空块(节点故障)还是夹着正常块(偶发);结论附块号证据。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
   ].join("\n");
-  return spawnClaude(prompt);
+  return spawnClaude(prompt, { mcp: true });
 }
 
 // ── 未知合约批量归类(交易分析子系统,结果进标签库)──
@@ -271,7 +277,7 @@ export async function runContractLabeling(candidates) {
     "候选合约(JSON):",
     "```json", JSON.stringify(candidates, null, 1), "```",
   ].join("\n");
-  const text = await spawnClaude(prompt, 300_000);   // 批量归类偶尔慢,放宽超时
+  const text = await spawnClaude(prompt, { timeoutMs: 300_000 });   // 批量归类偶尔慢,放宽超时
   const m = text.match(/\[[\s\S]*\]/);
   if (!m) throw new Error("labeling: no JSON array in response");
   return JSON.parse(m[0]);
@@ -291,11 +297,13 @@ export async function runTxnFeatureAnalysis(data) {
     "3. topContracts 中 ai=true 是模型自动归类的,名字可信度一般,表述留有余地。",
     "4. 数据为全量区块统计(2026-07-08 之前的历史时段为每分钟 1 块采样,笔数口径不同,跨该日对比看占比不看绝对量)。",
     "5. 结构稳定就说稳定,不要制造异常。",
+    MCP_GUIDE,
+    "本场景取证建议(安全初筛):topContracts 里 other/未识别但份额靠前的地址,用 is_contract + read_contract(name/symbol)/ get_erc20_token_info 初筛实体;形似新盘/貔貅/攻击特征(无名合约高频吸量)时在报告里单独提示安全团队关注,并附地址与判断依据。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 1), "```",
   ].join("\n");
-  return spawnClaude(prompt);
+  return spawnClaude(prompt, { mcp: true });
 }
 
 // ── 自由问答:基于监控快照回答主网运行状态问题 ──
@@ -307,8 +315,9 @@ export async function runAsk(question, context) {
     "",
     "要求:",
     "1. 基于快照回答,引用具体数字;中文,≤250 字,直接正文。",
-    "2. 快照覆盖不到的问题,坦率说明,并指出可以看哪个子系统(Monitor / MEV / 流量 / 存储)或需要什么数据。",
+    "2. 快照覆盖不到、但属于链上具体事实的问题(某块内容/某交易/某地址是否合约/余额/代币信息),用链上工具现场查证后回答;其余覆盖不到的坦率说明,指出可以看哪个子系统(Monitor / MEV / 流量 / 存储)。",
     "3. 不编造数据;正常的指标不要渲染成风险(出块 ~450ms、导入时延 p95≤800ms、MEV 90-100%、24h 0~3 次 micro-reorg 均为常态)。",
+    MCP_GUIDE,
     "4. slash 事件由 BSC 协议自动惩罚(jail/移出活跃集),外部 validator(internal=false)被 slash 只陈述事实,不给「联系运营方/核实/持续监控」类建议;仅内部运营(internal=true)才建议排查。",
     "",
     `用户问题:${question}`,
@@ -316,18 +325,21 @@ export async function runAsk(question, context) {
     "监控快照(JSON):",
     "```json", JSON.stringify(context, null, 2), "```",
   ].join("\n");
-  return spawnClaude(prompt);
+  return spawnClaude(prompt, { mcp: true });
 }
 
 // 统一入口:按 AI_BACKEND 分发到 claude/codex × cli/api
-function spawnClaude(prompt, timeoutMs = TIMEOUT_MS) {
+// opts.mcp = 允许 AI 调链上只读工具自主取证(仅 claude-cli 后端支持,其余后端静默降级为纯 prompt)
+function spawnClaude(prompt, opts = {}) {
+  const mcp = !!opts.mcp;
+  const timeoutMs = opts.timeoutMs ?? (mcp ? MCP_TIMEOUT_MS : TIMEOUT_MS);
   switch (resolveBackend()) {
     case "claude-api": return runViaApi(prompt, timeoutMs);
     case "codex-cli":  return runViaCodexCli(prompt, timeoutMs);
     case "codex-api":  return runViaOpenAI(prompt, timeoutMs);
     case "codex-py":   return runViaOpenAIPy(prompt, timeoutMs);
     case "claude-cli":
-    default:           return runViaCli(prompt, timeoutMs);
+    default:           return runViaCli(prompt, timeoutMs, mcp);
   }
 }
 
@@ -424,10 +436,29 @@ async function runViaApi(prompt, timeoutMs) {
 const CLI_FALLBACK_MODEL = process.env.CLAUDE_CLI_FALLBACK_MODEL || "claude-opus-4-8";
 const LIMIT_RE = /(usage|weekly|session|5-?hour|monthly)\s*limit|limit (reached|exceeded)|rate.?limit|quota/i;
 
-function cliOnce(prompt, timeoutMs, model = null) {
+// ── MCP 自主取证(bnbchain-mcp,仅 claude-cli 后端)──────────────────────────
+// 白名单只放链上只读工具(以 tools/list 实测名单为准);transfer/write/approve/
+// gnfd 写类永不放行,运行环境绝不配 PRIVATE_KEY。
+const MCP_CONFIG_FILE = process.env.MCP_CONFIG_FILE || new URL("../../mcp/bnbchain.json", import.meta.url).pathname;
+const MCP_RO_TOOLS = [
+  "get_block_by_number", "get_block_by_hash", "get_latest_block",
+  "get_transaction", "read_contract", "is_contract",
+  "get_erc20_token_info", "get_erc20_balance", "get_native_balance",
+  "get_chain_info", "get_supported_networks", "estimate_gas",
+].map((t) => `mcp__bnbchain__${t}`).join(",");
+const MCP_TIMEOUT_MS = 300_000;   // 工具循环比单轮生成慢
+
+// 注入到取证类 prompt 的通用工具指引
+export const MCP_GUIDE = [
+  "工具:你可以调用 bnbchain 链上只读工具(get_block_by_number / get_transaction / read_contract / is_contract / get_erc20_token_info / get_native_balance 等,network 参数一律 \"bsc\")核实事实。",
+  "取证纪律:①先用给定上下文,关键疑点才查链,总工具调用 ≤8 次;②结论只引用可验证事实(块号/地址/数值);③工具失败或查不到就直说,不要编造。",
+].join("\n");
+
+function cliOnce(prompt, timeoutMs, model = null, mcp = false) {
   return new Promise((resolve, reject) => {
     const args = ["-p", "--output-format", "text"];   // headless one-shot; prompt via stdin
     if (model) args.push("--model", model);
+    if (mcp) args.push("--mcp-config", MCP_CONFIG_FILE, "--allowedTools", MCP_RO_TOOLS);
     const child = spawn(
       CLAUDE_BIN,
       args,
@@ -454,15 +485,15 @@ function cliOnce(prompt, timeoutMs, model = null) {
   });
 }
 
-async function runViaCli(prompt, timeoutMs = TIMEOUT_MS) {
+async function runViaCli(prompt, timeoutMs = TIMEOUT_MS, mcp = false) {
   // 主模型:CLAUDE_CLI_MODEL,不设则用 CLI 登录账号默认(如 Fable 5)
   const primary = process.env.CLAUDE_CLI_MODEL || null;
   try {
-    return await cliOnce(prompt, timeoutMs, primary);
+    return await cliOnce(prompt, timeoutMs, primary, mcp);
   } catch (e) {
     if (LIMIT_RE.test(e.message) && CLI_FALLBACK_MODEL && CLI_FALLBACK_MODEL !== primary) {
       console.warn("[ai] 主模型额度受限,回退 %s 重试", CLI_FALLBACK_MODEL);
-      return cliOnce(prompt, timeoutMs, CLI_FALLBACK_MODEL);
+      return cliOnce(prompt, timeoutMs, CLI_FALLBACK_MODEL, mcp);
     }
     throw e;
   }

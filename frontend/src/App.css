@@ -1043,7 +1043,8 @@ body::before {
 .lat-ep.ok { color: var(--green); background: #07140d; border: 1px solid #1d5b3a; }
 .lat-ep.warn { color: #ef4444; background: #190b0b; border: 1px solid #5b1d1d; }
 .lat-ep-list { display: flex; flex-wrap: wrap; gap: 5px; flex-shrink: 0; }
-.lat-ep-chip { font-family: var(--mono); font-size: 9px; color: #f08c8c; background: #190b0b; border: 1px solid #3d1414; border-radius: 5px; padding: 2px 7px; }
+.lat-ep-chip { font-family: var(--mono); font-size: 9px; color: #f08c8c; background: #190b0b; border: 1px solid #3d1414; border-radius: 5px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 6px; }
+.lat-ep-chip .tf-ep-btn { margin-left: 0; }
 .lat-nodes { display: flex; gap: 12px; flex-wrap: wrap; flex-shrink: 0; padding: 0 2px; }
 .lat-node { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9px; color: var(--muted); }
 .lat-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }

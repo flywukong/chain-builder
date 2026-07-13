@@ -369,7 +369,7 @@ app.get("/api/db-stats", async (req) => {
 });
 let insertLatCache = { at: 0, hours: 0, data: null };
 app.get("/api/insert-latency", async (req) => {
-  const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 24, 1), 72);
+  const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 24, 1), 168);
   if (insertLatCache.data && insertLatCache.hours === hours && Date.now() - insertLatCache.at < 55_000) return insertLatCache.data;
   const data = await safe(fetchInsertLatency(cfg.keterConfigPath, hours));
   if (data) insertLatCache = { at: Date.now(), hours, data };   // 只缓存成功结果,失败下次重试
@@ -550,24 +550,29 @@ aiRoutes("blockgas", "/api/ai/blockgas", async () => {
   });
 });
 
-// 区块导入时延解读(24h,per-node 统计 + 超阈段)
-aiRoutes("latency", "/api/ai/latency", async () => {
-  const d = insertLatCache.data ?? await fetchInsertLatency(cfg.keterConfigPath, 24);
+// 区块导入时延解读:body.days 选窗口(1/7),body.episodeFrom 重点归因单个超阈段
+aiRoutes("latency", "/api/ai/latency", async (body) => {
+  const days = Math.min(Math.max(parseInt(body?.days, 10) || 1, 1), 7);
+  const hours = days * 24;
+  const d = (insertLatCache.hours === hours && insertLatCache.data && Date.now() - insertLatCache.at < 55_000)
+    ? insertLatCache.data : await fetchInsertLatency(cfg.keterConfigPath, hours);
   if (!d?.times?.length) throw new Error("keter insert-latency 数据不可用");
   const nodeStat = (s) => {
     const v = (s.values ?? []).filter((x) => typeof x === "number");
     if (!v.length) return { instance: s.instance };
     return { instance: s.instance, avgMs: +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1), maxMs: +Math.max(...v).toFixed(1) };
   };
+  const focus = body?.episodeFrom ? (d.episodes ?? []).find((e) => e.from === Number(body.episodeFrom)) : null;
   // 图表只画 4 台典型;解读时喂 keter 全部自营节点的导入时延统计
   const all = await fetchExecStatsAll(cfg.keterConfigPath).catch(() => null);
   return runLatencyAnalysis({
-    hours: d.hours, thresholdMs: d.threshold,
+    hours, windowLabel: days === 1 ? "24h" : `${days} 天`, thresholdMs: d.threshold,
     chartSampleNodes: d.ips,
     overallMeanMs: d.mean, overallMaxMs: d.max, currentMs: d.cur,
     chartNodes: (d.perNode ?? []).map(nodeStat),
     allNodesInsertMs: all?.insertMs ?? null,
     episodesOverThreshold: (d.episodes ?? []).map((e) => ({ from: new Date(e.from).toISOString(), to: new Date(e.to).toISOString(), peakMs: e.peak })),
+    focusEpisode: focus ? { from: new Date(focus.from).toISOString(), to: new Date(focus.to).toISOString(), peakMs: focus.peak } : null,
   });
 });
 

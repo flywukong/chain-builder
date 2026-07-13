@@ -4,21 +4,26 @@ const API = import.meta.env.VITE_API_BASE ?? "";
 
 // 面板级 AI 解读:醒目按钮(放 panel-header 右侧)+ 内联结果块(渲染在 body 顶部)
 // 用法:const ai = usePanelAi("/api/ai/blockgas");  → <AiButton ai={ai} /> / <AiResult ai={ai} title="…" />
-export function usePanelAi(path, eta = "~20s") {
+// getBody 可选:点击时求值作为 POST body(如窗口天数);runWith(body) 供事件行等直接调用
+export function usePanelAi(path, eta = "~20s", getBody) {
   const [s, setS] = useState({ loading: false, text: null, at: null, err: null });
-  const run = async () => {
+  const runWith = async (body) => {
     if (s.loading) return;
     setS({ loading: true, text: null, at: null, err: null });
     try {
-      const r = await fetch(API + path, { method: "POST" });
+      const r = await fetch(API + path, {
+        method: "POST",
+        ...(body ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}),
+      });
       const d = await r.json();
       if (d.error) setS({ loading: false, text: null, at: null, err: d.error });
       else if (d.running) setS((x) => ({ ...x, loading: false, err: "已有分析进行中,请稍候" }));
       else setS({ loading: false, text: d.text, at: d.at, err: null });
     } catch (e) { setS({ loading: false, text: null, at: null, err: String(e) }); }
   };
+  const run = () => runWith(getBody?.());
   const close = () => setS({ loading: false, text: null, at: null, err: null });
-  return { s, run, close, eta };
+  return { s, run, runWith, close, eta };
 }
 
 export function AiButton({ ai, label = "AI 解读" }) {

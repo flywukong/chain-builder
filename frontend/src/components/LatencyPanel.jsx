@@ -13,18 +13,20 @@ export default function LatencyPanel() {
   const canvasRef = useRef(null);
   const [d, setD] = useState(null);
   const [hover, setHover] = useState(null);   // index into times
-  const ai = usePanelAi("/api/ai/latency");
+  const [win, setWin] = useState(24);         // 窗口小时数:24 | 168(7天)
+  const winLabel = win === 24 ? "24h" : "7天";
+  const ai = usePanelAi("/api/ai/latency", "~20s", () => ({ days: win / 24 }));
 
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + "/api/insert-latency")
+    const pull = () => fetch(API + `/api/insert-latency?hours=${win}`)
       .then((r) => r.json())
       .then((j) => { if (alive && j?.times) setD(j); })
       .catch(() => {});
     pull();
     const t = setInterval(pull, 60_000);
     return () => { alive = false; clearInterval(t); };
-  }, []);
+  }, [win]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -59,11 +61,13 @@ export default function LatencyPanel() {
         ctx.strokeStyle = "#181610"; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
         ctx.fillStyle = "#5d594e"; ctx.fillText(v + "", padL - 5, y);
       }
-      // x 时间标签
+      // x 时间标签(窗口 >26h 时带日期)
       ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillStyle = "#5d594e";
+      const wide = t1 - t0 > 26 * 3600e3;
       [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
         const t = t0 + f * (t1 - t0);
-        ctx.fillText(hhmm(t), padL + f * iw, H - padB + 5);
+        const dd = new Date(t);
+        ctx.fillText(wide ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(t)}` : hhmm(t), padL + f * iw, H - padB + 5);
       });
 
       // >450ms 异常段红色背景带
@@ -180,7 +184,12 @@ export default function LatencyPanel() {
             : <em className="panel-verdict pv-ok">正常 · 峰值 {d.max}ms · 远低于 {d.threshold}ms</em>)}
         </span>
         <span className="bm-ctls">
-          <span className="sub">{d ? `${d.ips.length} 节点均值 · ${d.hours}h` : "…"}</span>
+          <span className="sub">{d ? `${d.ips.length} 节点均值 · ${winLabel}` : "…"}</span>
+          <span className="tf-ranges">
+            {[[24, "24h"], [168, "7天"]].map(([h, l]) => (
+              <button key={h} className={`tf-range ${win === h ? "on" : ""}`} onClick={() => setWin(h)}>{l}</button>
+            ))}
+          </span>
           <AiButton ai={ai} />
         </span>
       </div>
@@ -199,6 +208,8 @@ export default function LatencyPanel() {
             {d.episodes.slice(0, 6).map((e, i) => (
               <span key={i} className="lat-ep-chip">
                 {hhmm(e.from)}–{hhmm(e.to)} · 峰值 {e.peak}ms
+                <button className="tf-ep-btn" disabled={ai.s.loading} title="归因该超阈段"
+                        onClick={() => ai.runWith({ days: win / 24, episodeFrom: e.from })}>⚡ 分析</button>
               </span>
             ))}
             {nEp > 6 && <span className="lat-ep-chip">+{nEp - 6}</span>}

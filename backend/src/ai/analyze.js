@@ -180,10 +180,12 @@ export async function runBlockGasAnalysis(data) {
 // ── 区块导入时延解读:节点差异 + 超阈段 ──
 export async function runLatencyAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网运维分析师。解读自营 validator 节点的区块导入时延(insert latency,24h),中文,180 字以内,直接正文。",
-    "数据口径:chartNodes 是图表采样的 4 台典型;allNodesInsertMs 是 keter 全部自营节点(dex-prod + vaas-prod)的 per-instance 24h 统计,按均值降序 —— 以全量为准做横向对比。",
+    `你是 BSC 主网运维分析师。解读自营 validator 节点的区块导入时延(insert latency,近 ${data.windowLabel ?? "24h"}),中文,180 字以内,直接正文。`,
+    "数据口径:chartNodes 是图表采样的 4 台典型(统计窗口 = 所选窗口);allNodesInsertMs 是 keter 全部自营节点(dex-prod + vaas-prod)的 per-instance 24h 快照,按均值降序 —— 横向对比以它为准,但注意它固定 24h,与所选窗口可能不同。",
     "基线:均值 <200ms 正常;>450ms(一个出块间隔)为超阈,episodes 列出了超阈段(基于 4 台均线)。",
-    "要点:①整体水位(均值/峰值 vs 基线)②全节点差异:均值显著高于群体(如 2 倍+或 >200ms)的节点点名(IP)建议排查,接近则说一致 ③超阈段:时间/时长/峰值,孤立尖峰(<1min)多为磁盘/GC 抖动,持续段才需关注。正常就说正常。",
+    data.focusEpisode
+      ? "重点:focusEpisode 是用户点选的超阈段,优先归因这一段(时间/时长/峰值/前后水位),其余简述;孤立尖峰(<1min)多为磁盘/GC 抖动,持续段才需关注。"
+      : "要点:①整体水位(均值/峰值 vs 基线)②全节点差异:均值显著高于群体(如 2 倍+或 >200ms)的节点点名(IP)建议排查,接近则说一致 ③超阈段:时间/时长/峰值,孤立尖峰(<1min)多为磁盘/GC 抖动,持续段才需关注。正常就说正常。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

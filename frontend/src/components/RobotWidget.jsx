@@ -83,6 +83,10 @@ export default function RobotWidget({ variant = "home" }) {
 
   const verdict = pa.verdict;
   const ok = verdict === "ok";
+  // 巡检新鲜度:后端每小时自动跑;超 75 分钟未更新 = 自动巡检可能中断
+  const ageMin = pa.at ? Math.round((Date.now() - pa.at) / 60000) : null;
+  const agoStr = ageMin == null ? "" : ageMin < 1 ? "刚刚" : ageMin < 60 ? `${ageMin} 分钟前` : `${Math.floor(ageMin / 60)} 小时前`;
+  const staleAuto = ageMin != null && ageMin > 75;
   // 正文首行的「正常/需关注/告警」与徽条重复,展示时剥掉
   const displayText = (t) => {
     if (!t) return t;
@@ -108,7 +112,11 @@ export default function RobotWidget({ variant = "home" }) {
             <div className={`robot-brief ${verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : ""}`}>
               <span className="rb-head">
                 {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 最近 {pa.windowDays ?? days} 天
-                {pa.at ? ` · ${new Date(pa.at).toLocaleTimeString()}` : ""}{pa.loading ? " · 分析中…" : ""}
+                {pa.at ? ` · ${agoStr}更新` : ""}{pa.loading ? " · 分析中…" : ""}
+              </span>
+              <span className="rb-text rb-auto-line">
+                每小时自动巡检{pa.at ? ` · 上次 ${new Date(pa.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}` : ""}
+                {staleAuto && " · ⚠ 超 1 小时未更新,自动巡检可能中断"}
               </span>
               {pa.brief && <span className="rb-text rb-brief-line">{pa.brief}</span>}
               <span className="rb-text rb-scroll">{displayText(pa.text)}</span>

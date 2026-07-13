@@ -185,6 +185,7 @@ body::before {
 .rb-oneline { font-size: 11.5px; font-weight: 500; color: #e8e2d2; letter-spacing: .2px; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .rb-brief-line { font-size: 11px; font-weight: 600; color: #f0e9d2; border-bottom: 1px dashed #2a2415; padding-bottom: 6px; }
+.rb-auto-line { font-size: 9.5px; color: var(--muted); letter-spacing: .3px; }
 @keyframes rb-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .robot-btn {
   position: relative;

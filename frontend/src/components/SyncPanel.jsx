@@ -31,9 +31,11 @@ function SyncHistSpark({ history, threshold }) {
       });
       const ts = history?.times ?? [];
       if (ts.length) {
+        const wide = ts.at(-1) - ts[0] > 26 * 3600e3;
+        const fmtX = (t) => { const d = new Date(t); return wide ? `${d.getMonth() + 1}/${d.getDate()}` : hhmm(t); };
         ctx.fillStyle = "#5d594e"; ctx.font = "8px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
         [[0, 0], [0.5, Math.floor(ts.length / 2)], [1, ts.length - 1]].forEach(([f, i]) =>
-          ctx.fillText(hhmm(ts[i]), 2 + f * (W - 4), H - 1));
+          ctx.fillText(fmtX(ts[i]), 2 + f * (W - 4), H - 1));
       }
     }
     draw();
@@ -48,16 +50,18 @@ export default function SyncPanel() {
   const canvasRef = useRef(null);
   const [d, setD] = useState(null);
   const [hover, setHover] = useState(null);
-  const ai = usePanelAi("/api/ai/sync");
+  const [win, setWin] = useState(1);   // 异常历史/解读窗口:1(24h)| 7 天
+  const winLabel = win === 1 ? "24h" : "7天";
+  const ai = usePanelAi("/api/ai/sync", "~20s", () => ({ days: win }));
 
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + "/api/sync-detail").then((r) => r.json())
+    const pull = () => fetch(API + `/api/sync-detail?days=${win}`).then((r) => r.json())
       .then((j) => { if (alive && j?.nodes) setD(j); }).catch(() => {});
     pull();
     const t = setInterval(pull, 60_000);
     return () => { alive = false; clearInterval(t); };
-  }, []);
+  }, [win]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -152,6 +156,11 @@ export default function SyncPanel() {
         </span>
         <span className="bm-ctls">
           <span className="sub">判据 {d?.windowMin ?? 10}min 增长 &lt; {d?.threshold ?? 600} · 预期 ~{(d?.expected ?? 1333).toLocaleString()} · 60s 刷新</span>
+          <span className="tf-ranges">
+            {[[1, "24h"], [7, "7天"]].map(([v, l]) => (
+              <button key={v} className={`tf-range ${win === v ? "on" : ""}`} onClick={() => setWin(v)}>{l}</button>
+            ))}
+          </span>
           <AiButton ai={ai} />
         </span>
       </div>
@@ -160,7 +169,7 @@ export default function SyncPanel() {
         <div className="reorg-chips">
           <div className={`reorg-chip ${behind.length ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{d ? behind.length : "--"}</span><span className="rc-l">当前落后节点</span></div>
           <div className="reorg-chip tone-ok"><span className="rc-v">{d?.total ?? "--"}</span><span className="rc-l">监控节点总数</span></div>
-          <div className={`reorg-chip ${histPeak > 0 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{d ? histPeak : "--"}</span><span className="rc-l">24h 异常峰值(节点数)</span></div>
+          <div className={`reorg-chip ${histPeak > 0 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{d ? histPeak : "--"}</span><span className="rc-l">{winLabel} 异常峰值(节点数)</span></div>
         </div>
         <div className="sync-main">
           <canvas ref={canvasRef} className="sync-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
@@ -175,7 +184,7 @@ export default function SyncPanel() {
                     <span className="re-nodes">/{d.windowMin}min</span>
                   </div>
                 ))}
-            <div className="re-title" style={{ marginTop: 8 }}>24h 异常节点数走势</div>
+            <div className="re-title" style={{ marginTop: 8 }}>{winLabel} 异常节点数走势</div>
             <SyncHistSpark history={d?.history} threshold={d?.threshold} />
           </div>
         </div>

@@ -206,13 +206,14 @@ export async function fetchSyncErrors(configPath, windowMin = 10, threshold = 60
   return { count: nodes.length, total, windowMin, threshold, expected: Math.round((windowMin * 60) / 0.45), nodes };
 }
 
-// ── Sync 详情:全节点 head 增长(不只异常)+ 24h 异常节点数历史 ──────────────
-export async function fetchSyncDetail(configPath, windowMin = 10, threshold = 600) {
+// ── Sync 详情:全节点 head 增长(不只异常)+ 异常节点数历史(窗口可选)────────
+export async function fetchSyncDetail(configPath, windowMin = 10, threshold = 600, days = 1) {
   const jobs = DS_JOBS["dex-prod"];
+  const histInterval = days <= 1 ? 1800_000 : 3600_000 * 2;   // 24h 半小时粒度,7d 两小时粒度
   const [curRaw, histRaw] = await Promise.all([
     grafanaQuery(DATASOURCES["dex-prod"], `increase(chain_head_block{job=~"${jobs}"}[${windowMin}m])`, { configPath }),
     rangeQuery(DATASOURCES["dex-prod"], `sum(increase(chain_head_block{job=~"${jobs}"}[${windowMin}m]) < bool ${threshold})`,
-      { from: "now-24h", intervalMs: 1800_000, maxDataPoints: 60, configPath }),
+      { from: `now-${days}d`, intervalMs: histInterval, maxDataPoints: 120, configPath }),
   ]);
   const nodes = extractSeries(curRaw)
     .map((s) => ({ instance: s.labels.instance, job: s.labels.job, grew: Math.round(s.values?.at(-1) ?? NaN) }))
@@ -220,7 +221,7 @@ export async function fetchSyncDetail(configPath, windowMin = 10, threshold = 60
     .sort((a, b) => a.grew - b.grew);
   const hist = extractSeries(histRaw)[0] ?? { times: [], values: [] };
   return {
-    windowMin, threshold,
+    windowMin, threshold, days,
     expected: Math.round((windowMin * 60) / 0.45),
     count: nodes.filter((n) => n.grew < threshold).length,
     total: nodes.length,

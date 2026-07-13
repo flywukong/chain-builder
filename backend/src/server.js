@@ -363,11 +363,12 @@ app.get("/api/empty-blocks", async () => emptyStore.view());
 app.get("/api/sync-errors", async () => latest.syncErrors ?? safe(fetchSyncErrors(cfg.keterConfigPath)));
 app.get("/api/slash-events", async () => slashEvents.view());
 app.get("/api/keter-health", async () => ({ ...keterHealth }));
-let syncDetailCache = { at: 0, data: null };
-app.get("/api/sync-detail", async () => {
-  if (syncDetailCache.data && Date.now() - syncDetailCache.at < 55_000) return syncDetailCache.data;
-  const data = await safe(fetchSyncDetail(cfg.keterConfigPath));
-  if (data) syncDetailCache = { at: Date.now(), data };
+let syncDetailCache = { at: 0, days: 0, data: null };
+app.get("/api/sync-detail", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
+  if (syncDetailCache.data && syncDetailCache.days === days && Date.now() - syncDetailCache.at < 55_000) return syncDetailCache.data;
+  const data = await safe(fetchSyncDetail(cfg.keterConfigPath, 10, 600, days));
+  if (data) syncDetailCache = { at: Date.now(), days, data };
   return data;
 });
 app.get("/api/db-stats", async (req) => {
@@ -655,18 +656,20 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
   });
 });
 
-// 节点同步解读:全节点 head 增长分布 + 24h 异常历史 → 孤立/集群性判断
-aiRoutes("sync", "/api/ai/sync", async () => {
-  const d = (syncDetailCache.data && Date.now() - syncDetailCache.at < 55_000)
-    ? syncDetailCache.data : await fetchSyncDetail(cfg.keterConfigPath);
+// 节点同步解读:全节点 head 增长分布 + 异常历史(body.days 选窗口)→ 孤立/集群性判断
+aiRoutes("sync", "/api/ai/sync", async (body) => {
+  const days = Math.min(Math.max(parseInt(body?.days, 10) || 1, 1), 7);
+  const d = (syncDetailCache.data && syncDetailCache.days === days && Date.now() - syncDetailCache.at < 55_000)
+    ? syncDetailCache.data : await fetchSyncDetail(cfg.keterConfigPath, 10, 600, days);
   if (!d?.nodes?.length) throw new Error("keter sync 数据不可用");
   const disk = latest.diskAlerts ?? [];
   return runSyncAnalysis({
     windowMin: d.windowMin, threshold: d.threshold, expected: d.expected,
+    windowLabel: days === 1 ? "24h" : `${days} 天`,
     behindNow: d.nodes.filter((n) => n.grew < d.threshold),
     totalNodes: d.total,
     growthDistribution: { min: d.nodes[0]?.grew, p50: d.nodes[Math.floor(d.nodes.length / 2)]?.grew, max: d.nodes.at(-1)?.grew },
-    history24h: d.history,
+    historyAnomalyNodes: d.history,
     diskAlerts: disk.slice(0, 5),
   });
 });

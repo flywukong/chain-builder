@@ -11,9 +11,9 @@ export default function MonitorPage({ state }) {
     <div className="dash-monitor-v2">
       <BlockGasPanel blockGas={state.blockGas} gasLimit={state.latestBlock?.gasLimit} />
       <LatencyPanel />
-      <SyncPanel />
       <ReorgPanel data={state.reorgTimeline} />
       <EmptyBlocksPanel />
+      <SyncPanel />
     </div>
   );
 }

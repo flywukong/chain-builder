@@ -3,6 +3,10 @@
     "bnbchain": {
       "command": "npx",
       "args": ["-y", "@bnb-chain/mcp@latest"]
+    },
+    "bscops": {
+      "command": "node",
+      "args": ["mcp/bsc-forensics.mjs"]
     }
   }
 }

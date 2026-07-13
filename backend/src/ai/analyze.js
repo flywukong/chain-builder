@@ -235,7 +235,7 @@ export async function runReorgEventAnalysis(data) {
     "要求:①一句话概述(时间/规模/影响面:nodesSaw 大 = 全网可见,小 = 局部);②从 gapMs 找出异常时刻与赢家 validator(用名称,group=internal 是我方自营,明确标注);找不到明显 gap 就说明采样步长内无法分辨,不要硬凑;③严重度(孤块≥8 或单小时≥2次 值得关注)与是否需要行动。",
     "禁止编造:没有节点日志,不猜底层根因;区块区间 blockRange 在结论里报出,方便读者链上复查。",
     MCP_GUIDE,
-    "本场景取证建议:采样序列里 gapMs 异常的位置,可用 get_block_by_number 对邻近块号逐块核查(miner/timestamp),把 reorg 边界精确到单块,并确认 gap 后首块的赢家 validator。",
+    "本场景取证建议:采样序列里 gapMs 异常的位置,用 bscops 的 get_block_miners 一次拉该邻域的逐块序列(step=1,返回自带 validator 名与 gapMs),把 reorg 边界精确到单块,并确认 gap 后首块的赢家 validator。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
@@ -252,7 +252,7 @@ export async function runEmptyAnalysis(data) {
     "mempool 常年 ~900 pending 下偶发 1-2 个孤立空块无需处理;同一 validator 短时多次才值得联系运营方。",
     "称呼 validator 一律用 validator 字段的名称(如 NodeReal、Fuji),禁止报 0x 地址;internal=true 是我方自营节点,其空块聚集时明确点名建议排查。",
     MCP_GUIDE,
-    "本场景取证建议:对空块聚集的 validator,用 get_block_by_number 抽查其空块前后的邻近块号(±1~3),看它同时段是否连续空块(节点故障)还是夹着正常块(偶发);结论附块号证据。",
+    "本场景取证建议:对空块聚集的 validator,用 bscops 的 get_block_miners 拉其空块附近的连续区间(step=1,gasUsedM<0.2 即空块),看该 validator 的 8 块轮次内是连续空(节点故障)还是夹着正常块(偶发);结论附块号证据。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
@@ -441,17 +441,21 @@ const LIMIT_RE = /(usage|weekly|session|5-?hour|monthly)\s*limit|limit (reached|
 // gnfd 写类永不放行,运行环境绝不配 PRIVATE_KEY。
 const MCP_CONFIG_FILE = process.env.MCP_CONFIG_FILE || new URL("../../mcp/bnbchain.json", import.meta.url).pathname;
 const MCP_RO_TOOLS = [
-  "get_block_by_number", "get_block_by_hash", "get_latest_block",
-  "get_transaction", "read_contract", "is_contract",
-  "get_erc20_token_info", "get_erc20_balance", "get_native_balance",
-  "get_chain_info", "get_supported_networks", "estimate_gas",
-].map((t) => `mcp__bnbchain__${t}`).join(",");
+  ...[
+    "get_block_by_number", "get_block_by_hash", "get_latest_block",
+    "get_transaction", "read_contract", "is_contract",
+    "get_erc20_token_info", "get_erc20_balance", "get_native_balance",
+    "get_chain_info", "get_supported_networks", "estimate_gas",
+  ].map((t) => `mcp__bnbchain__${t}`),
+  // 自建补充:带 validator 名的出块人查询(bnbchain 的 get_block 不含 miner)
+  "mcp__bscops__get_block_miner", "mcp__bscops__get_block_miners",
+].join(",");
 const MCP_TIMEOUT_MS = 300_000;   // 工具循环比单轮生成慢
 
 // 注入到取证类 prompt 的通用工具指引
 export const MCP_GUIDE = [
-  "工具:你可以调用 bnbchain 链上只读工具(get_block_by_number / get_transaction / read_contract / is_contract / get_erc20_token_info / get_native_balance 等,network 参数一律 \"bsc\")核实事实。",
-  "取证纪律:①先用给定上下文,关键疑点才查链,总工具调用 ≤8 次;②结论只引用可验证事实(块号/地址/数值);③工具失败或查不到就直说,不要编造。",
+  "工具:你可以调用链上只读工具核实事实。bnbchain 系列(get_block_by_number / get_transaction / read_contract / is_contract / get_erc20_token_info / get_native_balance 等,network 参数一律 \"bsc\")查块/交易/合约/余额;查「某块是谁出的」用 bscops 系列 —— get_block_miner(单块)/ get_block_miners(区间批量,含 validator 名、gapMs、gasUsedM,一次最多 120 块,范围大用 step 抽样),bnbchain 的 get_block 不返回 miner。",
+  "取证纪律:①先用给定上下文,关键疑点才查链,总工具调用 ≤8 次(get_block_miners 批量算 1 次,优先用它);②结论只引用可验证事实(块号/地址/数值);③工具失败或查不到就直说,不要编造。",
 ].join("\n");
 
 function cliOnce(prompt, timeoutMs, model = null, mcp = false) {

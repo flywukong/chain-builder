@@ -602,7 +602,7 @@ body::before {
 .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 760px; margin-bottom: 18px; }
 .stat-card { background: linear-gradient(180deg, rgba(24,22,17,.92), rgba(15,14,11,.94)); border: 1px solid #34290d; border-radius: 10px; padding: 14px; text-align: center; box-shadow: inset 0 1px 0 rgba(255,255,255,.03); }
 .sc-v { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
-.sc-l { font-size: 9.5px; color: var(--muted); margin-top: 6px; }
+.sc-l { font-size: 12px; color: #b7b2a4; margin-top: 7px; }
 .sc-ico { font-size: 15px; margin-right: 5px; vertical-align: 2px; }
 .sc-card-v2 {
   border: 1px solid transparent;
@@ -611,7 +611,7 @@ body::before {
   box-shadow: 0 0 20px rgba(255,138,0,.22), inset 0 1px 0 rgba(255,255,255,.05);
 }
 .sc-card-v2 .sc-v { text-shadow: 0 0 18px rgba(255,138,0,.65); }
-.sc-bep { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 4px; font-size: 8px; font-weight: 700; letter-spacing: .5px; color: #FFB84D; background: rgba(255,138,0,.14); border: 1px solid rgba(255,138,0,.4); }
+.sc-bep { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .5px; color: #FFB84D; background: rgba(255,138,0,.14); border: 1px solid rgba(255,138,0,.4); }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 860px; }
 .two-col .panel { min-height: 240px; }

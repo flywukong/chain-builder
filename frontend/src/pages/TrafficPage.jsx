@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
-const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:00`; };
+const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
 const fmtDay = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()}`; };
 
 // ── 通用小时级面积图:渐变填充 + 网格 + Y刻度 + 阈值线 + 超阈高亮 + hover 十字 ──
@@ -136,7 +136,11 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
 // ── 流量历史面板:范围切换 + pending/gas 双图 + 事件列表 ──
 const RANGES = [5, 7, 10, 30];
 
+const fmtDur = (ms) => (ms < 3600e3 ? `${Math.max(Math.round(ms / 60e3), 5)}m` : `${+(ms / 3600e3).toFixed(1)}h`);
+const fmtBlk = (n) => (n == null ? "?" : "#" + n.toLocaleString());
+
 // 单类大流量事件列表(pending 与 gas 独立展示),每行可触发 AI 归因
+// refined = 后端 5m 精化(精确时间 + 区块高度区间);缺失时退回小时桶口径
 function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, busyLabel }) {
   return (
     <div className="tf-evgroup">
@@ -145,15 +149,23 @@ function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, bus
         ? <div className="re-empty">✓ {emptyText}</div>
         : [...episodes].reverse().map((e) => {
             const busy = loading && busyLabel === fmtT(e.start);
+            const r = e.refined;
+            const startT = r?.precise ? r.startT : e.start;
+            const dur = r?.precise && r.endT ? fmtDur(r.endT - r.startT) : `${e.hours ?? 1}h`;
+            const tip = r?.precise
+              ? `开始 ${fmtT(r.startT)} · 峰值 ${fmtT(r.peakT)}(5m 均值 ${r.peakPending?.toLocaleString?.() ?? "--"})· 恢复 ${fmtT(r.endT)} · 区块 ${fmtBlk(r.startBlock)} ~ ${fmtBlk(r.endBlock)}`
+              : `小时桶口径(±1h):开始 ${fmtT(e.start)} · 峰值 ${fmtT(e.peakT)} · 恢复 ${fmtT((e.end ?? e.start) + 3600e3)}${r ? ` · 区块 ${fmtBlk(r.startBlock)} ~ ${fmtBlk(r.endBlock)}` : ""}`;
             return (
-              <div key={e.start} className="re-row"
-                   title={`开始 ${fmtT(e.start)} · 峰值 ${fmtT(e.peakT)} · 恢复 ${fmtT((e.end ?? e.start) + 3600e3)} · 持续 ${e.hours ?? 1}h`}>
-                <span className="re-time">{fmtT(e.start)}</span>
+              <div key={e.start} className="re-row" title={tip}>
+                <span className="re-time">{fmtT(startT)}{r?.precise ? "" : "±"}</span>
                 <span className="re-cnt">{metric(e)}</span>
-                <span className="re-dur">持续{e.hours ?? 1}h</span>
+                <span className="re-dur">持续{dur}</span>
                 <button className={`tf-ep-btn ${busy ? "busy" : ""}`} disabled={loading} onClick={() => onAnalyze?.(e)}>
                   {busy ? "分析中…↓" : "⚡ 分析"}
                 </button>
+                {r?.startBlock != null && (
+                  <span className="re-blocks">区块 {fmtBlk(r.startBlock)} ~ {fmtBlk(r.endBlock)}</span>
+                )}
               </div>
             );
           })}
@@ -221,7 +233,7 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             <div className={`reorg-chip ${epsInRange.length ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{epsInRange.length} 次</span><span className="rc-l">{rangeDays} 天内大流量</span></div>
             <div className={`reorg-chip ${last ? "tone-warn" : "tone-ok"}`}>
               <span className="rc-v">{last ? last.peakPending.toLocaleString() : "无"}</span>
-              <span className="rc-l">{last ? `最近一次 ${fmtT(last.peakT)} · ${last.trigger}` : "30d 内无大流量"}</span>
+              <span className="rc-l">{last ? `最近一次 ${fmtT(last.refined?.precise ? last.refined.peakT : last.peakT)} · ${last.trigger}` : "30d 内无大流量"}</span>
             </div>
           </div>
           {/* 流入/打包/净增长:判断拥堵是否自行消退的关键 */}

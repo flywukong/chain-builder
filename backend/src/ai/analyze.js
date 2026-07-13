@@ -96,6 +96,7 @@ export async function runTrafficAnalysis(data) {
     "若 lastEpisode 为 null,直接说明窗口内无大流量,给出 pending 基线与 gas 峰值作参考,不要硬造事件。",
     "",
     "已提供事件时间线(北京时间)、30 天基线,以及事件峰值时段链上采样(若有):sampledBlocks 为采样区块,topContracts 按交易 gasLimit 份额聚合。",
+    "事件的 refined 字段(若有)是 5m 精化结果:startT/peakT/endT 为精确时间,startBlock~endBlock 为事件区块高度区间——结论里引用该区间,方便读者链上取证。",
     "",
     "要求:",
     "1. 概述事件:时间、持续、峰值 pending 与基线的倍数、区块 gas 是否被打满。",

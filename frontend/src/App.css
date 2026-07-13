@@ -733,6 +733,9 @@ body::before {
 .re-nodes { color: var(--muted); margin-left: auto; }
 .re-dur { color: var(--muted); font-size: 10px; }
 .tf-fresh { color: var(--muted); font-size: 11px; }
+/* 事件区块高度区间:折行到第二行,可选中复制 */
+.tf-evgroup .re-row { flex-wrap: wrap; row-gap: 2px; }
+.re-blocks { flex-basis: 100%; color: #b8a96e; font-size: 10px; letter-spacing: .3px; user-select: all; }
 
 .mev-bars { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .mev-bars .ver-bar-track { max-width: 300px; height: 5px; }

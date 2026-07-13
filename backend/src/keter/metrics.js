@@ -293,6 +293,43 @@ export async function fetchTrafficTimeline(configPath, days = 30, hotPct = 90, t
   };
 }
 
+// ── 大流量事件精化:5m 粒度复查单个事件 ─────────────────────────────────────
+// 30d 时间线是 1h 步长采样,事件时间戳都落在整点上;精化把开始/峰值/恢复缩到
+// 5 分钟,并给出 5m 口径的真实峰值。5m 均值未复现越限时返回 null(保持小时口径)。
+export async function refineEpisode(configPath, ep, { hotPct = 90, threshold = 4000 } = {}) {
+  const hotGas = LIVE_GAS_LIMIT * (hotPct / 100);
+  const from = ep.start - 3600_000;                                   // 1h 桶覆盖前一小时
+  const to = Math.min((ep.end ?? ep.start) + 3600_000, Date.now());
+  const opts = { from: String(from), to: String(to), intervalMs: 300_000, maxDataPoints: 500, configPath };
+  const [pendRaw, gasRaw] = await Promise.all([
+    rangeQuery(DATASOURCES["dex-prod"], `avg(txpool_pending{job=~"${DATASEED_JOBS}"})`, opts),
+    rangeQuery(DATASOURCES["dex-prod"], `avg(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"})`, opts),
+  ]);
+  const pend = extractSeries(pendRaw)[0] ?? { times: [], values: [] };
+  const gas = extractSeries(gasRaw)[0] ?? { times: [], values: [] };
+  const gasAt = new Map(gas.times.map((t, i) => [t, gas.values[i]]));
+
+  let startT = null, recoverT = null, pendPeakT = null, gasPeakT = null, peakPending = 0, peakGasM = 0;
+  pend.times.forEach((t, i) => {
+    const p = pend.values[i];
+    if (typeof p !== "number") return;
+    const g = gasAt.get(t);
+    const hot = p > threshold || (typeof g === "number" && g >= hotGas);
+    if (hot) {
+      if (startT == null) startT = t;
+      recoverT = null;                                                // 多段越限取最后恢复点
+      if (p > peakPending) { peakPending = Math.round(p); pendPeakT = t; }
+      if (typeof g === "number" && g / 1e6 > peakGasM) { peakGasM = +(g / 1e6).toFixed(1); gasPeakT = t; }
+    } else if (startT != null && recoverT == null) {
+      recoverT = t;
+    }
+  });
+  if (startT == null) return null;
+  // 峰值时刻按触发方选:pending 触发看 pending 峰,纯 gas 事件看 gas 峰
+  const peakT = peakPending > threshold ? pendPeakT : (gasPeakT ?? pendPeakT ?? startT);
+  return { startT, peakT, recoverT, peakPending, peakGasM, stepMs: 300_000 };
+}
+
 // ── Reorg timeline (14d, hourly) — mirrors the Osaka/Mendel analysis口径 ─────
 // Chain-level dedup: max(increase[1h]) across nodes counts each event once;
 // hours where <2 nodes saw a reorg are local jitter and excluded.

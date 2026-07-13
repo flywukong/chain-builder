@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -200,10 +200,56 @@ pollKeter();
 setInterval(pollKeter, 30_000);
 
 // ── Heavy range-query timelines (reorg 14d / traffic 30d) — every 10 min ───
+// 时间 → 区块高度:按 450ms 块距估算,再用 header 时间迭代校正,收敛到 ±2 块
+const blockAtCache = new Map();
+async function blockAtTime(tsMs) {
+  const key = Math.round(tsMs / 60_000);   // 分钟粒度缓存足够(定位精度 5m)
+  if (blockAtCache.has(key)) return blockAtCache.get(key);
+  const head = await provider.getBlock("latest");
+  if (!head) return null;
+  if (tsMs >= head.timestamp * 1000) return head.number;
+  let est = head.number - Math.round((head.timestamp * 1000 - tsMs) / 450);
+  for (let i = 0; i < 6; i++) {
+    est = Math.max(1, Math.min(est, head.number));
+    const b = await provider.getBlock(est);
+    if (!b) return null;
+    const step = Math.round((tsMs - b.timestamp * 1000) / 450);
+    if (Math.abs(step) <= 2) break;
+    est += step;
+  }
+  blockAtCache.set(key, est);
+  if (blockAtCache.size > 500) blockAtCache.delete(blockAtCache.keys().next().value);
+  return est;
+}
+
+// 大流量事件增强:5m 精化开始/峰值/恢复 + 区块高度区间;已结束事件缓存,进行中每轮重算
+const epEnrichCache = new Map();
+async function enrichEpisodes(tl) {
+  if (!tl?.episodes?.length) return tl;
+  for (const ep of tl.episodes) {
+    const key = `${ep.start}:${ep.end ?? ""}`;
+    const done = (ep.end ?? ep.start) + 7200_000 < Date.now();
+    if (done && epEnrichCache.has(key)) { ep.refined = epEnrichCache.get(key); continue; }
+    try {
+      const r = await refineEpisode(cfg.keterConfigPath, ep, { hotPct: tl.hotPct, threshold: tl.threshold }) ?? {};
+      const precise = r.startT != null;
+      // 精化失败时退回小时桶边界:桶 t 覆盖 (t-1h, t],恢复 = 结束桶 +1h
+      const startT = r.startT ?? ep.start - 3600_000;
+      const endT = r.recoverT ?? Math.min((ep.end ?? ep.start) + 3600_000, Date.now());
+      const [startBlock, endBlock, peakBlock] = await Promise.all([
+        blockAtTime(startT), blockAtTime(endT), r.peakT != null ? blockAtTime(r.peakT) : null,
+      ]);
+      ep.refined = { ...r, precise, startT, endT, startBlock, endBlock, peakBlock };
+      if (done) epEnrichCache.set(key, ep.refined);
+    } catch (err) { console.error("[episode enrich]", err.message); }   // keter/RPC 抖动:保持小时口径
+  }
+  return tl;
+}
+
 async function pollTimelines() {
   try { broadcast("reorgTimeline", await fetchReorgTimeline(cfg.keterConfigPath)); }
   catch (err) { console.error("[reorg timeline poll]", err.message); }
-  try { broadcast("trafficTimeline", await fetchTrafficTimeline(cfg.keterConfigPath)); }
+  try { broadcast("trafficTimeline", await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath))); }
   catch (err) { console.error("[traffic timeline poll]", err.message); }
 }
 pollTimelines();
@@ -336,7 +382,7 @@ app.get("/api/reorg-events", async () => ({
 }));
 app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReorgTimeline(cfg.keterConfigPath)));
 app.get("/api/block-gas", async () => latest.blockGas ?? safe(fetchBlockGas(cfg.keterConfigPath)));
-app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath)));
+app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath).then(enrichEpisodes)));
 app.get("/api/disk",      async (req) => {
   // threshold=0 返回全部节点水位(topk 100),存储页磁盘总览用;默认 80 供告警
   const t = req.query?.threshold != null ? Math.max(Number(req.query.threshold) || 0, 0) : 80;
@@ -542,8 +588,9 @@ aiRoutes("traffic", "/api/ai/traffic", async (body) => {
     : tl.lastEpisode);
   let evidence = null;
   if (ep?.peakT) {
-    // hourly bucket at t covers (t-1h, t] → sample from the bucket start;附交易分析标签库名称
-    evidence = await sampleBlockContracts(provider, ep.peakT - 3600e3, { samples: 8, labelBook }).catch((e) => ({ error: e.message }));
+    // 精化过的事件直接对准 5m 峰值采样;否则 hourly 桶 t 覆盖 (t-1h, t] 从桶头采
+    const sampleFrom = ep.refined?.precise ? ep.refined.peakT - 300e3 : ep.peakT - 3600e3;
+    evidence = await sampleBlockContracts(provider, sampleFrom, { samples: 8, labelBook }).catch((e) => ({ error: e.message }));
   }
   return runTrafficAnalysis({
     hotPct: tl.hotPct ?? 90,

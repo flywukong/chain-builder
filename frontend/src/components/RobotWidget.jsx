@@ -98,6 +98,7 @@ export default function RobotWidget() {
                 {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 最近 {pa.windowDays ?? days} 天
                 {pa.at ? ` · ${new Date(pa.at).toLocaleTimeString()}` : ""}{pa.loading ? " · 分析中…" : ""}
               </span>
+              {pa.brief && <span className="rb-text rb-brief-line">{pa.brief}</span>}
               <span className="rb-text rb-scroll">{displayText(pa.text)}</span>
             </div>
           ) : (
@@ -147,13 +148,10 @@ export default function RobotWidget() {
         <button className={`robot-brief robot-brief-float ${!pa.text ? "" : verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : "rb-ok"}`}
                 onClick={() => setOpen(true)}>
           {pa.text ? (
-            <>
-              <span className="rb-head">
-                {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 24小时巡检{pa.loading ? " · 分析中…" : ""}
-                <em className="rb-more">详情 ▸</em>
-              </span>
-              <span className="rb-text rb-oneline">{ok ? (pa.brief ?? "各项指标均在正常范围内") : `检测到${verdict === "alert" ? "告警" : "需关注"}项`}</span>
-            </>
+            <span className="rb-head">
+              {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 24小时巡检{pa.loading ? " · 分析中…" : ""}
+              <em className="rb-more">点击看详情</em>
+            </span>
           ) : (
             <span className="rb-text rb-oneline">{pa.loading ? "LEO 分析中… 约 20–40s" : "我是 LEO · 点我看巡检 / 提问"}</span>
           )}

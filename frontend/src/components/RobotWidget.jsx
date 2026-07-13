@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { aiRequest } from "../lib/ai.js";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 // drop a mascot image at frontend/public/robot.png (透明背景 PNG 最佳) → auto-used;
@@ -57,20 +58,14 @@ export default function RobotWidget({ variant = "home" }) {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
-  // 选择时间窗 → 按新窗口重新分析
+  // 选择时间窗 → 按新窗口重新分析(异步任务 + 轮询,MCP 取证可达 1-2min)
   const runDays = async (d) => {
     setDays(d); setMenuOpen(false);
     setPa((x) => ({ ...x, loading: true }));
     try {
-      const r = await fetch(API + "/api/ai/analyze", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ days: d }),
-      });
-      const j = await r.json();
-      if (j.error) setPa((x) => ({ ...x, loading: false }));
-      else if (!j.running) setPa({ text: j.text, brief: j.brief ?? null, verdict: j.verdict ?? "ok", at: j.at, windowDays: j.windowDays, loading: false });
-      else setPa((x) => ({ ...x, loading: false }));
+      const j = await aiRequest("/api/ai/analyze", { days: d });
+      if (j.error || !j.text) setPa((x) => ({ ...x, loading: false }));
+      else setPa({ text: j.text, brief: j.brief ?? null, verdict: j.verdict ?? "ok", at: j.at, windowDays: j.windowDays, loading: false });
     } catch { setPa((x) => ({ ...x, loading: false })); }
   };
 
@@ -79,12 +74,7 @@ export default function RobotWidget({ variant = "home" }) {
     if (!question || busy) return;
     setBusy(true); setErr(null); setAns(null);
     try {
-      const r = await fetch(API + "/api/ai/ask", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question }),
-      });
-      const d = await r.json();
+      const d = await aiRequest("/api/ai/ask", { question });
       if (d.error) setErr(d.error);
       else setAns(d.text);
     } catch (e) { setErr(String(e)); }

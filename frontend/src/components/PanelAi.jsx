@@ -1,6 +1,5 @@
 import { useState } from "react";
-
-const API = import.meta.env.VITE_API_BASE ?? "";
+import { aiRequest } from "../lib/ai.js";
 
 // 面板级 AI 解读:醒目按钮(放 panel-header 右侧)+ 内联结果块(渲染在 body 顶部)
 // 用法:const ai = usePanelAi("/api/ai/blockgas");  → <AiButton ai={ai} /> / <AiResult ai={ai} title="…" />
@@ -11,13 +10,8 @@ export function usePanelAi(path, eta = "~20s", getBody) {
     if (s.loading) return;
     setS({ loading: true, text: null, at: null, err: null });
     try {
-      const r = await fetch(API + path, {
-        method: "POST",
-        ...(body ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}),
-      });
-      const d = await r.json();
+      const d = await aiRequest(path, body);
       if (d.error) setS({ loading: false, text: null, at: null, err: d.error });
-      else if (d.running) setS((x) => ({ ...x, loading: false, err: "已有分析进行中,请稍候" }));
       else setS({ loading: false, text: d.text, at: d.at, err: null });
     } catch (e) { setS({ loading: false, text: null, at: null, err: String(e) }); }
   };

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { aiRequest } from "../lib/ai.js";
 import { lookupValidator } from "../data/validators.js";
 import BidMetricsPanel from "../components/BidMetricsPanel.jsx";
 import RobotWidget from "../components/RobotWidget.jsx";
@@ -11,10 +12,8 @@ function MevAiBox() {
   const run = async () => {
     setS((x) => ({ ...x, loading: true, err: null }));
     try {
-      const r = await fetch(API + "/api/ai/mev", { method: "POST" });
-      const d = await r.json();
+      const d = await aiRequest("/api/ai/mev");
       if (d.error) setS({ loading: false, text: null, at: null, err: d.error });
-      else if (d.running) setS((x) => ({ ...x, loading: false, err: "已有分析进行中,请稍候" }));
       else setS({ loading: false, text: d.text, at: d.at, err: null });
     } catch (e) { setS({ loading: false, text: null, at: null, err: String(e) }); }
   };

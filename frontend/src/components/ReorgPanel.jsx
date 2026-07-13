@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import RobotWidget from "./RobotWidget.jsx";
+import { aiRequest } from "../lib/ai.js";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
@@ -23,12 +24,8 @@ export default function ReorgPanel({ data }) {
     if (ai.loading) return;
     setAi({ loading: true, label, text: null, at: null, err: null });
     try {
-      const r = await fetch(API + "/api/ai/reorg", {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}),
-      });
-      const d = await r.json();
+      const d = await aiRequest("/api/ai/reorg", body ?? {});
       if (d.error) setAi({ loading: false, label, text: null, at: null, err: d.error });
-      else if (d.running) setAi((x) => ({ ...x, loading: false, err: "已有分析进行中,请稍候" }));
       else setAi({ loading: false, label, text: d.text, at: d.at, err: null });
     } catch (e) { setAi({ loading: false, label, text: null, at: null, err: String(e) }); }
   };

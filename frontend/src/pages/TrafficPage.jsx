@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { aiRequest } from "../lib/ai.js";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
@@ -185,14 +186,8 @@ function TrafficHistoryPanel({ tl, blockGas }) {
     setEp({ loading: true, label, text: null, at: null, err: null });
     setTimeout(() => document.getElementById("tf-ep-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
     try {
-      const r = await fetch(API + "/api/ai/traffic", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
+      const d = await aiRequest("/api/ai/traffic", body);
       if (d.error) setEp({ loading: false, label, text: null, at: null, err: d.error });
-      else if (d.running) setEp({ loading: false, label, text: null, at: null, err: "已有分析进行中，请稍候" });
       else setEp({ loading: false, label, text: d.text, at: d.at, err: null });
     } catch (err) { setEp({ loading: false, label, text: null, at: null, err: String(err) }); }
   };

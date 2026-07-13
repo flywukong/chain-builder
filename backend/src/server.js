@@ -419,9 +419,11 @@ const aiJobs = {};   // key → { text, at, running, error }
 // 同参数 5min 内重复请求直接吃上次结果:claude 调用要 30-40s,而数据源刷新周期 ≤10min
 const AI_TTL_MS = 300_000;
 
+// 异步任务模式:POST 立即返回(queued),后台执行,前端轮询 GET 取结果。
+// MCP 取证分析可达 1-2 分钟,同步等待会撞反向代理的 60s 超时(网关吐 HTML 504)。
 function aiRoutes(key, path, buildAndRun) {
   aiJobs[key] = { text: null, at: null, running: false, error: null };
-  app.post(path, async (req, reply) => {
+  app.post(path, async (req) => {
     const job = aiJobs[key];
     if (job.running) return { running: true, text: job.text, at: job.at };
     const bodyKey = JSON.stringify(req.body ?? {});
@@ -429,15 +431,16 @@ function aiRoutes(key, path, buildAndRun) {
       return { text: job.text, at: job.at, running: false, cached: true };
     }
     job.running = true; job.error = null;
-    try {
-      const text = await buildAndRun(req.body ?? {});
-      aiJobs[key] = { text, at: Date.now(), running: false, error: null, bodyKey };
-      return { text, at: aiJobs[key].at, running: false };
-    } catch (err) {
-      job.running = false; job.error = err.message;
-      reply.code(500);
-      return { error: err.message };
-    }
+    const body = req.body ?? {};
+    (async () => {
+      try {
+        const text = await buildAndRun(body);
+        aiJobs[key] = { text, at: Date.now(), running: false, error: null, bodyKey };
+      } catch (err) {
+        aiJobs[key] = { ...aiJobs[key], running: false, error: err.message };
+      }
+    })();
+    return { queued: true, running: true, at: job.at ?? null };
   });
   app.get(path, async () => aiJobs[key]);
 }
@@ -515,16 +518,15 @@ async function runNetworkAnalysis(days = 7, auto = true) {
   broadcast("aiNetwork", aiJobs.network);
   return aiJobs.network;
 }
-app.post("/api/ai/analyze", async (req, reply) => {
+app.post("/api/ai/analyze", async (req) => {
   if (aiJobs.network.running) return { running: true, text: aiJobs.network.text, at: aiJobs.network.at };
   const days = Math.min(Math.max(parseInt(req.body?.days, 10) || 7, 1), 30);
   const n = aiJobs.network;
   if (n.text && n.at && n.windowDays === days && Date.now() - n.at < AI_TTL_MS) {
     return { text: n.text, brief: n.brief, verdict: n.verdict, windowDays: days, at: n.at, running: false, cached: true };
   }
-  const r = await runNetworkAnalysis(days, false);
-  if (r.error) { reply.code(500); return { error: r.error }; }
-  return { text: r.text, brief: r.brief, verdict: r.verdict, windowDays: r.windowDays, at: r.at, running: false };
+  runNetworkAnalysis(days, false);   // 后台执行,前端轮询 GET /api/ai/analyze
+  return { queued: true, running: true, at: n.at ?? null };
 });
 app.get("/api/ai/analyze", async () => aiJobs.network);
 // 详情用:返回与 AI 分析同一份维度数据(明细)
@@ -735,46 +737,48 @@ aiRoutes("traffic", "/api/ai/traffic", async (body) => {
 });
 
 // 自由问答(主页机器人):监控快照 + 用户问题 → claude
-let askBusy = false;
+// 异步任务模式:POST 立即返回,后台跑(MCP 取证可达 1-2min),前端轮询 GET
+let askJob = { running: false, question: null, text: null, error: null, at: null };
 app.post("/api/ai/ask", async (req, reply) => {
   const question = String(req.body?.question ?? "").trim().slice(0, 500);
   if (!question) { reply.code(400); return { error: "empty question" }; }
-  if (askBusy) { reply.code(429); return { error: "上一个问题还在回答中,请稍候" }; }
-  askBusy = true;
-  try {
-    const base = await buildAiData();
-    const m = mevAgg.getStats();
+  if (askJob.running) { reply.code(429); return { error: "上一个问题还在回答中,请稍候", running: true }; }
+  askJob = { running: true, question, text: null, error: null, at: askJob.at ?? null };
+  (async () => {
+    try {
+      const base = await buildAiData();
+      const m = mevAgg.getStats();
 
-    // 问题里带更长时间范围(如"最近40天")→ 按需拉取对应窗口的历史,而非受限于默认快照
-    let reorgTl = latest.reorgTimeline, trafficTl = latest.trafficTimeline;
-    const dm = question.match(/(\d{1,3})\s*(天|日|days?|d\b)/i);
-    const wantDays = dm ? Math.min(parseInt(dm[1], 10), 90) : null;
-    if (wantDays && wantDays > 14) {
-      const [r, t] = await Promise.all([
-        fetchReorgTimeline(cfg.keterConfigPath, wantDays).catch(() => null),
-        fetchTrafficTimeline(cfg.keterConfigPath, wantDays).catch(() => null),
-      ]);
-      if (r) reorgTl = r;
-      if (t) trafficTl = t;
+      // 问题里带更长时间范围(如"最近40天")→ 按需拉取对应窗口的历史,而非受限于默认快照
+      let reorgTl = latest.reorgTimeline, trafficTl = latest.trafficTimeline;
+      const dm = question.match(/(\d{1,3})\s*(天|日|days?|d\b)/i);
+      const wantDays = dm ? Math.min(parseInt(dm[1], 10), 90) : null;
+      if (wantDays && wantDays > 14) {
+        const [r, t] = await Promise.all([
+          fetchReorgTimeline(cfg.keterConfigPath, wantDays).catch(() => null),
+          fetchTrafficTimeline(cfg.keterConfigPath, wantDays).catch(() => null),
+        ]);
+        if (r) reorgTl = r;
+        if (t) trafficTl = t;
+      }
+
+      const context = {
+        ...base,
+        historyWindowDays: wantDays && wantDays > 14 ? wantDays : { reorg: 14, traffic: 30 },
+        traffic: trafficTl ? { summary: trafficTl.summary, episodes: trafficTl.episodes.slice(-6) } : null,
+        reorg: reorgTl ? { summary: reorgTl.summary, daily: reorgTl.days.filter((d) => d.count > 0), recentEvents: reorgTl.events?.slice(0, 5) ?? [] } : null,
+        mev: m ? { windowBlocks: m.total, mevPct: m.mevPct, v2Pct: m.v2Pct, topFamilies: m.builderFamilies.slice(0, 5) } : null,
+        keterNodes: (latest.nodeStats ?? []).length,
+      };
+      const text = await runAsk(question, context);
+      askJob = { running: false, question, text, error: null, at: Date.now() };
+    } catch (err) {
+      askJob = { running: false, question, text: null, error: err.message, at: askJob.at };
     }
-
-    const context = {
-      ...base,
-      historyWindowDays: wantDays && wantDays > 14 ? wantDays : { reorg: 14, traffic: 30 },
-      traffic: trafficTl ? { summary: trafficTl.summary, episodes: trafficTl.episodes.slice(-6) } : null,
-      reorg: reorgTl ? { summary: reorgTl.summary, daily: reorgTl.days.filter((d) => d.count > 0), recentEvents: reorgTl.events?.slice(0, 5) ?? [] } : null,
-      mev: m ? { windowBlocks: m.total, mevPct: m.mevPct, v2Pct: m.v2Pct, topFamilies: m.builderFamilies.slice(0, 5) } : null,
-      keterNodes: (latest.nodeStats ?? []).length,
-    };
-    const text = await runAsk(question, context);
-    return { text, at: Date.now() };
-  } catch (err) {
-    reply.code(500);
-    return { error: err.message };
-  } finally {
-    askBusy = false;
-  }
+  })();
+  return { queued: true, running: true, at: askJob.at };
 });
+app.get("/api/ai/ask", async () => askJob);
 
 // MEV 格局分析:builder 集中度 / v1v2 / local & unknown(2000 块窗口)
 aiRoutes("mev", "/api/ai/mev", async () => {

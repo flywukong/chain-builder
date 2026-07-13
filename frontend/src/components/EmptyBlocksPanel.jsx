@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { aiRequest } from "../lib/ai.js";
 import { lookupValidator } from "../data/validators.js";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
@@ -20,8 +21,7 @@ export default function EmptyBlocksPanel() {
   const runAi = async () => {
     setAi({ loading: true, text: null, err: null });
     try {
-      const r = await fetch(API + "/api/ai/empty", { method: "POST" });
-      const j = await r.json();
+      const j = await aiRequest("/api/ai/empty");
       if (j.error) setAi({ loading: false, text: null, err: j.error });
       else setAi({ loading: false, text: j.text, err: null });
     } catch (e) { setAi({ loading: false, text: null, err: String(e) }); }

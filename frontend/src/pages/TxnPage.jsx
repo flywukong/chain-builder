@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { aiRequest } from "../lib/ai.js";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
@@ -86,10 +87,8 @@ function TxnAiBox() {
   const run = async () => {
     setS((x) => ({ ...x, loading: true, err: null }));
     try {
-      const r = await fetch(API + "/api/ai/txn", { method: "POST" });
-      const d = await r.json();
+      const d = await aiRequest("/api/ai/txn");
       if (d.error) setS({ loading: false, text: null, at: null, err: d.error });
-      else if (d.running) setS((x) => ({ ...x, loading: false, err: "已有分析进行中,请稍候" }));
       else setS({ loading: false, text: d.text, at: d.at, err: null });
     } catch (e) { setS({ loading: false, text: null, at: null, err: String(e) }); }
   };

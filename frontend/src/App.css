@@ -256,7 +256,8 @@ body::before {
 .rv-seg { height: 100%; }
 .rv-seg.latest { background: var(--green); }
 .rv-seg.old { background: var(--orange); }
-.rv-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; }
+.rv-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 7px; }
+.rv-behind-btn { font-size: 10.5px; padding: 3px 10px; }
 .rv-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
 .rv-item i { width: 8px; height: 8px; border-radius: 2px; }
 .rv-item i.latest { background: var(--green); }

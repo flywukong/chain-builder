@@ -6,10 +6,17 @@ const cmpVer = (a, b) => { const pa = a.split(".").map(Number), pb = b.split("."
 
 // 全网 geth 版本分布(按 validator 去重,来自出块 extraData;最新版绿、落后橙)
 function RingVersions({ mevStats }) {
+  const [showBehind, setShowBehind] = useState(false);
   const versions = mevStats?.versions ?? [];
   if (!versions.length) return null;
   const total = versions.reduce((s, v) => s + v.n, 0);
   const latest = versions.map((v) => v.ver).reduce((a, b) => (cmpVer(b, a) > 0 ? b : a));
+  // 落后名单:minerVersions(地址→版本,值带 v 前缀)里非最新版的 validator,旧版本靠前
+  const norm = (s) => (s || "").replace(/^v/i, "");
+  const behind = Object.entries(mevStats?.minerVersions ?? {})
+    .filter(([, ver]) => norm(ver) && norm(ver) !== latest)
+    .map(([addr, ver]) => ({ addr, ver: norm(ver), ...lookupValidator(addr) }))
+    .sort((a, b) => cmpVer(a.ver, b.ver));
   return (
     <div className="ring-versions">
       <div className="rv-head">
@@ -27,7 +34,32 @@ function RingVersions({ mevStats }) {
             <i className={v.ver === latest ? "latest" : "old"} />v{v.ver} <b>{v.pct}%</b><em>({v.n})</em>
           </span>
         ))}
+        {behind.length > 0 && (
+          <button className="hp-behind-btn rv-behind-btn" onClick={() => setShowBehind(true)}>
+            查看落后版本 validator({behind.length})
+          </button>
+        )}
       </div>
+      {showBehind && (
+        <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowBehind(false); }}>
+          <div className="ai-modal hp-modal">
+            <div className="ai-modal-head">
+              <span className="hp-modal-title">落后版本 validator · {behind.length}</span>
+              <span className="ai-modal-meta">24h 出块 extraData · 最新 v{latest} · 旧版本靠前</span>
+              <button className="robot-close" onClick={() => setShowBehind(false)}>×</button>
+            </div>
+            <div className="hpd-list">
+              {behind.map((b) => (
+                <div key={b.addr} className="hpd-row">
+                  <span className="hpd-num">v{b.ver}</span>
+                  <span className="hpd-mid">{b.name}{b.group === "internal" ? " · 内部运营 ⚠" : ""}</span>
+                  <span className="hpd-end">{b.addr.slice(0, 10)}…</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

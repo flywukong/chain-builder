@@ -142,7 +142,7 @@ export default function RobotWidget() {
         </span>
       )}
 
-      {/* 常驻巡检结论气泡:绿=健康 / 黄=需关注 / 红=告警;点击展开详情 */}
+      {/* 常驻巡检结论气泡(精简):一行结论 + 一行摘要 + 详情按钮;绿/黄/红 */}
       {!open && (
         <button className={`robot-brief robot-brief-float ${!pa.text ? "" : verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : "rb-ok"}`}
                 onClick={() => setOpen(true)}>
@@ -151,11 +151,12 @@ export default function RobotWidget() {
               <span className="rb-head">
                 {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · {dayLabel(pa.windowDays === 1 || pa.windowDays == null ? 1 : pa.windowDays)}巡检
                 {pa.at ? ` · ${new Date(pa.at).getHours()}:${String(new Date(pa.at).getMinutes()).padStart(2, "0")}` : ""}{pa.loading ? " · 分析中…" : ""}
+                <em className="rb-more">详情 ▸</em>
               </span>
-              <span className="rb-text">{ok ? (pa.brief ?? "各项指标均在正常范围内") : `检测到${verdict === "alert" ? "告警" : "需关注"}项,点击看详情`}</span>
+              <span className="rb-text rb-oneline">{ok ? (pa.brief ?? "各项指标均在正常范围内") : `检测到${verdict === "alert" ? "告警" : "需关注"}项`}</span>
             </>
           ) : (
-            <span className="rb-text">{pa.loading ? "LEO 分析中… 约 20–40s" : "我是 LEO · 点我看巡检 / 提问"}</span>
+            <span className="rb-text rb-oneline">{pa.loading ? "LEO 分析中… 约 20–40s" : "我是 LEO · 点我看巡检 / 提问"}</span>
           )}
         </button>
       )}

@@ -143,6 +143,8 @@ export class MevAggregator extends EventEmitter {
       hhi: Math.round(hhi),
       hasPrev: prevMev > 0,
     };
+    // 每 family 的 24h 份额 + 环比(Builder 分布面板的"当下"列)
+    const famsDay = famsSorted.map(shareOf);
 
     // ── Builder instance 拆分(24h,family 内按实例)──
     const instances = Object.entries(instsNow)
@@ -205,6 +207,7 @@ export class MevAggregator extends EventEmitter {
       buildersAll,
       buildersSince: this.day.since,
       concentration,
+      famsDay,
       instances,
       validatorBuilders,
     };

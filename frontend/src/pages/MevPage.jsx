@@ -92,14 +92,14 @@ export default function MevPage({ state }) {
       </div>
 
       <div className="subpage-body">
-        {ai.err && <div className="ai-err" style={{ maxWidth: 860 }}>⚠ {ai.err}</div>}
+        {ai.err && <div className="ai-err" style={{ maxWidth: 1240 }}>⚠ {ai.err}</div>}
         {ai.text && (
-          <div className="panel" style={{ maxWidth: 860 }}>
+          <div className="panel" style={{ maxWidth: 1240 }}>
             <div className="panel-header"><span>🤖 AI 格局分析</span><span className="sub">claude code{ai.at ? ` · ${new Date(ai.at).toLocaleTimeString()}` : ""}</span></div>
             <div className="panel-body"><div className="ai-result" style={{ padding: "10px 14px" }}>{ai.text}</div></div>
           </div>
         )}
-        <div className="stat-cards">
+        <div className="stat-cards mev-cards">
           <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{cards.mevPct}%</div><div className="sc-l">MEV 占比 · 24h</div></div>
           <div className="stat-card sc-card-v2">
             <div className="sc-v" style={{ color: "#FF9F1C" }}><span className="sc-ico">⚡</span>{cards.v2Pct}%</div>
@@ -114,7 +114,7 @@ export default function MevPage({ state }) {
 
         {/* Builder 集中度:MEV 出块是否被少数 builder 过度集中(24h,环比上一 24h) */}
         {conc?.top1 && (
-          <div className="stat-cards">
+          <div className="stat-cards mev-cards">
             <div className="stat-card">
               <div className="sc-v" style={{ color: FAMILY_COLORS[conc.top1.name] || "var(--gold)" }}>{conc.top1.pct}%</div>
               <div className="sc-l">Top1 · {conc.top1.name}</div>
@@ -136,43 +136,50 @@ export default function MevPage({ state }) {
           </div>
         )}
 
-        <div className="panel" style={{ maxWidth: 640 }}>
-          <div className="panel-header">
-            <span>Builder 分布</span>
-            <span className="sub">历史累计 · 全部块{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块</span>
-          </div>
-          <div className="panel-body mev-bars">
-            {fams.map(([f, c]) => (
-              <div key={f} className="ver-row">
-                <span className="ver-tag" style={{ width: 88, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
-                <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
-                <span className="ver-count">{c.toLocaleString()}<em>· {famTotal ? Math.round((c / famTotal) * 100) : 0}%</em></span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* instance 拆分:定位某地区/实例异常,而非只看 family */}
-        {insts.length > 0 && (
-          <div className="panel" style={{ maxWidth: 640 }}>
-            <div className="panel-header"><span>Builder Instance 拆分</span><span className="sub">24h · Δ 为占比环比上一 24h</span></div>
+        {/* Builder 家族(历史累计 + 24h 对照)与 Instance 拆分并排,填满行宽 */}
+        <div className="mev-row2">
+          <div className="panel">
+            <div className="panel-header">
+              <span>Builder 分布</span>
+              <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右列为 24h 份额与环比</span>
+            </div>
             <div className="panel-body mev-bars">
-              {insts.map((it) => (
-                <div key={it.name} className="ver-row">
-                  <span className="ver-tag" style={{ width: 150, color: FAMILY_COLORS[it.family] || "#aaa" }}>{it.name}</span>
-                  <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(it.n / maxInst) * 100}%`, background: FAMILY_COLORS[it.family] || "#888" }} /></div>
-                  <span className="ver-count">{it.n.toLocaleString()}<em>· {it.pct}%</em></span>
-                  <span className="mi-delta">{fmtDelta(it.pct, it.prevPct)}</span>
-                </div>
-              ))}
+              {fams.map(([f, c]) => {
+                const d24 = (mev.famsDay ?? []).find((x) => x.name === f);
+                return (
+                  <div key={f} className="ver-row">
+                    <span className="ver-tag" style={{ width: 92, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
+                    <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
+                    <span className="ver-count">{c.toLocaleString()}<em>· {famTotal ? Math.round((c / famTotal) * 100) : 0}%</em></span>
+                    <span className="fam-24h">{d24 ? <>24h {d24.pct}% {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+
+          {/* instance 拆分:定位某地区/实例异常,而非只看 family */}
+          {insts.length > 0 && (
+            <div className="panel">
+              <div className="panel-header"><span>Builder Instance 拆分</span><span className="sub">24h · Δ 为占比环比上一 24h</span></div>
+              <div className="panel-body mev-bars">
+                {insts.map((it) => (
+                  <div key={it.name} className="ver-row">
+                    <span className="ver-tag" style={{ width: 150, color: FAMILY_COLORS[it.family] || "#aaa" }}>{it.name}</span>
+                    <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(it.n / maxInst) * 100}%`, background: FAMILY_COLORS[it.family] || "#888" }} /></div>
+                    <span className="ver-count">{it.n.toLocaleString()}<em>· {it.pct}%</em></span>
+                    <span className="mi-delta">{fmtDelta(it.pct, it.prevPct)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <BidMetricsPanel />
 
         {mev.recent?.length > 0 && (
-          <div className="panel" style={{ maxWidth: 860 }}>
+          <div className="panel" style={{ maxWidth: 1240 }}>
             <div className="panel-header"><span>最近出块</span><span className="sub">block · miner · builder</span></div>
             <div className="panel-body mev-recent">
               {mev.recent.map((b) => (
@@ -188,7 +195,7 @@ export default function MevPage({ state }) {
         )}
 
         {/* 核心表:某 validator 是否只依赖一个 builder、是否 fallback local、某类是否集体异常 */}
-        <div className="panel" style={{ maxWidth: 860 }}>
+        <div className="panel" style={{ maxWidth: 1240 }}>
           <div className="panel-header"><span>Validator → Builder 关系</span><span className="sub">窗口 {mev.total} 块 · 版本自 extraData</span></div>
           <div className="panel-body vb-body">
             <div className="vb-row vb-head">

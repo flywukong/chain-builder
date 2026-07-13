@@ -1062,7 +1062,7 @@ body::before {
 .traffic-stat.hot { background: #1a1000; border-color: #3a2d00; border-left: 3px solid var(--orange); }
 .traffic-stat.hot b { color: var(--orange); }
 /* MEV:Bid 指标(keter)双图 */
-.bm-wrap { display: flex; flex-direction: column; gap: 8px; max-width: 1100px; }
+.bm-wrap { display: flex; flex-direction: column; gap: 8px; max-width: 1240px; }
 .bm-head { display: flex; justify-content: space-between; align-items: center; }
 .bm-title { font-size: 11px; font-weight: 700; letter-spacing: .6px; color: var(--gold); }
 .bm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -1088,6 +1088,12 @@ body::before {
 .bm-item.bm-out { color: #ef8f8f; }
 .bm-item.bm-out b { color: var(--red); }
 
+/* MEV:页面统一内容宽度 + 家族/实例并排 */
+.mev-cards { max-width: 1240px; }
+.mev-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 1240px; align-items: start; }
+@media (max-width: 1100px) { .mev-row2 { grid-template-columns: 1fr; } }
+.fam-24h { font-family: var(--mono); font-size: 9px; color: var(--muted); width: 104px; flex-shrink: 0; display: inline-flex; justify-content: flex-end; gap: 4px; }
+.fam-24h em { font-style: normal; color: var(--dim); }
 /* MEV:instance 环比 Δ + Validator→Builder 关系表 */
 .mi-delta { font-family: var(--mono); font-size: 9px; width: 48px; text-align: right; flex-shrink: 0; }
 .vb-body { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; max-height: 430px; overflow: auto; }

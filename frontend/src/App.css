@@ -731,6 +731,8 @@ body::before {
 .re-cnt { color: var(--gold); font-weight: 700; }
 .re-orph { color: #3FB8A0; }
 .re-nodes { color: var(--muted); margin-left: auto; }
+.re-dur { color: var(--muted); font-size: 10px; }
+.tf-fresh { color: var(--muted); font-size: 11px; }
 
 .mev-bars { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
 .mev-bars .ver-bar-track { max-width: 300px; height: 5px; }

@@ -146,10 +146,11 @@ function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, bus
         : [...episodes].reverse().map((e) => {
             const busy = loading && busyLabel === fmtT(e.start);
             return (
-              <div key={e.start} className="re-row">
+              <div key={e.start} className="re-row"
+                   title={`开始 ${fmtT(e.start)} · 峰值 ${fmtT(e.peakT)} · 恢复 ${fmtT((e.end ?? e.start) + 3600e3)} · 持续 ${e.hours ?? 1}h`}>
                 <span className="re-time">{fmtT(e.start)}</span>
                 <span className="re-cnt">{metric(e)}</span>
-                <span className="re-orph">{e.peakGasM}M</span>
+                <span className="re-dur">持续{e.hours ?? 1}h</span>
                 <button className={`tf-ep-btn ${busy ? "busy" : ""}`} disabled={loading} onClick={() => onAnalyze?.(e)}>
                   {busy ? "分析中…↓" : "⚡ 分析"}
                 </button>
@@ -160,7 +161,7 @@ function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, bus
   );
 }
 
-function TrafficHistoryPanel({ tl }) {
+function TrafficHistoryPanel({ tl, blockGas }) {
   const [rangeDays, setRangeDays] = useState(7);
   // 事件行「分析」的独立结果区(不依赖已移除的 AI 面板)
   const [ep, setEp] = useState({ loading: false, label: null, text: null, at: null, err: null });
@@ -191,8 +192,16 @@ function TrafficHistoryPanel({ tl }) {
   const cut = Math.max(h.times.length - rangeDays * 24, 0);
   const times = h.times.slice(cut), pending = h.pending.slice(cut), gasPct = h.gasPct.slice(cut);
   const now = Date.now();
-  const epsInRange = (tl?.episodes ?? []).filter((e) => now - e.start <= rangeDays * 86400000);
+  const inWindow = (e) => now - e.start <= rangeDays * 86400000;
+  const epsInRange = (tl?.episodes ?? []).filter(inWindow);
   const last = tl?.lastEpisode;
+
+  // 速率:打包 = 近 30m 平均每块 txs ÷ 0.45s;pending 净变化 = 最近两个小时均值差;流入由二者推导
+  const lastTxs = (blockGas?.txsize?.values ?? []).filter((v) => typeof v === "number").at(-1);
+  const packRate = lastTxs ? Math.round(lastTxs / 0.45) : null;
+  const hp = tl?.hourly?.pending ?? [];
+  const dPend = hp.length >= 2 && Number.isFinite(hp.at(-1)) && Number.isFinite(hp.at(-2)) ? Math.round(hp.at(-1) - hp.at(-2)) : null;
+  const inflow = packRate != null && dPend != null ? Math.round(packRate + dPend / 3600) : null;
 
   return (
     <>
@@ -215,15 +224,21 @@ function TrafficHistoryPanel({ tl }) {
               <span className="rc-l">{last ? `最近一次 ${fmtT(last.peakT)} · ${last.trigger}` : "30d 内无大流量"}</span>
             </div>
           </div>
+          {/* 流入/打包/净增长:判断拥堵是否自行消退的关键 */}
+          <div className="reorg-chips tf-chips3">
+            <div className="reorg-chip tone-ok"><span className="rc-v">{inflow ?? "--"} tx/s</span><span className="rc-l">Tx 流入(推导)</span></div>
+            <div className="reorg-chip tone-ok"><span className="rc-v">{packRate ?? "--"} tx/s</span><span className="rc-l">链上打包(30m 均块)</span></div>
+            <div className={`reorg-chip ${dPend > 50 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{dPend != null ? (dPend >= 0 ? "+" : "") + dPend : "--"}</span><span className="rc-l">pending 净变化 / 1h</span></div>
+          </div>
           <div className="tf-main">
             <HourlyChart times={times} values={pending} threshold={thr} color="#F0B90B"
               label={`dataseed 小时均值 · 阈值 ${thr.toLocaleString()}`} />
             <div className="reorg-events tf-events">
               <EventList
-                title={`Pending 拥堵事件(pending>${thr/1000}k)`}
-                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending"))}
+                title={`Pending 拥堵事件 · 近 ${rangeDays} 天`}
+                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending")).filter(inWindow)}
                 metric={(e) => e.peakPending.toLocaleString()}
-                emptyText="30d 内无 pending 拥堵"
+                emptyText={`近 ${rangeDays} 天无 pending 拥堵`}
                 onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
             </div>
           </div>
@@ -246,10 +261,10 @@ function TrafficHistoryPanel({ tl }) {
               label={`小时均值 · 阈值 ${hotPct}%`} fmtV={(v) => `${v}`} />
             <div className="reorg-events tf-events">
               <EventList
-                title={`Gas 高占用事件(gas≥${hotPct}%)`}
-                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas"))}
+                title={`Gas 高占用事件(≥${hotPct}%)· 近 ${rangeDays} 天`}
+                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas")).filter(inWindow)}
                 metric={(e) => `${e.peakGasPct}%`}
-                emptyText={`30d 内无 gas≥${hotPct}%`}
+                emptyText={`近 ${rangeDays} 天无 gas≥${hotPct}%`}
                 onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
             </div>
           </div>
@@ -284,12 +299,20 @@ export default function TrafficPage({ state }) {
   const pendingHot = !!tx?.anomalyNow;   // pending 拥堵(独立判断)
   const gasHot = util >= hotPct;         // gas 高占用(独立判断)
 
+  // 当前 vs 30d 基线偏差,避免两个几乎相同的数字并排引起困惑
+  const baseline = state.trafficTimeline?.summary?.baseline;
+  const dev = tx?.current && baseline ? ((tx.current - baseline) / baseline) * 100 : null;
+  const devStr = dev != null ? `${dev >= 0 ? "+" : ""}${dev.toFixed(1)}%` : null;
+
   return (
     <div className="subpage">
       <div className="subpage-head">
         <div>
           <h1>🌊 流量分析</h1>
-          <p>pending 拥堵(&gt;4000)与 gas 高占用(≥{hotPct}%)分别统计 · 30d 小时级历史</p>
+          <p>
+            pending 拥堵(&gt;4000)与 gas 高占用(≥{hotPct}%)分别统计 · 30d 小时级历史
+            <span className="tf-fresh"> · BSC Mainnet · 当前块 #{state.latestBlock?.number?.toLocaleString() ?? "--"} · {state.connected ? "WS 实时" : "WS 断开"}</span>
+          </p>
         </div>
       </div>
 
@@ -297,15 +320,15 @@ export default function TrafficPage({ state }) {
         <div className="traffic-status2">
           <div className={`traffic-stat ${pendingHot ? "hot" : "ok"}`}>
             <b>{pendingHot ? "⚠ Pending 拥堵" : "✓ Pending 正常"}</b>
-            <em>pending {tx?.current?.toLocaleString() ?? "--"}{pendingHot && tx?.threshold ? ` > ${tx.threshold.toLocaleString()}` : ""}</em>
+            <em>当前 {tx?.current?.toLocaleString() ?? "--"} · 基线 {baseline?.toLocaleString() ?? "--"}{devStr ? ` · 偏差 ${devStr}` : ""}{pendingHot && tx?.threshold ? ` · 阈值 ${tx.threshold.toLocaleString()}` : ""}</em>
           </div>
           <div className={`traffic-stat ${gasHot ? "hot" : "ok"}`}>
             <b>{gasHot ? "⚠ Gas 高占用" : "✓ Gas 正常"}</b>
-            <em>Gas 利用率 {util}%{gasHot ? ` ≥ ${hotPct}%` : ""}</em>
+            <em>Gas 利用率 {util}%{gasHot ? ` ≥ ${hotPct}%` : ` · 阈值 ${hotPct}%`}</em>
           </div>
         </div>
 
-        <TrafficHistoryPanel tl={state.trafficTimeline} />
+        <TrafficHistoryPanel tl={state.trafficTimeline} blockGas={state.blockGas} />
       </div>
     </div>
   );

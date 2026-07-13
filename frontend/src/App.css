@@ -258,6 +258,8 @@ body::before {
 .rv-seg.old { background: var(--orange); }
 .rv-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 7px; }
 .rv-behind-btn { font-size: 10.5px; padding: 3px 10px; }
+/* 健康总览标题:金框徽标,醒目 */
+.hp-title-badge { display: inline-block; padding: 3px 12px; border: 1px solid rgba(240,185,11,.6); border-radius: 7px; color: var(--gold); background: rgba(240,185,11,.09); font-weight: 700; letter-spacing: .5px; box-shadow: 0 0 10px rgba(240,185,11,.12); }
 .rv-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
 .rv-item i { width: 8px; height: 8px; border-radius: 2px; }
 .rv-item i.latest { background: var(--green); }

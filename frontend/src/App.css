@@ -434,10 +434,10 @@ body::before {
 .hpd-ai { font-size: 10.5px; line-height: 1.7; color: var(--text); white-space: pre-wrap; border-top: 1px solid #211e13; padding-top: 6px; }
 
 /* 版本卡:落后按钮(点开弹窗)+ Gas 利用率行 */
-.hp-behind-btn { margin-left: 10px; flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--orange);
+.hp-behind-btn { margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--orange);
   background: rgba(249,115,22,.1); border: 1px solid rgba(249,115,22,.45); border-radius: 6px; padding: 3px 10px; cursor: pointer; transition: all .15s; }
 .hp-behind-btn:hover { background: rgba(249,115,22,.22); }
-.hp-behind-none { margin-left: 10px; flex-shrink: 0; font-size: 9.5px; color: var(--green); }
+.hp-behind-none { margin-left: auto; flex-shrink: 0; font-size: 9.5px; color: var(--green); }
 .hp-gas-spark { width: 100%; height: 46px; display: block; }
 /* 固定三列:IP 左 / tier 徽标居中列 / 版本右 —— 徽标不随 IP 长度漂移 */
 .hp-behind-row { display: grid; grid-template-columns: 1fr 64px 62px; align-items: center; font-family: var(--mono); font-size: 9.5px; background: #141414; border: 1px solid #222; border-radius: 4px; padding: 2px 7px; }

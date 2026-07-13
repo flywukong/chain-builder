@@ -146,10 +146,10 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           <div className="hp-row-head">
             <span className="hp-row-k">节点版本</span>
             <span className="hp-row-v">{ver.latest ? "v" + ver.latest : "—"}</span>
-            <span className="hp-row-aux">{ver.latest ? `重点覆盖 ${keyOk}/${keyTot}` : "等待 keter"}</span>
+            {!ver.latest && <span className="hp-row-aux">等待 keter</span>}
             {ver.latest && (
               ver.behind > 0
-                ? <button className="hp-behind-btn" onClick={() => setShowBehind(true)}>落后 {ver.behind} ▸</button>
+                ? <button className="hp-behind-btn" onClick={() => setShowBehind(true)}>落后版本 点击查看</button>
                 : <span className="hp-behind-none">✓ 全部最新</span>
             )}
           </div>

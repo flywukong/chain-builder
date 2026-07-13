@@ -355,12 +355,7 @@ body::before {
 .hp-row.tone-ok   .hp-row-v { color: var(--green);  text-shadow: 0 0 10px rgba(34,197,94,.45); }
 .hp-row.tone-warn .hp-row-v { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
 .hp-row.tone-bad  .hp-row-v { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
-.hp-row-aux { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--dim); white-space: nowrap; flex-shrink: 0; }
-/* Gas 利用率行:单行横排,走势占中间余宽(压高度) */
-.hp-row-gas { padding: 8px 12px; }
-.hp-row-gas .hp-row-head { align-items: center; }
-.hp-row-gas .hp-gas-spark { flex: 1; min-width: 0; height: 30px; margin: 0 4px; }
-.hp-row-gas .hp-row-aux { margin-left: 0; }
+.hp-row-aux { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--dim); }
 /* 链运行卡:双状态并列(链运行 | 流量),两个大字各自着色 */
 .hp-k2 { margin-left: 12px; padding-left: 14px; border-left: 1px solid #26231a; }
 .hp-row .hp-row-v.t-ok   { color: var(--green);  text-shadow: 0 0 10px rgba(34,197,94,.45); }
@@ -368,7 +363,7 @@ body::before {
 .hp-row .hp-row-v.t-warn { color: var(--orange); text-shadow: 0 0 10px rgba(249,115,22,.45); }
 .hp-row .hp-row-v.t-bad  { color: var(--red);    text-shadow: 0 0 10px rgba(239,68,68,.5); }
 /* 节点版本卡:重点信息,整体放大一档 + 渐变描边发光 */
-.hp-row-ver { padding: 13px 16px; gap: 11px; border: 1px solid transparent; border-left-width: 3px; }
+.hp-row-ver { padding: 18px 16px; gap: 16px; border: 1px solid transparent; border-left-width: 3px; }
 .hp-row-ver.tone-ok {
   background: linear-gradient(180deg, rgba(10,36,22,.9), rgba(6,20,13,.95)) padding-box,
               linear-gradient(135deg, rgba(34,197,94,.8), rgba(34,197,94,.2) 55%, rgba(240,185,11,.4)) border-box;
@@ -379,12 +374,11 @@ body::before {
               linear-gradient(135deg, rgba(255,138,0,.85), rgba(255,159,28,.25) 55%, rgba(240,185,11,.55)) border-box;
   box-shadow: 0 0 16px rgba(255,138,0,.18);
 }
-.hp-row-ver .hp-row-head { gap: 7px; }
 .hp-row-ver .hp-row-k { font-size: 12px; }
-.hp-row-ver .hp-row-v { font-size: 23px; }
-.hp-row-ver .hp-row-aux { font-size: 10px; color: var(--muted); }
+.hp-row-ver .hp-row-v { font-size: 26px; }
+.hp-row-ver .hp-row-aux { font-size: 11.5px; color: var(--muted); }
 /* 版本层级覆盖:三行,label + 进度条 + 数字 */
-.hp-tier-rows { display: flex; flex-direction: column; gap: 10px; }
+.hp-tier-rows { display: flex; flex-direction: column; gap: 13px; }
 .hp-tier-row { display: flex; align-items: center; gap: 9px; font-family: var(--mono); }
 .hp-tier-row em { font-style: normal; font-size: 11px; color: var(--gold); width: 82px; flex-shrink: 0; letter-spacing: .3px; }
 .hp-tier-row b { font-size: 12px; font-weight: 700; color: var(--text); width: 48px; text-align: right; flex-shrink: 0; }
@@ -425,8 +419,8 @@ body::before {
 .hpd-ai { font-size: 10.5px; line-height: 1.7; color: var(--text); white-space: pre-wrap; border-top: 1px solid #211e13; padding-top: 6px; }
 
 /* 版本卡:落后按钮(点开弹窗)+ Gas 利用率行 */
-.hp-behind-btn { margin-left: 2px; flex-shrink: 0; font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--orange);
-  background: rgba(249,115,22,.1); border: 1px solid rgba(249,115,22,.45); border-radius: 6px; padding: 3px 7px; cursor: pointer; transition: all .15s; }
+.hp-behind-btn { margin-left: 10px; flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--orange);
+  background: rgba(249,115,22,.1); border: 1px solid rgba(249,115,22,.45); border-radius: 6px; padding: 3px 10px; cursor: pointer; transition: all .15s; }
 .hp-behind-btn:hover { background: rgba(249,115,22,.22); }
 .hp-behind-none { margin-left: 10px; flex-shrink: 0; font-size: 9.5px; color: var(--green); }
 .hp-gas-spark { width: 100%; height: 46px; display: block; }

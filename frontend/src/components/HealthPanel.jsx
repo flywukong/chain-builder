@@ -170,14 +170,14 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           )}
         </div>
 
-        {/* 第三行:Gas 利用率,单行横排(大字 + 30m 走势同一行,压高度) */}
-        <div className={`hp-row hp-row-gas tone-${gasLevel.tone === "mid" ? "ok" : gasLevel.tone}`}>
+        {/* 第三行:Gas 利用率(采样 2 台典型 · 30m 走势) */}
+        <div className={`hp-row tone-${gasLevel.tone === "mid" ? "ok" : gasLevel.tone}`}>
           <div className="hp-row-head">
             <span className="hp-row-k">Gas 利用率</span>
             <span className={`hp-row-v t-${gasLevel.tone}`}>{gasUtil}%</span>
-            <GasSpark gasUsed={gasUsed} />
-            <span className="hp-row-aux">140M · 30m</span>
+            <span className="hp-row-aux">上限 140M · 30m 走势</span>
           </div>
+          <GasSpark gasUsed={gasUsed} />
         </div>
 
         {showSync && (

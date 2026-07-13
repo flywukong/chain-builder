@@ -10,7 +10,9 @@ const dayLabel = (d) => (d === 1 ? "24h" : `${d}天`);
 
 // 主页悬浮 AI 助手 = 巡检总结(常驻气泡,绿/黄/红)+ 时间窗选择 + 问答
 // 每小时自动巡检的结论直接由 LEO 呈现;原独立「AI 分析」面板已并入此处
-export default function RobotWidget() {
+// variant="mev":纯问答形态(无巡检/天数),提示可问任何 MEV 相关问题
+export default function RobotWidget({ variant = "home" }) {
+  const isMev = variant === "mev";
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,12 +89,16 @@ export default function RobotWidget() {
       {open && (
         <div className="robot-pop">
           <div className="robot-pop-head">
-            <span>🤖 LEO · 主网巡检 + 问答</span>
+            <span>{isMev ? "🤖 LEO · MEV 问答" : "🤖 LEO · 主网巡检 + 问答"}</span>
             <button className="robot-close" onClick={() => setOpen(false)}>×</button>
           </div>
 
-          {/* 巡检详情(与气泡同源,完整正文) */}
-          {pa.text ? (
+          {/* 巡检详情(与气泡同源,完整正文);MEV 形态只做问答 */}
+          {isMev ? (
+            <div className="robot-greet">
+              MEV 相关的都可以问我:builder 格局与集中度、份额突变原因、v1/v2 (BEP-675) 进展、某 validator 依赖哪家 builder、instance 层的地区分布…
+            </div>
+          ) : pa.text ? (
             <div className={`robot-brief ${verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : ""}`}>
               <span className="rb-head">
                 {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 最近 {pa.windowDays ?? days} 天
@@ -108,7 +114,7 @@ export default function RobotWidget() {
           <div className="robot-input-row">
             <input
               className="robot-input"
-              placeholder="例：当前网络运行状态如何？"
+              placeholder={isMev ? "例:48club 份额为什么在涨?v2 什么时候起量?" : "例:当前网络运行状态如何?"}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
@@ -124,11 +130,11 @@ export default function RobotWidget() {
         </div>
       )}
 
-      {/* 头顶:CLICK ME + 时间窗选择(默认 24h) */}
+      {/* 头顶:CLICK ME + 时间窗选择(默认 24h);MEV 形态只留 CLICK ME */}
       {!open && (
         <span className="robot-head-row">
           <span className="robot-name">CLICK ME</span>
-          <span className="robot-days">
+          {!isMev && <span className="robot-days">
             <button className="tf-range on" onClick={(e) => { e.stopPropagation(); setMenuOpen((x) => !x); }}>
               {dayLabel(days)} ▾
             </button>
@@ -139,12 +145,20 @@ export default function RobotWidget() {
                 ))}
               </span>
             )}
-          </span>
+          </span>}
         </span>
       )}
 
-      {/* 常驻巡检结论气泡(精简):一行结论 + 一行摘要 + 详情按钮;绿/黄/红 */}
-      {!open && (
+      {/* 常驻气泡:home=巡检结论(绿/黄/红);mev=问答提示(金) */}
+      {!open && (isMev ? (
+        <button className="robot-brief robot-brief-float rb-gold" onClick={() => setOpen(true)}>
+          <span className="rb-head">
+            LEO · MEV 问答
+            <em className="rb-more">点我提问</em>
+          </span>
+          <span className="rb-text rb-oneline">任何 MEV 相关问题都可以问:格局 / 份额突变 / v2 进展…</span>
+        </button>
+      ) : (
         <button className={`robot-brief robot-brief-float ${!pa.text ? "" : verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : "rb-ok"}`}
                 onClick={() => setOpen(true)}>
           {pa.text ? (
@@ -156,7 +170,7 @@ export default function RobotWidget() {
             <span className="rb-text rb-oneline">{pa.loading ? "LEO 分析中… 约 20–40s" : "我是 LEO · 点我看巡检 / 提问"}</span>
           )}
         </button>
-      )}
+      ))}
 
       <button className={`robot-btn ${open ? "robot-btn-open" : ""} ${imgOk ? "has-img" : ""}`} onClick={() => setOpen((x) => !x)}>
         {imgOk ? (

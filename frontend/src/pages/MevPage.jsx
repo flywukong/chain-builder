@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { lookupValidator } from "../data/validators.js";
 import BidMetricsPanel from "../components/BidMetricsPanel.jsx";
+import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
@@ -136,45 +137,46 @@ export default function MevPage({ state }) {
           </div>
         )}
 
-        {/* Builder 家族(历史累计 + 24h 对照)与 Instance 拆分并排,填满行宽 */}
-        <div className="mev-row2">
-          <div className="panel">
-            <div className="panel-header">
-              <span>Builder 分布</span>
-              <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右列为 24h 份额与环比</span>
-            </div>
+        {/* Builder 分布(核心):历史累计 + 24h 对照,单列 */}
+        <div className="panel" style={{ maxWidth: 720 }}>
+          <div className="panel-header">
+            <span>Builder 分布</span>
+            <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右列为 24h 份额与环比</span>
+          </div>
+          <div className="panel-body mev-bars">
+            {fams.map(([f, c]) => {
+              const d24 = (mev.famsDay ?? []).find((x) => x.name === f);
+              return (
+                <div key={f} className="ver-row">
+                  <span className="ver-tag" style={{ width: 92, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
+                  <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
+                  <span className="ver-count">{c.toLocaleString()}<em>· {famTotal ? Math.round((c / famTotal) * 100) : 0}%</em></span>
+                  <span className="fam-24h">{d24 ? <>24h {d24.pct}% {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* instance 拆分:定位某地区/实例异常,而非只看 family */}
+        {insts.length > 0 && (
+          <div className="panel" style={{ maxWidth: 720 }}>
+            <div className="panel-header"><span>Builder Instance 拆分</span><span className="sub">24h · Δ 为占比环比上一 24h</span></div>
             <div className="panel-body mev-bars">
-              {fams.map(([f, c]) => {
-                const d24 = (mev.famsDay ?? []).find((x) => x.name === f);
-                return (
-                  <div key={f} className="ver-row">
-                    <span className="ver-tag" style={{ width: 92, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
-                    <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
-                    <span className="ver-count">{c.toLocaleString()}<em>· {famTotal ? Math.round((c / famTotal) * 100) : 0}%</em></span>
-                    <span className="fam-24h">{d24 ? <>24h {d24.pct}% {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
-                  </div>
-                );
-              })}
+              {insts.map((it) => (
+                <div key={it.name} className="ver-row">
+                  <span className="ver-tag" style={{ width: 150, color: FAMILY_COLORS[it.family] || "#aaa" }}>{it.name}</span>
+                  <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(it.n / maxInst) * 100}%`, background: FAMILY_COLORS[it.family] || "#888" }} /></div>
+                  <span className="ver-count">{it.n.toLocaleString()}<em>· {it.pct}%</em></span>
+                  <span className="mi-delta">{fmtDelta(it.pct, it.prevPct)}</span>
+                </div>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* instance 拆分:定位某地区/实例异常,而非只看 family */}
-          {insts.length > 0 && (
-            <div className="panel">
-              <div className="panel-header"><span>Builder Instance 拆分</span><span className="sub">24h · Δ 为占比环比上一 24h</span></div>
-              <div className="panel-body mev-bars">
-                {insts.map((it) => (
-                  <div key={it.name} className="ver-row">
-                    <span className="ver-tag" style={{ width: 150, color: FAMILY_COLORS[it.family] || "#aaa" }}>{it.name}</span>
-                    <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(it.n / maxInst) * 100}%`, background: FAMILY_COLORS[it.family] || "#888" }} /></div>
-                    <span className="ver-count">{it.n.toLocaleString()}<em>· {it.pct}%</em></span>
-                    <span className="mi-delta">{fmtDelta(it.pct, it.prevPct)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* 右侧固定 LEO:MEV 问答 */}
+        <div className="mev-robot-anchor"><RobotWidget variant="mev" /></div>
 
         <BidMetricsPanel />
 

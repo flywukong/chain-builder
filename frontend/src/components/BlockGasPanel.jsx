@@ -5,13 +5,21 @@ const last = (s) => { const v = s?.values ?? []; for (let i = v.length - 1; i >=
 const fmtM = (v) => (v == null ? "--" : (v / 1e6).toFixed(1) + "M");
 const fmtT = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 
+const GAS_LIMIT = 140e6;
 // 采样口径(与后端 GAS_SAMPLE_IPS 一致):两台典型 validator 的均值
 const SAMPLE_IPS = ["10.213.32.160", "10.213.32.78"];
 
-// Block Gas — 执行视角:MGas/s 执行吞吐(金,面积)+ 每块 gasUsed(青,独立轴)
+// 可切换的单指标(避免双轴误读)
+const METRICS = {
+  gasused: { key: "gasused", label: "Gas used / 块", color: "#3FB8A0", unit: "M", scale: 1e6, src: (bg) => bg?.gasused },
+  mgasps:  { key: "mgasps",  label: "MGas/s 执行吞吐", color: "#F0B90B", unit: "", scale: 1, src: (bg) => bg?.mgasps },
+};
+
+// Block Gas — 执行视角:默认看每块 gasUsed,可切 MGas/s;单指标单轴
 export default function BlockGasPanel({ blockGas }) {
   const canvasRef = useRef(null);
   const [hover, setHover] = useState(null);
+  const [metric, setMetric] = useState("gasused");
   const ai = usePanelAi("/api/ai/blockgas");
 
   const mg = last(blockGas?.mgasps);
@@ -19,6 +27,13 @@ export default function BlockGasPanel({ blockGas }) {
   const tx = last(blockGas?.txsize);
   const execMs = mg && gu ? (gu / (mg * 1e6)) * 1000 : null;
   const slotPct = execMs != null ? (execMs / 450) * 100 : null;
+
+  // 结论句:正常/偏高 · Gas/块 · 距上限
+  const utilPct = gu != null ? (gu / GAS_LIMIT) * 100 : null;
+  const headroom = utilPct != null ? Math.max(0, 100 - utilPct) : null;
+  const verdict = utilPct == null ? null : utilPct >= 60 ? { t: "偏高", cls: "warn" } : { t: "正常", cls: "ok" };
+
+  const m = METRICS[metric];
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -30,98 +45,80 @@ export default function BlockGasPanel({ blockGas }) {
       canvas.width = W * dpr; canvas.height = H * dpr;
       const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      const mgS = blockGas?.mgasps, guS = blockGas?.gasused;
-      if (!mgS?.values?.length) {
+      const s = m.src(blockGas);
+      if (!s?.values?.length) {
         ctx.fillStyle = "#4a463c"; ctx.font = "10px monospace"; ctx.textAlign = "center";
         ctx.fillText("加载 keter 30m 数据…", W / 2, H / 2); return;
       }
-      const padL = 46, padR = 52, padT = 10, padB = 18;
+      const padL = 50, padR = 12, padT = 10, padB = 18;
       const iw = W - padL - padR, ih = H - padT - padB;
-      const n = mgS.values.length;
+      const n = s.values.length;
       const X = (i) => padL + (i / Math.max(n - 1, 1)) * iw;
+      const vals = s.values.filter((v) => typeof v === "number");
+      const maxV = Math.max(...vals, 1) * 1.12;
+      const Y = (v) => padT + ih - (v / maxV) * ih;
 
-      // 左轴:MGas/s;右轴:Gas/块(M)—— 双轴独立标定
-      const mgV = mgS.values.filter((v) => typeof v === "number");
-      const mgMax = Math.max(...mgV, 1) * 1.12;
-      const Ymg = (v) => padT + ih - (v / mgMax) * ih;
-      const guV = (guS?.values ?? []).filter((v) => typeof v === "number");
-      const guMax = Math.max(...guV, 1) * 1.12;
-      const Ygu = (v) => padT + ih - (v / guMax) * ih;
-
-      // 网格 + 左右轴刻度
-      ctx.font = "8.5px monospace"; ctx.textBaseline = "middle";
+      // 网格 + 左轴刻度
+      ctx.font = "8.5px monospace"; ctx.textBaseline = "middle"; ctx.textAlign = "right";
       for (let k = 0; k <= 4; k++) {
         const y = padT + ih - (k / 4) * ih;
         ctx.strokeStyle = "#191712"; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-        ctx.fillStyle = "#8a7a3a"; ctx.textAlign = "right";
-        ctx.fillText(Math.round((mgMax / 4) * k), padL - 6, y);
-        ctx.fillStyle = "#3FB8A0"; ctx.textAlign = "left"; ctx.globalAlpha = .75;
-        ctx.fillText((((guMax / 4) * k) / 1e6).toFixed(0) + "M", W - padR + 6, y);
-        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#8a857c";
+        const v = (maxV / 4) * k;
+        ctx.fillText(m.scale === 1e6 ? (v / 1e6).toFixed(0) + "M" : Math.round(v) + "", padL - 6, y);
       }
-      // 轴标题
-      ctx.textAlign = "left"; ctx.textBaseline = "top";
-      ctx.fillStyle = "#8a7a3a"; ctx.fillText("MGas/s", padL - 40, padT - 8);
-      ctx.fillStyle = "#3FB8A0"; ctx.globalAlpha = .75; ctx.fillText("Gas/块", W - padR + 6, padT - 8); ctx.globalAlpha = 1;
       // x 时间(首/中/尾)
-      const ts = mgS.times ?? [];
+      const ts = s.times ?? [];
       if (ts.length) {
-        ctx.fillStyle = "#5d594e"; ctx.textAlign = "center";
+        ctx.fillStyle = "#5d594e"; ctx.textAlign = "center"; ctx.textBaseline = "top";
         [[0, 0], [0.5, Math.floor(ts.length / 2)], [1, ts.length - 1]].forEach(([f, i]) =>
           ctx.fillText(fmtT(ts[i]), padL + f * iw, H - padB + 6));
       }
 
-      // MGas/s:金色渐变面积 + 发光主线
+      // 单指标:渐变面积 + 发光主线
       const area = ctx.createLinearGradient(0, padT, 0, padT + ih);
-      area.addColorStop(0, "rgba(240,185,11,.28)"); area.addColorStop(1, "rgba(240,185,11,.02)");
+      area.addColorStop(0, m.color + "42"); area.addColorStop(1, m.color + "05");
       ctx.beginPath();
-      mgS.values.forEach((v, i) => { const y = Ymg(typeof v === "number" ? v : 0); i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y); });
+      s.values.forEach((v, i) => { const y = Y(typeof v === "number" ? v : 0); i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y); });
       ctx.lineTo(X(n - 1), padT + ih); ctx.lineTo(X(0), padT + ih); ctx.closePath();
       ctx.fillStyle = area; ctx.fill();
-      ctx.strokeStyle = "#F0B90B"; ctx.lineWidth = 1.8; ctx.lineJoin = "round";
-      ctx.shadowColor = "#F0B90B"; ctx.shadowBlur = 6;
+      ctx.strokeStyle = m.color; ctx.lineWidth = 1.8; ctx.lineJoin = "round";
+      ctx.shadowColor = m.color; ctx.shadowBlur = 6;
       ctx.beginPath();
-      mgS.values.forEach((v, i) => { const y = Ymg(typeof v === "number" ? v : 0); i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y); });
+      s.values.forEach((v, i) => { const y = Y(typeof v === "number" ? v : 0); i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y); });
       ctx.stroke(); ctx.shadowBlur = 0;
 
-      // Gas/块:青色细线(右轴)
-      if (guV.length) {
-        ctx.strokeStyle = "rgba(63,184,160,.85)"; ctx.lineWidth = 1.3;
-        ctx.beginPath();
-        (guS.values ?? []).forEach((v, i) => { const y = Ygu(typeof v === "number" ? v : 0); i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y); });
-        ctx.stroke();
-      }
-
-      // hover 十字 + 双值读数
+      // hover 十字 + 读数
       if (hover != null && hover >= 0 && hover < n) {
-        const i = hover;
-        ctx.strokeStyle = "#F0B90B66"; ctx.setLineDash([2, 3]);
+        const i = hover, v = s.values[i];
+        ctx.strokeStyle = m.color + "66"; ctx.setLineDash([2, 3]);
         ctx.beginPath(); ctx.moveTo(X(i), padT); ctx.lineTo(X(i), padT + ih); ctx.stroke(); ctx.setLineDash([]);
-        const mv = mgS.values[i], gv = guS?.values?.[i];
-        if (typeof mv === "number") { ctx.beginPath(); ctx.arc(X(i), Ymg(mv), 3, 0, 7); ctx.fillStyle = "#FFF6D8"; ctx.fill(); }
-        const txt = `${ts[i] ? fmtT(ts[i]) : ""} · ${typeof mv === "number" ? Math.round(mv) : "--"} MGas/s · ${typeof gv === "number" ? (gv / 1e6).toFixed(1) : "--"}M/块`;
-        ctx.font = "700 9.5px monospace";
-        const tw = ctx.measureText(txt).width + 14;
-        let bx = X(i) + 8; if (bx + tw > W - padR) bx = X(i) - tw - 8;
-        ctx.fillStyle = "rgba(12,11,8,.94)"; ctx.strokeStyle = "#3a2d00";
-        ctx.beginPath(); ctx.roundRect(bx, padT + 2, tw, 18, 5); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = "#e8dcb8"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ctx.fillText(txt, bx + 7, padT + 11);
+        if (typeof v === "number") {
+          ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, 7); ctx.fillStyle = "#FFF6D8"; ctx.fill();
+          const txt = `${ts[i] ? fmtT(ts[i]) : ""} · ${m.scale === 1e6 ? (v / 1e6).toFixed(1) + "M" : Math.round(v)}${m.unit && m.scale === 1 ? " " + m.label.split(" ")[0] : ""}`;
+          ctx.font = "700 9.5px monospace";
+          const tw = ctx.measureText(txt).width + 14;
+          let bx = X(i) + 8; if (bx + tw > W - padR) bx = X(i) - tw - 8;
+          ctx.fillStyle = "rgba(12,11,8,.94)"; ctx.strokeStyle = "#3a2d00";
+          ctx.beginPath(); ctx.roundRect(bx, padT + 2, tw, 18, 5); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = "#e8dcb8"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillText(txt, bx + 7, padT + 11);
+        }
       }
     }
     draw();
     const ro = new ResizeObserver(draw); ro.observe(canvas);
     return () => ro.disconnect();
-  }, [blockGas, hover]);
+  }, [blockGas, hover, metric]);
 
   const onMove = (e) => {
     const canvas = canvasRef.current;
-    const n = blockGas?.mgasps?.values?.length;
+    const n = m.src(blockGas)?.values?.length;
     if (!canvas || !n) return;
     const rect = canvas.getBoundingClientRect();
-    const sx = rect.width / (canvas.offsetWidth || rect.width) || 1;   // 界面 zoom 系数
+    const sx = rect.width / (canvas.offsetWidth || rect.width) || 1;
     const x = (e.clientX - rect.left) / sx;
-    const padL = 46, padR = 52;
+    const padL = 50, padR = 12;
     const iw = canvas.offsetWidth - padL - padR;
     const i = Math.round(((x - padL) / Math.max(iw, 1)) * (n - 1));
     setHover(Math.min(Math.max(i, 0), n - 1));
@@ -130,9 +127,19 @@ export default function BlockGasPanel({ blockGas }) {
   return (
     <div className="panel">
       <div className="panel-header">
-        <span>Block Gas · 执行视角</span>
+        <span>Block Gas · 执行视角
+          {verdict && (
+            <em className={`panel-verdict pv-${verdict.cls}`}>
+              {verdict.t} · Gas/块 {fmtM(gu)} · 距上限 {headroom.toFixed(0)}%
+            </em>
+          )}
+        </span>
         <span className="bm-ctls">
-          <span className="sub">典型 validator 均值:{SAMPLE_IPS.join(" · ")} · 30m</span>
+          <span className="tf-ranges">
+            {Object.values(METRICS).map((mm) => (
+              <button key={mm.key} className={`tf-range ${metric === mm.key ? "on" : ""}`} onClick={() => setMetric(mm.key)}>{mm.label}</button>
+            ))}
+          </span>
           <AiButton ai={ai} />
         </span>
       </div>
@@ -159,9 +166,8 @@ export default function BlockGasPanel({ blockGas }) {
           </div>
         </div>
         <div className="bg-legend">
-          <span><i style={{ background: "#F0B90B" }} />MGas/s 执行吞吐(左轴)</span>
-          <span><i style={{ background: "#3FB8A0" }} />Gas used / 块(右轴)</span>
-          <em className="bg-src">曲线为 {SAMPLE_IPS.join(" / ")} 两台典型 validator 节点的 gas 占用均值</em>
+          <span><i style={{ background: m.color }} />{m.label}</span>
+          <em className="bg-src">曲线为 {SAMPLE_IPS.join(" / ")} 两台典型 validator 节点的均值 · 30m</em>
         </div>
         <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
       </div>

@@ -36,50 +36,60 @@ export default function EmptyBlocksPanel() {
   const miners = Object.entries(byMiner).sort((a, b) => b[1] - a[1]);
   const maxM = miners[0]?.[1] ?? 1;
 
+  const top3 = miners.slice(0, 3).map(([name]) => name).join("/");
+
   return (
     <div className="panel eb-panel">
       <div className="panel-header">
-        <span>空块 · 24h</span>
-        <span className="sub">判据 gasUsed &lt; 200k · 60s 刷新</span>
+        <span>空块 · 24h
+          {d && (
+            <em className={`panel-verdict pv-${(d.count ?? 0) > 0 ? "mid" : "ok"}`}>
+              {d.count > 0 ? `空块 ${d.count}${top3 ? ` · Top: ${top3}` : ""}` : "无空块"}
+            </em>
+          )}
+        </span>
+        <span className="bm-ctls">
+          <span className="sub">判据 gasUsed &lt; 200k · 60s 刷新</span>
+          <button className="st-auto-btn ai-cta panel-ai-btn" onClick={runAi} disabled={ai.loading || !(d?.count > 0)}>
+            {ai.loading ? "分析中… ~20s" : "⚡ AI 简析"}
+          </button>
+        </span>
       </div>
       <div className="panel-body eb-body">
-        <div className="eb-top">
+        {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
+        {ai.text && <div className="hpd-ai">{ai.text}</div>}
+        {/* 三栏:计数 | Top validator | 最近列表;≥3 次的高频 validator 橙标 */}
+        <div className="eb-cols">
           <div className={`eb-count ${(d?.count ?? 0) > 0 ? "warn" : "ok"}`}>
             <b>{d?.count ?? "--"}</b>
             <span>空块 / 24h</span>
           </div>
           <div className="eb-miners">
+            <div className="re-title">Top validator</div>
             {miners.length === 0
               ? <div className="eb-none">✓ 24h 内无空块</div>
-              : miners.slice(0, 5).map(([name, n]) => (
+              : miners.slice(0, 6).map(([name, n]) => (
                   <div key={name} className="eb-miner">
-                    <em>{name}</em>
+                    <em className={n >= 3 ? "eb-hot" : ""}>{name}{n >= 3 ? " ⚠" : ""}</em>
                     <span className="eb-mbar"><i style={{ width: `${(n / maxM) * 100}%` }} /></span>
                     <b>{n}</b>
                   </div>
                 ))}
           </div>
-        </div>
-
-        {(d?.recent?.length ?? 0) > 0 && (
-          <div className="eb-list">
-            {d.recent.slice(0, 30).map((b) => (
-              <div key={b.number} className="hpd-row">
-                <span className="hpd-num">#{b.number.toLocaleString()}</span>
-                <span className="hpd-mid">{b.miner ? lookupValidator(b.miner).name : "—"}</span>
-                <span className="hpd-end">{fmtT(b.t)}</span>
-              </div>
-            ))}
+          <div className="eb-listcol">
+            <div className="re-title">最近空块</div>
+            <div className="eb-list">
+              {(d?.recent ?? []).slice(0, 30).map((b) => (
+                <div key={b.number} className="hpd-row">
+                  <span className="hpd-num">#{b.number.toLocaleString()}</span>
+                  <span className="hpd-mid">{b.miner ? lookupValidator(b.miner).name : "—"}</span>
+                  <span className="hpd-end">{fmtT(b.t)}</span>
+                </div>
+              ))}
+              {(d?.recent?.length ?? 0) === 0 && <div className="eb-none">—</div>}
+            </div>
           </div>
-        )}
-
-        <div className="eb-foot">
-          <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading || !(d?.count > 0)}>
-            {ai.loading ? "分析中… ~20s" : "⚡ AI 简析"}
-          </button>
         </div>
-        {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
-        {ai.text && <div className="hpd-ai">{ai.text}</div>}
       </div>
     </div>
   );

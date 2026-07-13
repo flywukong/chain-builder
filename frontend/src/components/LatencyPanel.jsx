@@ -45,13 +45,15 @@ export default function LatencyPanel() {
       const padL = 40, padR = 10, padT = 8, padB = 16;
       const iw = W - padL - padR, ih = H - padT - padB;
       const t0 = d.times[0], t1 = d.times[d.times.length - 1] || t0 + 1;
-      const maxV = Math.max(d.threshold * 1.3, (d.max ?? 0) * 1.12, 100);
+      // Y 轴自适应正常区:按数据放大(最低 120ms),不再被 450ms 阈值压扁;
+      // 超阈时(max 接近阈值)轴自动扩到阈值之上,阈值线回到图内
+      const maxV = Math.max((d.max ?? 0) * 1.25, 120);
       const X = (t) => padL + ((t - t0) / (t1 - t0)) * iw;
       const Y = (v) => padT + ih - (v / maxV) * ih;
 
       // y 网格 + 标签
       ctx.font = "8.5px monospace"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
-      const step = maxV > 800 ? 300 : maxV > 400 ? 150 : 50;
+      const step = maxV > 800 ? 300 : maxV > 400 ? 150 : maxV > 200 ? 50 : 30;
       for (let v = 0; v <= maxV; v += step) {
         const y = Y(v);
         ctx.strokeStyle = "#181610"; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
@@ -71,14 +73,16 @@ export default function LatencyPanel() {
         ctx.fillRect(x1, padT, x2 - x1, ih);
       });
 
-      // 450ms 阈值线
-      const yT = Y(d.threshold);
-      ctx.setLineDash([5, 4]); ctx.strokeStyle = "rgba(239,68,68,.55)"; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(padL, yT); ctx.lineTo(W - padR, yT); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.font = "8px monospace"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-      ctx.fillStyle = "rgba(239,68,68,.75)";
-      ctx.fillText(`${d.threshold}ms 出块间隔`, padL + 4, yT - 2);
+      // 450ms 阈值线:仅当落在自适应轴范围内才画(正常时轴 ~120ms,阈值提示在顶部 strip)
+      if (d.threshold <= maxV) {
+        const yT = Y(d.threshold);
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = "rgba(239,68,68,.55)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padL, yT); ctx.lineTo(W - padR, yT); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = "8px monospace"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+        ctx.fillStyle = "rgba(239,68,68,.75)";
+        ctx.fillText(`${d.threshold}ms 出块间隔`, padL + 4, yT - 2);
+      }
 
       // 每台机器细线(低透明,准确对照)
       (d.perNode ?? []).forEach((s, si) => {
@@ -170,7 +174,11 @@ export default function LatencyPanel() {
   return (
     <div className="panel">
       <div className="panel-header">
-        <span>Block Insert Latency</span>
+        <span>Block Insert Latency
+          {d && (nEp > 0
+            ? <em className="panel-verdict pv-warn">需关注 · {nEp} 段超阈 · 峰值 {d.max}ms</em>
+            : <em className="panel-verdict pv-ok">正常 · 峰值 {d.max}ms · 远低于 {d.threshold}ms</em>)}
+        </span>
         <span className="bm-ctls">
           <span className="sub">{d ? `${d.ips.length} 节点均值 · ${d.hours}h` : "…"}</span>
           <AiButton ai={ai} />

@@ -1272,3 +1272,25 @@ body::before {
 .river-panel .panel-header { justify-content: flex-start; gap: 10px; }
 .river-legend    { display: flex; align-items: center; gap: 8px; flex: 1; }
 .river-leg-item  { display: flex; align-items: center; gap: 3px; font-size: 8px; color: var(--muted); gap: 4px; }
+
+/* ── 监控页改版:结论句 + 事件分级 + 空块三栏 ── */
+/* 面板标题右侧的一句话结论 */
+.panel-verdict { font-style: normal; margin-left: 12px; font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .3px; text-transform: none; padding: 2px 9px; border-radius: 5px; }
+.panel-verdict.pv-ok   { color: #43d089; background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.3); }
+.panel-verdict.pv-mid  { color: var(--gold); background: rgba(240,185,11,.08); border: 1px solid rgba(240,185,11,.35); }
+.panel-verdict.pv-warn { color: var(--orange); background: rgba(249,115,22,.1); border: 1px solid rgba(249,115,22,.4); }
+/* Reorg 事件分级 */
+.re-title.re-t-severe { color: var(--red); }
+.re-title.re-t-watch { color: var(--orange); }
+.re-row.re-severe { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.06); }
+.re-row.re-watch { border-color: rgba(249,115,22,.4); background: rgba(249,115,22,.05); }
+/* 空块三栏:计数 | Top validator | 最近列表 */
+.eb-cols { display: grid; grid-template-columns: 150px 1fr 1.2fr; gap: 18px; align-items: start; min-height: 0; }
+@media (max-width: 1000px) { .eb-cols { grid-template-columns: 1fr; } }
+.eb-listcol { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.eb-listcol .eb-list { max-height: 240px; }
+.eb-miners .re-title { margin-bottom: 2px; }
+.eb-hot { color: var(--orange) !important; font-weight: 700; }
+/* 流量页拆分后的 chips 行 */
+.tf-chips3 { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 760px; }

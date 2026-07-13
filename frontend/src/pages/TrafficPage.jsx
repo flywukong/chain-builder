@@ -195,68 +195,85 @@ function TrafficHistoryPanel({ tl }) {
   const last = tl?.lastEpisode;
 
   return (
-    <div className="panel tf-panel">
-      <div className="panel-header">
-        <span>流量历史</span>
-        <span className="tf-ranges">
-          {RANGES.map((d) => (
-            <button key={d} className={`tf-range ${rangeDays === d ? "on" : ""}`} onClick={() => setRangeDays(d)}>{d}天</button>
-          ))}
-        </span>
-      </div>
-      <div className="panel-body tf-body">
-        <div className="reorg-chips tf-chips">
-          <div className="reorg-chip tone-ok"><span className="rc-v">{sum?.baseline?.toLocaleString() ?? "--"}</span><span className="rc-l">pending 30d 基线</span></div>
-          <div className={`reorg-chip ${(sum?.maxGasPct ?? 0) >= hotPct ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{sum?.maxGasPct ?? "--"}%</span><span className="rc-l">30d gas 峰值利用率</span></div>
-          <div className={`reorg-chip ${epsInRange.length ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{epsInRange.length} 次</span><span className="rc-l">{rangeDays} 天内大流量</span></div>
-          <div className={`reorg-chip ${last ? "tone-warn" : "tone-ok"}`}>
-            <span className="rc-v">{last ? last.peakPending.toLocaleString() : "无"}</span>
-            <span className="rc-l">{last ? `最近一次 ${fmtT(last.peakT)} · ${last.trigger}` : "30d 内无大流量"}</span>
-          </div>
+    <>
+      {/* 面板一:TxPool Pending 历史(天数切换在此,Gas 面板跟随) */}
+      <div className="panel tf-panel">
+        <div className="panel-header">
+          <span>TxPool Pending 历史</span>
+          <span className="tf-ranges">
+            {RANGES.map((d) => (
+              <button key={d} className={`tf-range ${rangeDays === d ? "on" : ""}`} onClick={() => setRangeDays(d)}>{d}天</button>
+            ))}
+          </span>
         </div>
-
-        <div className="tf-main">
-          <div className="tf-charts">
-            <HourlyChart times={times} values={pending} threshold={thr} color="#F0B90B"
-              label={`TxPool pending(dataseed 小时均值 · 阈值 ${thr.toLocaleString()})`} />
-            <HourlyChart times={times} values={gasPct} threshold={hotPct} color="#3FB8A0" unit="%"
-              label={`Gas 利用率(小时均值 · 阈值 ${hotPct}% · 上限 140M)`} fmtV={(v) => `${v}`} />
-          </div>
-          <div className="reorg-events tf-events">
-            <EventList
-              title={`Pending 拥堵事件(pending>${thr/1000}k)`}
-              episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending"))}
-              metric={(e) => e.peakPending.toLocaleString()}
-              emptyText="30d 内无 pending 拥堵"
-              onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
-            <EventList
-              title={`Gas 高占用事件(gas≥${hotPct}%)`}
-              episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas"))}
-              metric={(e) => `${e.peakGasPct}%`}
-              emptyText={`30d 内无 gas≥${hotPct}%`}
-              onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
-          </div>
-        </div>
-
-        {(ep.loading || ep.text || ep.err) && (
-          <div className="tf-ep-result" id="tf-ep-result">
-            <div className="tf-ep-head">
-              <span>🤖 事件归因 · {ep.label}</span>
-              {ep.at && <em className="ai-at">{new Date(ep.at).toLocaleTimeString()}</em>}
-              {!ep.loading && <button className="tf-ep-close" onClick={() => setEp({ loading: false, label: null, text: null, at: null, err: null })}>×</button>}
+        <div className="panel-body tf-body">
+          <div className="reorg-chips tf-chips3">
+            <div className="reorg-chip tone-ok"><span className="rc-v">{sum?.baseline?.toLocaleString() ?? "--"}</span><span className="rc-l">pending 30d 基线</span></div>
+            <div className={`reorg-chip ${epsInRange.length ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{epsInRange.length} 次</span><span className="rc-l">{rangeDays} 天内大流量</span></div>
+            <div className={`reorg-chip ${last ? "tone-warn" : "tone-ok"}`}>
+              <span className="rc-v">{last ? last.peakPending.toLocaleString() : "无"}</span>
+              <span className="rc-l">{last ? `最近一次 ${fmtT(last.peakT)} · ${last.trigger}` : "30d 内无大流量"}</span>
             </div>
-            {ep.loading && (
-              <div className="tf-ai-loading">
-                <span className="tf-ai-spin" />
-                <span>claude 分析中…目标事件 {ep.label},链上取证采样历史区块归因合约,约 30–40s</span>
-              </div>
-            )}
-            {ep.err && <div className="ai-err">⚠ {ep.err}</div>}
-            {ep.text && <div className="ai-result">{ep.text}</div>}
           </div>
-        )}
+          <div className="tf-main">
+            <HourlyChart times={times} values={pending} threshold={thr} color="#F0B90B"
+              label={`dataseed 小时均值 · 阈值 ${thr.toLocaleString()}`} />
+            <div className="reorg-events tf-events">
+              <EventList
+                title={`Pending 拥堵事件(pending>${thr/1000}k)`}
+                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending"))}
+                metric={(e) => e.peakPending.toLocaleString()}
+                emptyText="30d 内无 pending 拥堵"
+                onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* 面板二:Gas 利用率历史 */}
+      <div className="panel tf-panel">
+        <div className="panel-header">
+          <span>Gas 利用率历史</span>
+          <span className="sub">窗口跟随上方选择 · {rangeDays} 天 · 上限 140M</span>
+        </div>
+        <div className="panel-body tf-body">
+          <div className="reorg-chips tf-chips3">
+            <div className={`reorg-chip ${(sum?.maxGasPct ?? 0) >= hotPct ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{sum?.maxGasPct ?? "--"}%</span><span className="rc-l">30d gas 峰值利用率</span></div>
+            <div className="reorg-chip tone-ok"><span className="rc-v">{hotPct}%</span><span className="rc-l">高占用阈值</span></div>
+          </div>
+          <div className="tf-main">
+            <HourlyChart times={times} values={gasPct} threshold={hotPct} color="#3FB8A0" unit="%"
+              label={`小时均值 · 阈值 ${hotPct}%`} fmtV={(v) => `${v}`} />
+            <div className="reorg-events tf-events">
+              <EventList
+                title={`Gas 高占用事件(gas≥${hotPct}%)`}
+                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas"))}
+                metric={(e) => `${e.peakGasPct}%`}
+                emptyText={`30d 内无 gas≥${hotPct}%`}
+                onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {(ep.loading || ep.text || ep.err) && (
+        <div className="tf-ep-result" id="tf-ep-result">
+          <div className="tf-ep-head">
+            <span>🤖 事件归因 · {ep.label}</span>
+            {ep.at && <em className="ai-at">{new Date(ep.at).toLocaleTimeString()}</em>}
+            {!ep.loading && <button className="tf-ep-close" onClick={() => setEp({ loading: false, label: null, text: null, at: null, err: null })}>×</button>}
+          </div>
+          {ep.loading && (
+            <div className="tf-ai-loading">
+              <span className="tf-ai-spin" />
+              <span>claude 分析中…目标事件 {ep.label},链上取证采样历史区块归因合约,约 30–40s</span>
+            </div>
+          )}
+          {ep.err && <div className="ai-err">⚠ {ep.err}</div>}
+          {ep.text && <div className="ai-result">{ep.text}</div>}
+        </div>
+      )}
+    </>
   );
 }
 

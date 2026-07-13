@@ -97,10 +97,35 @@ export default function ReorgPanel({ data }) {
     { v: sum.avgDepth, l: "平均深度 (孤块/次)", tone: sum.avgDepth > 4 ? "warn" : "ok" },
   ] : [];
 
+  // 事件分级:严重 = 孤块≥8;关注 = 孤块≥3 或单小时≥2次;其余(含本机观测)为参考
+  const events = data?.events ?? [];
+  const sevOf = (e) => (e.orphans >= 8 ? "severe" : e.orphans >= 3 || e.count >= 2 ? "watch" : "info");
+  const severe = events.filter((e) => sevOf(e) === "severe");
+  const watch = events.filter((e) => sevOf(e) === "watch");
+  const info = events.filter((e) => sevOf(e) === "info");
+  // 结论句:15天内 N 天发生;有严重→需关注;有关注→轻微;否则正常
+  const verdict = severe.length ? { t: "需关注", cls: "warn" }
+    : (sum?.daysWithReorg ?? 0) > 0 ? { t: "轻微", cls: "mid" } : { t: "正常", cls: "ok" };
+
+  const EvRow = ({ e, tone }) => (
+    <div key={e.t} className={`re-row ${tone === "severe" ? "re-severe" : tone === "watch" ? "re-watch" : ""}`}>
+      <span className="re-time">{fmtHour(e.t)}</span>
+      <span className="re-cnt">{e.count} 次</span>
+      <span className="re-orph">{e.orphans} 孤块</span>
+      <span className="re-nodes">{e.nodes != null ? `${e.nodes} 节点` : "—"}</span>
+    </div>
+  );
+
   return (
     <div className="panel reorg-panel">
       <div className="panel-header">
-        <span>Reorg 分析</span>
+        <span>Reorg 分析
+          {sum && (
+            <em className={`panel-verdict pv-${verdict.cls}`}>
+              {verdict.t} · {sum.spanDays}天内 {sum.daysWithReorg}天发生 · 平均深度 {sum.avgDepth}
+            </em>
+          )}
+        </span>
         <span className="reorg-head-r">
           <span className="sub">近 {days.length || 14} 天 · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
           <button className="st-auto-btn ai-cta reorg-ai-btn" onClick={runAi} disabled={ai.loading}>
@@ -145,17 +170,14 @@ export default function ReorgPanel({ data }) {
           </div>
 
           <div className="reorg-events">
-            <div className="re-title">最近事件 · 孤块 = 被回滚块数(≈深度)</div>
-            {(data?.events ?? []).length === 0
-              ? <div className="re-empty">✓ 窗口内无链级 reorg</div>
-              : data.events.map((e) => (
-                  <div key={e.t} className="re-row">
-                    <span className="re-time">{fmtHour(e.t)}</span>
-                    <span className="re-cnt">{e.count} 次</span>
-                    <span className="re-orph">{e.orphans} 孤块</span>
-                    <span className="re-nodes">{e.nodes != null ? `${e.nodes} 节点` : "—"}</span>
-                  </div>
-                ))}
+            <div className="re-title re-t-severe">严重(孤块≥8)</div>
+            {severe.length === 0 ? <div className="re-empty">✓ 无</div> : severe.map((e) => <EvRow key={e.t} e={e} tone="severe" />)}
+
+            <div className="re-title re-t-watch" style={{ marginTop: 6 }}>关注(孤块≥3 或 ≥2次/小时)</div>
+            {watch.length === 0 ? <div className="re-empty">✓ 无</div> : watch.map((e) => <EvRow key={e.t} e={e} tone="watch" />)}
+
+            <div className="re-title" style={{ marginTop: 6 }}>参考 · 常规 micro-reorg</div>
+            {info.length === 0 ? <div className="re-empty">✓ 窗口内无</div> : info.map((e) => <EvRow key={e.t} e={e} tone="info" />)}
 
             <div className="re-title" style={{ marginTop: 6 }}>本机观测高度 · 24h(单视角,仅参考)</div>
             {!obs || obs.count === 0

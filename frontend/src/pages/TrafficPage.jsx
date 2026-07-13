@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import TxpoolPanel from "../components/TxpoolPanel.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:00`; };
@@ -290,8 +289,6 @@ export default function TrafficPage({ state }) {
         </div>
 
         <TrafficHistoryPanel tl={state.trafficTimeline} />
-
-        <div className="traffic-cell" style={{ maxWidth: 640 }}><TxpoolPanel txpool={tx} /></div>
       </div>
     </div>
   );

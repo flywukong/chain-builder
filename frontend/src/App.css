@@ -891,11 +891,6 @@ body::before {
 .nav-ico { width: 22px; height: 22px; transition: transform .18s, filter .18s; }
 .nav-item:hover  { color: #fff; background: rgba(255,255,255,.05); }
 /* 首次引导:红色箭头指向导航,提示可点击切换 */
-.nav-hint { position: absolute; left: 70px; top: 196px; z-index: 40; display: flex; align-items: center; gap: 6px;
-  white-space: nowrap; pointer-events: none; animation: hint-bob 1.2s ease-in-out infinite; }
-.nav-hint-arrow { color: var(--red); font-size: 12px; line-height: 1; text-shadow: 0 0 9px rgba(239,68,68,.85); }
-.nav-hint-text { font-size: 9.5px; font-weight: 700; color: #ff9c8e; background: rgba(28,8,8,.96);
-  border: 1px solid rgba(239,68,68,.5); padding: 2.5px 8px; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
 @keyframes hint-bob { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-7px); } }
 .nav-item:hover .nav-ico { transform: translateY(-1px); }
 .nav-item:active { transform: scale(.96); }
@@ -1294,3 +1289,19 @@ body::before {
 .eb-hot { color: var(--orange) !important; font-weight: 700; }
 /* 流量页拆分后的 chips 行 */
 .tf-chips3 { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 760px; }
+
+/* ── Block Gas 面板改版:紧凑 strip + 70/30 分栏 + 摘要栏 ── */
+.bg-strip { display: flex; flex-wrap: wrap; gap: 5px 22px; align-items: center; padding: 7px 10px;
+  background: #14120c; border: 1px solid #221f16; border-radius: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
+.bg-strip em { font-style: normal; font-weight: 700; color: var(--text); margin-left: 4px; }
+.bg-ai-line { font-size: 10.5px; color: var(--gold); background: rgba(240,185,11,.05); border: 1px dashed rgba(240,185,11,.3);
+  border-radius: 7px; padding: 6px 10px; flex-shrink: 0; }
+.bg-main { display: grid; grid-template-columns: 1fr 230px; gap: 14px; min-height: 0; }
+@media (max-width: 1000px) { .bg-main { grid-template-columns: 1fr; } }
+.bg-chartcol { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bg-side { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: #131109; border: 1px solid #221f14; border-radius: 8px; align-self: start; }
+.bg-side-row { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.bg-side-row b { color: var(--text); font-weight: 700; }
+.bg-side-ref { margin-top: 4px; padding-top: 7px; border-top: 1px dashed #26231a; font-size: 9px; color: var(--dim); line-height: 1.6; }
+/* 导航列头(替代浮动红色提示) */
+.nav-sect { font-size: 8px; font-weight: 700; letter-spacing: 1px; color: var(--gold); opacity: .85; margin: 2px 0 2px; }

@@ -202,20 +202,20 @@ export default function TxnPage() {
   const maxTxPct = Math.max(0.1, ...listCats.map(pct));    // 列内归一化,让最大项填满
   const maxGasPct = Math.max(0.1, ...listCats.map(gpct));
 
-  // 补齐最近 7 个自然日槽位,空日留白(让"7 天"框架一眼成立)
+  // 最近 7 个自然日内有数据的天(空日不渲染,避免柱子参差)
   const days7 = (() => {
     const map = Object.fromEntries((d?.daily ?? []).map((x) => [x.day, x]));
     const now = new Date(), out = [];
     for (let i = 6; i >= 0; i--) {
       const dt = new Date(now); dt.setDate(now.getDate() - i);
       const key = `${dt.getMonth() + 1}/${dt.getDate()}`;
-      out.push(map[key] ?? { day: key, txs: 0, cats: {} });
+      if (map[key]?.txs > 0) out.push(map[key]);
     }
     return out;
   })();
 
   return (
-    <div className="subpage">
+    <div className="subpage txn-page">
       <div className="subpage-head">
         <div>
           <h1>⇄ Txn 分析</h1>
@@ -273,7 +273,7 @@ export default function TxnPage() {
           return (
             <div className="panel" style={{ maxWidth: 820 }}>
               <div className="panel-header">
-                <span>{at ? "历史累计分类分布" : "24h 分类分布"}</span>
+                <span>{at ? "历史累计交易类型分布" : "24H 交易类型分布"}</span>
                 <span className="txn-dist-ctl">
                   <span className="sub">
                     {at ? `自 ${sinceStr} · ${at.total.toLocaleString()} 笔累计` : `${d?.total24?.toLocaleString() ?? "…"} 笔 · 全量`}
@@ -322,7 +322,7 @@ export default function TxnPage() {
         })()}
 
         <div className="panel" style={{ maxWidth: 900 }}>
-          <div className="panel-header"><span>24h 热门合约</span><span className="sub">标注(身份) · 分类(行为)+ 依据 · AI 标注带 ✦</span></div>
+          <div className="panel-header"><span>24H 热门合约</span><span className="sub">标注(身份) · 分类(行为)+ 依据 · AI 标注带 ✦</span></div>
           <div className="panel-body txn-contracts">
             <div className="txn-crow txn-crow-head">
               <span>标注 / 地址线索</span>

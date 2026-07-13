@@ -753,6 +753,8 @@ body::before {
   background: var(--gold); border-radius: 3px; padding: .5px 4px; margin-left: 5px; letter-spacing: .5px;
   display: inline-block; line-height: 1.5; vertical-align: 1px; }
 
+/* TXN 页:面板标题金色加亮,更显眼 */
+.txn-page .panel-header > span:first-child { color: var(--gold); font-size: 12px; text-shadow: 0 0 10px rgba(240,185,11,.35); }
 .txn-dist-ctl { display: inline-flex; align-items: center; gap: 10px; }
 .txn-dist-head, .txn-dist-row { display: grid; grid-template-columns: 104px 62px 1fr 1fr 88px; align-items: center; gap: 12px; }
 .txn-dist-head { font-size: 8.5px; color: var(--dim); letter-spacing: .3px; padding-bottom: 4px; border-bottom: 1px solid #1c1a14; margin-bottom: 2px; }

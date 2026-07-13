@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -572,13 +572,51 @@ aiRoutes("latency", "/api/ai/latency", async () => {
 });
 
 // Reorg 解读:严重度 + 涉及方(自营/外部),无日志不做根因
-aiRoutes("reorg", "/api/ai/reorg", async () => {
+// body.eventT → 单事件归因(5m 定位 + canonical miner 序列取证);body.days → 整体解读窗口
+aiRoutes("reorg", "/api/ai/reorg", async (body) => {
   const tl = latest.reorgTimeline ?? await fetchReorgTimeline(cfg.keterConfigPath).catch(() => null);
   const obs = reorgObs.view();
   const vinfo = (addr) => {
     const v = VALIDATORS[(addr || "").toLowerCase()];
     return v ? { name: v.name, group: v.group, internal: v.group === "internal" } : { name: (addr || "").slice(0, 10), group: "unknown", internal: false };
   };
+
+  // ── 单事件归因:定位 5m 时刻 → 块高区间 → canonical miner 序列(找出块 gap 与赢家)──
+  const picked = body?.eventT ? (tl?.events ?? []).find((e) => e.t === Number(body.eventT)) : null;
+  if (picked) {
+    const refined = await refineReorgMoment(cfg.keterConfigPath, picked.t).catch(() => null);
+    const winT = refined?.momentT ?? picked.t;
+    // 精化命中:±5m 窗口;否则整个小时桶
+    const [fromB, toB] = await Promise.all([
+      blockAtTime(refined ? winT - 300e3 : picked.t - 3600e3),
+      blockAtTime(refined ? winT + 300e3 : picked.t),
+    ]);
+    // canonical 链 miner 序列采样:重组段在 canonical 链上表现为块时间 gap,gap 后首块 miner 即赢家
+    let minerSeq = null;
+    if (fromB && toB && toB > fromB) {
+      const step = Math.max(1, Math.floor((toB - fromB) / 60));
+      const nums = []; for (let n = fromB; n <= toB; n += step) nums.push(n);
+      const headers = await Promise.all(nums.map((n) =>
+        streamer.http.send("eth_getHeaderByNumber", ["0x" + n.toString(16)]).catch(() => null)));
+      let prevTs = null;
+      minerSeq = headers.filter(Boolean).map((h) => {
+        const ts = Number(BigInt(h.timestamp)) * 1000 + (h.mixHash ? Number(BigInt(h.mixHash) % 1000n) : 0);
+        const gapMs = prevTs != null ? ts - prevTs : null; prevTs = ts;
+        return { block: Number(BigInt(h.number)), miner: vinfo(h.miner).name, group: vinfo(h.miner).group, gapMs };
+      });
+    }
+    return runReorgEventAnalysis({
+      event: { time: new Date(picked.t).toISOString(), count: picked.count, orphans: picked.orphans, nodesSaw: picked.nodes ?? null },
+      refinedMoment: refined ? { time: new Date(winT).toISOString(), executes5m: refined.executes5m } : null,
+      blockRange: { from: fromB, to: toB, sampleStepBlocks: fromB && toB ? Math.max(1, Math.floor((toB - fromB) / 60)) : null },
+      canonicalMinerSequence: minerSeq,
+      expectedBlockGapMs: 450,
+    });
+  }
+
+  // ── 整体解读:窗口可选(默认 14d,支持 1/7/14)──
+  const days = Math.min(Math.max(parseInt(body?.days, 10) || 14, 1), 14);
+  const cut = Date.now() - days * 86400e3;
   const events = [];
   for (const e of (obs.recent ?? []).slice(0, 8)) {
     let winner = null;
@@ -595,7 +633,12 @@ aiRoutes("reorg", "/api/ai/reorg", async () => {
   }
   return runReorgAnalysis({
     baseline: "fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常",
-    keter14d: { summary: tl?.summary ?? null, days: (tl?.days ?? []).slice(-14) },
+    windowDays: days,
+    keterWindow: {
+      summary: tl?.summary ?? null,
+      days: (tl?.days ?? []).slice(-days),     // 逐日数组,尾部 N 个即近 N 天
+      events: (tl?.events ?? []).filter((e) => e.t >= cut),
+    },
     observed24h: { count: obs.count, events },
   });
 });

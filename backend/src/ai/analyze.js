@@ -177,12 +177,29 @@ export async function runLatencyAnalysis(data) {
 // ── Reorg 解读:无节点日志,不做根因;判涉及方(自营/外部)+ 严重度 + 总结 ──
 export async function runReorgAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网的资深运维分析师。基于下面的 reorg 监控数据解读,中文 markdown,180 字以内,直接正文。",
+    `你是 BSC 主网的资深运维分析师。基于下面的 reorg 监控数据解读近 ${data.windowDays ?? 14} 天窗口,中文 markdown,180 字以内,直接正文。`,
     "",
+    "数据口径:keterWindow.days/events 已按所选窗口截取,以它们为准;summary 是 14d 全窗口背景值,窗口小于 14 天时不要直接引用 summary 的次数。observed24h 是本机 24h 观测(单视角)。",
     "重要:手头没有节点日志,禁止推测底层根因(网络分区/时钟/代码 bug 等一律不猜)。只做三件事:",
     "1. 严重程度:对照基线(fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常),按频率与深度给出 正常/需关注/告警。",
     "2. 涉及方:displacedValidators 是被重组掉的出块方(嫌疑方),canonicalWinner 是重组后的胜者。区分我方自营(internal=true)与外部 validator:自营节点若反复被重组,明确点名并建议排查该节点(出块时延/网络连通);外部节点只陈述事实,不给对方运营建议。displacedValidators 为空的事件是早期数据未记 miner,只按高度/深度评估。",
     "3. 末行一句话总结:是否需要行动。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
+// ── 单次 reorg 事件归因:5m 定位 + canonical miner 序列取证 ──
+export async function runReorgEventAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网的共识运维分析师。归因下面这一次链级 reorg 事件,中文 markdown,200 字以内,直接正文。",
+    "",
+    "数据口径:event 来自 keter 小时级聚合(count=该小时链级去重次数,orphans=孤块数,nodesSaw=观测到的节点数);refinedMoment 是 5m 粒度定位的发生时刻;canonicalMinerSequence 是事件区块区间内 canonical 链的出块序列采样(等步长,gapMs=与上一采样块的时间差,期望 ≈ sampleStepBlocks×450ms)。",
+    "分析方法:被重组段在 canonical 链上不可见,但会留下痕迹——gapMs 显著大于期望值的位置就是重组回退重出的时刻,该位置之后的 miner 是重组赢家;赢家之前正常出块的 validator 里可能有被重组方,但无法从 canonical 链确认,不要断言。",
+    "要求:①一句话概述(时间/规模/影响面:nodesSaw 大 = 全网可见,小 = 局部);②从 gapMs 找出异常时刻与赢家 validator(用名称,group=internal 是我方自营,明确标注);找不到明显 gap 就说明采样步长内无法分辨,不要硬凑;③严重度(孤块≥8 或单小时≥2次 值得关注)与是否需要行动。",
+    "禁止编造:没有节点日志,不猜底层根因;区块区间 blockRange 在结论里报出,方便读者链上复查。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

@@ -14,18 +14,22 @@ export default function ReorgPanel({ data }) {
   const days = data?.days ?? [];
   const sum = data?.summary;
   const [obs, setObs] = useState(null);   // 本机 WS 观测(精确高度,24h)
-  const [ai, setAi] = useState({ loading: false, text: null, at: null, err: null });
+  const [aiDays, setAiDays] = useState(14);   // 整体解读窗口:1(24h)/ 7 / 14
+  const [ai, setAi] = useState({ loading: false, label: null, text: null, at: null, err: null });
 
-  const runAi = async () => {
+  // body: {days} 整体解读窗口 / {eventT} 单事件归因;label 用于结果区标题与按钮态
+  const runAi = async (body, label) => {
     if (ai.loading) return;
-    setAi({ loading: true, text: null, at: null, err: null });
+    setAi({ loading: true, label, text: null, at: null, err: null });
     try {
-      const r = await fetch(API + "/api/ai/reorg", { method: "POST" });
+      const r = await fetch(API + "/api/ai/reorg", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}),
+      });
       const d = await r.json();
-      if (d.error) setAi({ loading: false, text: null, at: null, err: d.error });
+      if (d.error) setAi({ loading: false, label, text: null, at: null, err: d.error });
       else if (d.running) setAi((x) => ({ ...x, loading: false, err: "已有分析进行中,请稍候" }));
-      else setAi({ loading: false, text: d.text, at: d.at, err: null });
-    } catch (e) { setAi({ loading: false, text: null, at: null, err: String(e) }); }
+      else setAi({ loading: false, label, text: d.text, at: d.at, err: null });
+    } catch (e) { setAi({ loading: false, label, text: null, at: null, err: String(e) }); }
   };
 
   useEffect(() => {
@@ -113,6 +117,10 @@ export default function ReorgPanel({ data }) {
       <span className="re-cnt">{e.count} 次</span>
       <span className="re-orph">{e.orphans} 孤块</span>
       <span className="re-nodes">{e.nodes != null ? `${e.nodes} 节点` : "—"}</span>
+      <button className="tf-ep-btn" disabled={ai.loading} title="5m 定位 + canonical 出块序列取证"
+              onClick={() => runAi({ eventT: e.t }, `事件 ${fmtHour(e.t)}`)}>
+        {ai.loading && ai.label === `事件 ${fmtHour(e.t)}` ? "分析中…" : "⚡ 分析"}
+      </button>
     </div>
   );
 
@@ -128,7 +136,13 @@ export default function ReorgPanel({ data }) {
         </span>
         <span className="reorg-head-r">
           <span className="sub">近 {days.length || 14} 天 · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
-          <button className="st-auto-btn ai-cta reorg-ai-btn" onClick={runAi} disabled={ai.loading}>
+          <span className="tf-ranges">
+            {[[1, "24h"], [7, "7天"], [14, "14天"]].map(([d, l]) => (
+              <button key={d} className={`tf-range ${aiDays === d ? "on" : ""}`} onClick={() => setAiDays(d)}>{l}</button>
+            ))}
+          </span>
+          <button className="st-auto-btn ai-cta reorg-ai-btn" disabled={ai.loading}
+                  onClick={() => runAi({ days: aiDays }, `近 ${aiDays === 1 ? "24h" : aiDays + " 天"}`)}>
             {ai.loading ? "解读中… ~20s" : "⚡ AI 解读"}
           </button>
         </span>
@@ -138,9 +152,9 @@ export default function ReorgPanel({ data }) {
         {ai.text && (
           <div className="reorg-ai-result">
             <div className="tf-ep-head">
-              <span>🤖 Reorg 解读 · 严重度 + 涉及方</span>
+              <span>🤖 Reorg 解读 · {ai.label ?? "严重度 + 涉及方"}</span>
               {ai.at && <em className="ai-at">{new Date(ai.at).toLocaleTimeString()}</em>}
-              <button className="tf-ep-close" onClick={() => setAi({ loading: false, text: null, at: null, err: null })}>×</button>
+              <button className="tf-ep-close" onClick={() => setAi({ loading: false, label: null, text: null, at: null, err: null })}>×</button>
             </div>
             <div className="ai-result" style={{ maxHeight: 200 }}>{ai.text}</div>
           </div>

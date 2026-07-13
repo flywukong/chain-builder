@@ -330,6 +330,21 @@ export async function refineEpisode(configPath, ep, { hotPct = 90, threshold = 4
   return { startT, peakT, recoverT, peakPending, peakGasM, stepMs: 300_000 };
 }
 
+// ── Reorg 事件精化:小时级事件 → 5m 峰值时刻 ────────────────────────────────
+// keter 14d 时间线是 1h 步长;归因单个事件时用 5m 粒度定位 reorg 发生的 5 分钟窗口
+export async function refineReorgMoment(configPath, eventT) {
+  const jobs = DS_JOBS["dex-prod"];
+  const opts = { from: String(eventT - 3600_000), to: String(eventT + 300_000), intervalMs: 300_000, maxDataPoints: 50, configPath };
+  const raw = await rangeQuery(DATASOURCES["dex-prod"], `max(increase(chain_reorg_executes{job=~"${jobs}"}[5m]))`, opts);
+  const s = extractSeries(raw)[0] ?? { times: [], values: [] };
+  let bestT = null, bestV = 0;
+  s.times.forEach((t, i) => {
+    const v = s.values[i];
+    if (typeof v === "number" && v > bestV) { bestV = v; bestT = t; }
+  });
+  return bestT ? { momentT: bestT, executes5m: Math.round(bestV) } : null;
+}
+
 // ── Reorg timeline (14d, hourly) — mirrors the Osaka/Mendel analysis口径 ─────
 // Chain-level dedup: max(increase[1h]) across nodes counts each event once;
 // hours where <2 nodes saw a reorg are local jitter and excluded.

@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -465,12 +465,15 @@ aiRoutes("blockgas", "/api/ai/blockgas", async () => {
     const r = (x) => +x.toFixed(1);
     return { avg: r(v.reduce((a, b) => a + b, 0) / v.length), max: r(Math.max(...v)), min: r(Math.min(...v)), last: r(v.at(-1)) };
   };
+  // 图表只画 2 台典型;解读时喂 keter 全部自营节点的 per-instance 统计
+  const all = await fetchExecStatsAll(cfg.keterConfigPath).catch(() => null);
   return runBlockGasAnalysis({
-    sampleValidators: ["10.213.32.160", "10.213.32.78"],
+    chartSampleValidators: ["10.213.32.160", "10.213.32.78"],
     windowMinutes: 30,
     mgasPerSec: stat(bg.mgasps),
     gasPerBlockM: stat(bg.gasused, 1e6),
     txsPerBlock: stat(bg.txsize),
+    allNodes: all ? { mgasps: all.mgasps, gasusedM: all.gasusedM } : null,
   });
 });
 
@@ -483,10 +486,14 @@ aiRoutes("latency", "/api/ai/latency", async () => {
     if (!v.length) return { instance: s.instance };
     return { instance: s.instance, avgMs: +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1), maxMs: +Math.max(...v).toFixed(1) };
   };
+  // 图表只画 4 台典型;解读时喂 keter 全部自营节点的导入时延统计
+  const all = await fetchExecStatsAll(cfg.keterConfigPath).catch(() => null);
   return runLatencyAnalysis({
     hours: d.hours, thresholdMs: d.threshold,
+    chartSampleNodes: d.ips,
     overallMeanMs: d.mean, overallMaxMs: d.max, currentMs: d.cur,
-    perNode: (d.perNode ?? []).map(nodeStat),
+    chartNodes: (d.perNode ?? []).map(nodeStat),
+    allNodesInsertMs: all?.insertMs ?? null,
     episodesOverThreshold: (d.episodes ?? []).map((e) => ({ from: new Date(e.from).toISOString(), to: new Date(e.to).toISOString(), peakMs: e.peak })),
   });
 });

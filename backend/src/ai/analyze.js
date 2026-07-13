@@ -148,9 +148,10 @@ export async function runMevAnalysis(data) {
 // ── Block Gas 执行负载解读 ──
 export async function runBlockGasAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网运维分析师。解读执行负载(两台典型 validator 30m 均值),中文,120 字以内,直接正文。",
+    "你是 BSC 主网运维分析师。解读执行负载,中文,160 字以内,直接正文。",
+    "数据口径:mgasPerSec/gasPerBlockM/txsPerBlock 是图表采样的 2 台典型 validator 均值(30m);allNodes 是 keter 全部自营节点的 per-instance 统计(mgasps=MGas/s,gasusedM=每块 M gas),覆盖 dex-prod 与 vaas-prod。",
     "基线:块 gas 8~25M、MGas/s 200~600、执行耗时 <25% slot(450ms)均属常态,范围内不要当风险。",
-    "要点:吞吐与块负载的水位与波动(突刺给出时间与幅度)、执行耗时占 slot 比例是否有压力;正常就一句话说稳,不要凑内容。",
+    "要点:①整体水位与波动(突刺给出时间与幅度)②全节点横向对比:吞吐显著低于同伴(如低 30%+)的节点点名(IP)建议关注,一致就说一致;③执行耗时占 slot 是否有压力。正常就一句话说稳,不要凑内容。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
@@ -161,9 +162,10 @@ export async function runBlockGasAnalysis(data) {
 // ── 区块导入时延解读:节点差异 + 超阈段 ──
 export async function runLatencyAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网运维分析师。解读我方 4 台 validator 节点的区块导入时延(insert latency,24h),中文,150 字以内,直接正文。",
-    "基线:均值 <200ms 正常;>450ms(一个出块间隔)为超阈,episodes 列出了超阈段。",
-    "要点:①整体水位(均值/峰值 vs 基线)②节点差异:某台持续显著高于其他 = 该节点问题,点名(IP)建议排查;各台接近则说一致 ③超阈段:时间/时长/峰值,孤立尖峰(<1min)多为磁盘/GC 抖动,持续段才需关注。正常就说正常。",
+    "你是 BSC 主网运维分析师。解读自营 validator 节点的区块导入时延(insert latency,24h),中文,180 字以内,直接正文。",
+    "数据口径:chartNodes 是图表采样的 4 台典型;allNodesInsertMs 是 keter 全部自营节点(dex-prod + vaas-prod)的 per-instance 24h 统计,按均值降序 —— 以全量为准做横向对比。",
+    "基线:均值 <200ms 正常;>450ms(一个出块间隔)为超阈,episodes 列出了超阈段(基于 4 台均线)。",
+    "要点:①整体水位(均值/峰值 vs 基线)②全节点差异:均值显著高于群体(如 2 倍+或 >200ms)的节点点名(IP)建议排查,接近则说一致 ③超阈段:时间/时长/峰值,孤立尖峰(<1min)多为磁盘/GC 抖动,持续段才需关注。正常就说正常。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

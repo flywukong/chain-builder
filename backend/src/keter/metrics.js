@@ -401,3 +401,28 @@ export async function fetchBidMetrics(configPath, hours = 6) {
     gas: toSeries(gasRaw, (v) => +v.toFixed(2)),
   };
 }
+
+// ── AI 解读用:keter 全部自营节点(各 datasource 全部 validator job)per-instance 统计 ──
+// 展示图取少量典型 IP;解读时把能分析的节点都喂给 AI(吞吐/块gas/导入时延)
+export async function fetchExecStatsAll(configPath, minutes = 30, latHours = 24) {
+  const out = { mgasps: [], gasusedM: [], insertMs: [] };
+  const statOf = (s, scale = 1) => {
+    const v = (s.values ?? []).filter((x) => typeof x === "number").map((x) => x / scale);
+    if (!v.length) return null;
+    return { instance: s.labels.instance, avg: +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1), max: +Math.max(...v).toFixed(1) };
+  };
+  for (const [dsName, dsUid] of Object.entries(DATASOURCES)) {
+    const jobs = DS_JOBS[dsName];
+    const opts = { configPath, maxDataPoints: 150 };
+    const [mg, gu, lat] = await Promise.all([
+      rangeQuery(dsUid, `chain_insert_mgasps{job=~"${jobs}"}`, { ...opts, from: `now-${minutes}m` }).then(extractSeries),
+      rangeQuery(dsUid, `chain_insert_gasused{job=~"${jobs}"}`, { ...opts, from: `now-${minutes}m` }).then(extractSeries),
+      rangeQuery(dsUid, `chain_delay_block_insert{job=~"${jobs}",quantile="0.5"}`, { ...opts, from: `now-${latHours}h` }).then(extractSeries),
+    ]);
+    mg.forEach((s) => { const r = statOf(s); if (r) out.mgasps.push({ ...r, ds: dsName }); });
+    gu.forEach((s) => { const r = statOf(s, 1e6); if (r) out.gasusedM.push({ ...r, ds: dsName }); });
+    lat.forEach((s) => { const r = statOf(s); if (r) out.insertMs.push({ ...r, ds: dsName }); });
+  }
+  for (const k of Object.keys(out)) out[k].sort((a, b) => b.avg - a.avg);
+  return out;
+}

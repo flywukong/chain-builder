@@ -110,6 +110,23 @@ export async function runTrafficAnalysis(data) {
   return spawnClaude(prompt);
 }
 
+// ── 流量窗口解读:pending / gas 单维度形态分析(窗口跟随前端选择)──
+export async function runTrafficTrendAnalysis(data) {
+  const dim = data.focus === "gas" ? "区块 gas 利用率" : "TxPool pending";
+  const prompt = [
+    `你是 BSC 主网的资深运维分析师。解读近 ${data.windowLabel} 的 ${dim} 形态,中文 markdown,180 字以内,直接正文。`,
+    "",
+    data.focus === "gas"
+      ? `数据口径:windowStats 是所选窗口的小时均值统计(单位 %,按当前链上上限 ${data.gasLimitM ?? 55}M 折算);hoursOver = 利用率≥${data.hotPct ?? 90}% 的小时数;episodes 是窗口内的高占用事件(含 5m 精化时间与区块区间)。`
+      : `数据口径:windowStats 是所选窗口的小时均值统计(单位 笔);hoursOver = pending>${data.threshold ?? 4000} 的小时数;episodes 是窗口内的拥堵事件(含 5m 精化时间与区块区间);baseline30d 是 30 天基线。`,
+    "要求:①首行给结论(正常/需关注):当前水位 vs 基线、窗口内波动;②有事件则逐个点评(时间/持续/峰值/块区间,引用区块区间方便取证),无事件就说平稳,不要制造风险;③突刺后是否已回落。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
 // ── TxPool 拥堵诊断 ──
 export async function runTxpoolAnalysis(data) {
   const prompt = [

@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -644,10 +644,38 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
 });
 
 // 大流量分析:最近一次大流量事件 + 峰值时段链上采样(合约归因)
+// body.days+focus → 窗口形态解读(pending / gas 单维度);body.episodeStart → 单事件归因
 aiRoutes("traffic", "/api/ai/traffic", async (body) => {
   const tl = latest.trafficTimeline ?? await fetchTrafficTimeline(cfg.keterConfigPath);
   const tx = txpoolStore.getView();
   const win = streamer.getWindowStats() || {};
+
+  if (body?.focus && body?.days) {
+    const days = Math.min(Math.max(Number(body.days), 1), 10);
+    const focus = body.focus === "gas" ? "gas" : "pending";
+    const h = tl.hourly ?? { times: [], pending: [], gasPct: [] };
+    const hours = Math.min(Math.round(days * 24), h.times.length);
+    const seq = (focus === "gas" ? h.gasPct : h.pending).slice(-hours).filter((v) => typeof v === "number");
+    const over = focus === "gas" ? (v) => v >= (tl.hotPct ?? 90) : (v) => v > (tl.threshold ?? 4000);
+    const cut = Date.now() - days * 86400e3;
+    return runTrafficTrendAnalysis({
+      focus,
+      windowLabel: days === 1 ? "24h" : `${days} 天`,
+      hotPct: tl.hotPct ?? 90,
+      threshold: tl.threshold ?? 4000,
+      gasLimitM: liveGasLimitM(),
+      windowStats: seq.length ? {
+        cur: seq.at(-1),
+        avg: +(seq.reduce((a, b) => a + b, 0) / seq.length).toFixed(1),
+        max: Math.max(...seq), min: Math.min(...seq),
+        hoursOver: seq.filter(over).length, hoursTotal: seq.length,
+      } : null,
+      episodes: (tl.episodes ?? []).filter((e) => e.start >= cut && e.trigger?.includes(focus)),
+      baseline30d: tl.summary,
+      currentPending: focus === "pending" ? tx?.current ?? null : undefined,
+      gasUtilPctNow: focus === "gas" ? win.avgGasUtilPct ?? null : undefined,
+    });
+  }
   // 用户从事件列表点选的历史事件优先;否则进行中大流量 / 最近一次
   const picked = body?.episodeStart ? (tl.episodes ?? []).find((e) => e.start === Number(body.episodeStart)) : null;
   const liveHot = (win.avgGasUtilPct ?? 0) >= (tl.hotPct ?? 90) || !!tx?.anomalyNow;

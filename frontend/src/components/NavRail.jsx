@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 // Line icons (24x24, stroke=currentColor) — replaces flat emoji for a sharper look
 const ICONS = {
   home:    "M4 10.5 12 4l8 6.5M6 9.5V20h5v-6h2v6h5V9.5",
@@ -20,8 +22,20 @@ const ITEMS = [
 ];
 
 export default function NavRail({ current, onNav, connected }) {
+  // 首次引导:红色箭头提示左侧有子系统;点过任意导航后不再显示
+  const [hintGone, setHintGone] = useState(() => localStorage.getItem("navHintDone") === "1");
+  const nav = (id) => {
+    if (!hintGone) { localStorage.setItem("navHintDone", "1"); setHintGone(true); }
+    onNav(id);
+  };
   return (
     <nav className="nav-rail">
+      {!hintGone && (
+        <div className="nav-hint">
+          <span className="nav-hint-arrow">◀</span>
+          <span className="nav-hint-text">点击切换子系统</span>
+        </div>
+      )}
       <div className="nav-logo">
         {/* official BNB mark: top/bottom chevrons + left/center/right diamonds */}
         <svg width="28" height="28" viewBox="4 4 24 24" fill="#F0B90B">
@@ -38,7 +52,7 @@ export default function NavRail({ current, onNav, connected }) {
           <button
             key={item.id}
             className={`nav-item ${current === item.id ? "nav-active" : ""}`}
-            onClick={() => onNav(item.id)}
+            onClick={() => nav(item.id)}
           >
             <svg className="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">

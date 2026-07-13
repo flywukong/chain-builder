@@ -666,7 +666,7 @@ body::before {
 .st-gdelta { color: #3FB8A0; font-size: 9px; }
 .st-growth-canvas { width: 100%; height: 100%; min-height: 150px; display: block; }
 .st-inspect-panel { max-width: 1080px; margin-bottom: 14px; }
-.st-inspect-body { padding: 8px 14px 10px; overflow: auto; max-height: 520px; }
+.st-inspect-body { padding: 8px 14px 10px; }   /* 全量展开:页面本身可滚,内层限高会截断分组 */
 .st-group { margin-bottom: 10px; }
 .st-group-title { font-size: 9px; color: var(--gold); text-transform: uppercase; letter-spacing: .8px; padding: 6px 0 5px; border-bottom: 1px solid #211e16; margin-bottom: 5px; font-weight: 700; }
 .st-row { display: flex; align-items: center; gap: 10px; padding: 2px 0; }

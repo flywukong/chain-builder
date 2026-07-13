@@ -5,7 +5,11 @@ const API = import.meta.env.VITE_API_BASE ?? "";
 // falls back to the inline SVG if the file is absent.
 const ROBOT_IMG = (import.meta.env.BASE_URL ?? "/") + "robot.png";
 
-// 主页悬浮 AI 助手 — 基于监控快照(keter/链上/历史时间线)回答主网状态问题
+const DAY_OPTIONS = [1, 3, 7, 14, 30];
+const dayLabel = (d) => (d === 1 ? "24h" : `${d}天`);
+
+// 主页悬浮 AI 助手 = 巡检总结(常驻气泡,绿/黄/红)+ 时间窗选择 + 问答
+// 每小时自动巡检的结论直接由 LEO 呈现;原独立「AI 分析」面板已并入此处
 export default function RobotWidget() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -13,17 +17,42 @@ export default function RobotWidget() {
   const [ans, setAns] = useState(null);
   const [err, setErr] = useState(null);
   const [imgOk, setImgOk] = useState(true);
-  const [brief, setBrief] = useState(null);   // 每小时巡检生成的 24h 基本面播报 {text, at, verdict}
+  const [days, setDays] = useState(1);          // 时间窗,默认 24h
+  const [menuOpen, setMenuOpen] = useState(false);
+  // 巡检结果 {text, brief, verdict, at, windowDays, loading}
+  const [pa, setPa] = useState({ text: null, brief: null, verdict: null, at: null, windowDays: null, loading: false });
 
+  // 加载缓存巡检 + 轮询(每小时自动巡检的结果自动出现)
   useEffect(() => {
     let alive = true;
     const pull = () => fetch(API + "/api/ai/analyze").then((r) => r.json())
-      .then((j) => { if (alive && j?.brief) setBrief({ text: j.brief, at: j.at, verdict: j.verdict }); })
+      .then((d) => {
+        if (!alive || !d?.text) return;
+        setPa((x) => (x.loading || (x.at && d.at && d.at <= x.at) ? x
+          : { text: d.text, brief: d.brief ?? null, verdict: d.verdict ?? "ok", at: d.at, windowDays: d.windowDays ?? null, loading: false }));
+      })
       .catch(() => {});
     pull();
-    const t = setInterval(pull, 5 * 60_000);
+    const t = setInterval(pull, 90_000);
     return () => { alive = false; clearInterval(t); };
   }, []);
+
+  // 选择时间窗 → 按新窗口重新分析
+  const runDays = async (d) => {
+    setDays(d); setMenuOpen(false);
+    setPa((x) => ({ ...x, loading: true }));
+    try {
+      const r = await fetch(API + "/api/ai/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ days: d }),
+      });
+      const j = await r.json();
+      if (j.error) setPa((x) => ({ ...x, loading: false }));
+      else if (!j.running) setPa({ text: j.text, brief: j.brief ?? null, verdict: j.verdict ?? "ok", at: j.at, windowDays: j.windowDays, loading: false });
+      else setPa((x) => ({ ...x, loading: false }));
+    } catch { setPa((x) => ({ ...x, loading: false })); }
+  };
 
   const ask = async () => {
     const question = q.trim();
@@ -42,25 +71,39 @@ export default function RobotWidget() {
     finally { setBusy(false); }
   };
 
+  const verdict = pa.verdict;
+  const ok = verdict === "ok";
+  // 正文首行的「正常/需关注/告警」与徽条重复,展示时剥掉
+  const displayText = (t) => {
+    if (!t) return t;
+    const lines = t.split("\n");
+    const head = (lines[0] || "").replace(/[*#\s：:]/g, "");
+    if (/^(总体结论)?(正常|需关注|告警)/.test(head)) return lines.slice(1).join("\n").trim();
+    return t;
+  };
+
   return (
     <div className="robot-widget">
       {open && (
         <div className="robot-pop">
           <div className="robot-pop-head">
-            <span>🤖 BSC 主网助手</span>
+            <span>🤖 LEO · 主网巡检 + 问答</span>
             <button className="robot-close" onClick={() => setOpen(false)}>×</button>
           </div>
-          {brief ? (
-            <div className={`robot-brief ${brief.verdict === "alert" ? "rb-alert" : brief.verdict === "warn" ? "rb-warn" : ""}`}>
-              <span className="rb-head">24h 基本面{brief.at ? ` · ${new Date(brief.at).getHours()}:${String(new Date(brief.at).getMinutes()).padStart(2, "0")} 自动巡检` : ""}</span>
-              <span className="rb-text">{brief.text}</span>
+
+          {/* 巡检详情(与气泡同源,完整正文) */}
+          {pa.text ? (
+            <div className={`robot-brief ${verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : ""}`}>
+              <span className="rb-head">
+                {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 最近 {pa.windowDays ?? days} 天
+                {pa.at ? ` · ${new Date(pa.at).toLocaleTimeString()}` : ""}{pa.loading ? " · 分析中…" : ""}
+              </span>
+              <span className="rb-text rb-scroll">{displayText(pa.text)}</span>
             </div>
           ) : (
-            <div className="robot-greet">24h 基本面播报生成中(每小时自动巡检)…也可以直接提问。</div>
+            <div className="robot-greet">{pa.loading ? "分析中… 约 20–40s" : "巡检生成中(每小时自动)…也可直接提问。"}</div>
           )}
-          <div className="robot-greet">
-            继续提问:我了解主网的监控信息和链上状态（keter 指标 · 流量 / reorg 历史 · MEV 格局 · TxPool）。
-          </div>
+
           <div className="robot-input-row">
             <input
               className="robot-input"
@@ -80,8 +123,42 @@ export default function RobotWidget() {
         </div>
       )}
 
-      {!open && <span className="robot-name">CLICK ME</span>}
-      {!open && <span className="robot-tip">我是 LEO · 点我看 24h 基本面 / 提问</span>}
+      {/* 头顶:CLICK ME + 时间窗选择(默认 24h) */}
+      {!open && (
+        <span className="robot-head-row">
+          <span className="robot-name">CLICK ME</span>
+          <span className="robot-days">
+            <button className="tf-range on" onClick={(e) => { e.stopPropagation(); setMenuOpen((x) => !x); }}>
+              {dayLabel(days)} ▾
+            </button>
+            {menuOpen && (
+              <span className="robot-days-menu">
+                {DAY_OPTIONS.map((d) => (
+                  <button key={d} className={`tf-range ${d === days ? "on" : ""}`} onClick={() => runDays(d)}>{dayLabel(d)}</button>
+                ))}
+              </span>
+            )}
+          </span>
+        </span>
+      )}
+
+      {/* 常驻巡检结论气泡:绿=健康 / 黄=需关注 / 红=告警;点击展开详情 */}
+      {!open && (
+        <button className={`robot-brief robot-brief-float ${!pa.text ? "" : verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : "rb-ok"}`}
+                onClick={() => setOpen(true)}>
+          {pa.text ? (
+            <>
+              <span className="rb-head">
+                {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · {dayLabel(pa.windowDays === 1 || pa.windowDays == null ? 1 : pa.windowDays)}巡检
+                {pa.at ? ` · ${new Date(pa.at).getHours()}:${String(new Date(pa.at).getMinutes()).padStart(2, "0")}` : ""}{pa.loading ? " · 分析中…" : ""}
+              </span>
+              <span className="rb-text">{ok ? (pa.brief ?? "各项指标均在正常范围内") : `检测到${verdict === "alert" ? "告警" : "需关注"}项,点击看详情`}</span>
+            </>
+          ) : (
+            <span className="rb-text">{pa.loading ? "LEO 分析中… 约 20–40s" : "我是 LEO · 点我看巡检 / 提问"}</span>
+          )}
+        </button>
+      )}
 
       <button className={`robot-btn ${open ? "robot-btn-open" : ""} ${imgOk ? "has-img" : ""}`} onClick={() => setOpen((x) => !x)}>
         {imgOk ? (

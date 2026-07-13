@@ -145,31 +145,39 @@ body::before {
 
 /* ── AI 机器人助手(嵌入 Ring 面板右下黑区)── */
 .robot-widget { position: absolute; right: 40px; bottom: 118px; z-index: 6; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-/* CLICK ME:机器人头顶正上方居中悬浮,金色发光 */
+/* 头顶行:CLICK ME + 时间窗选择,机器人正上方居中 */
+.robot-head-row {
+  position: absolute; top: -26px; left: 50%; transform: translateX(-50%); z-index: 7;
+  display: flex; align-items: center; gap: 8px; white-space: nowrap;
+}
 .robot-name {
-  position: absolute; top: -18px; left: 50%; transform: translateX(-50%); z-index: 3; pointer-events: none; white-space: nowrap;
   font-family: var(--mono); font-weight: 800; font-size: 9.6px; letter-spacing: 1.5px;
   color: var(--gold); text-shadow: 0 0 10px rgba(240,185,11,.75), 0 1px 2px rgba(0,0,0,.85);
 }
-/* hover 提示:鼠标滑到即显,无需点击 */
-.robot-tip {
-  position: absolute; right: 138px; top: 52px; z-index: 5; pointer-events: none; white-space: nowrap;
-  padding: 6px 11px; border-radius: 8px; font-size: 11px; color: var(--text);
-  background: rgba(12,11,8,.96); border: 1px solid rgba(240,185,11,.3);
-  box-shadow: 0 6px 20px rgba(0,0,0,.55);
-  opacity: 0; transform: translateX(8px); transition: opacity .18s, transform .18s;
+.robot-days { position: relative; }
+.robot-days .tf-range { font-size: 9px; padding: 2px 8px; }
+.robot-days-menu {
+  position: absolute; top: 24px; left: 50%; transform: translateX(-50%); z-index: 9;
+  display: flex; flex-direction: column; gap: 3px; padding: 5px;
+  background: rgba(12,11,8,.97); border: 1px solid rgba(240,185,11,.35); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.6);
 }
-.robot-widget:hover .robot-tip { opacity: 1; transform: translateX(0); }
-/* LEO 24h 播报卡:点开机器人后自动显示在问答框顶部 */
-.robot-brief { display: flex; flex-direction: column; gap: 5px; text-align: left;
+.robot-days-menu .tf-range { text-align: center; }
+/* 巡检结论卡:pop 内详情 + 悬浮常驻两用;绿=健康 黄=需关注 红=告警 */
+.robot-brief { display: flex; flex-direction: column; gap: 5px; text-align: left; cursor: pointer;
   background: linear-gradient(180deg, rgba(26,22,8,.97), rgba(16,14,8,.97)); border: 1px solid rgba(240,185,11,.5);
   border-radius: 10px; padding: 10px 13px; animation: rb-in .35s ease; }
-.robot-brief.rb-warn  { border-color: rgba(249,115,22,.6); }
-.robot-brief.rb-alert { border-color: rgba(239,68,68,.7); box-shadow: 0 4px 20px rgba(0,0,0,.5), 0 0 16px rgba(239,68,68,.25); }
+.robot-brief.rb-ok    { border-color: rgba(34,197,94,.55); box-shadow: 0 4px 18px rgba(0,0,0,.45), 0 0 12px rgba(34,197,94,.12); }
+.robot-brief.rb-warn  { border-color: rgba(249,115,22,.65); box-shadow: 0 4px 18px rgba(0,0,0,.45), 0 0 14px rgba(249,115,22,.2); }
+.robot-brief.rb-alert { border-color: rgba(239,68,68,.75); box-shadow: 0 4px 20px rgba(0,0,0,.5), 0 0 16px rgba(239,68,68,.28); }
 .rb-head { font-family: var(--mono); font-size: 8.5px; font-weight: 700; letter-spacing: .6px; color: var(--gold); }
+.robot-brief.rb-ok .rb-head { color: var(--green); }
 .robot-brief.rb-warn .rb-head { color: var(--orange); }
 .robot-brief.rb-alert .rb-head { color: var(--red); }
 .rb-text { font-size: 11px; line-height: 1.7; color: #d8d2c0; }
+.rb-scroll { max-height: 190px; overflow: auto; white-space: pre-wrap; }
+/* 常驻悬浮位:机器人左侧 */
+.robot-brief-float { position: absolute; right: 128px; top: 12px; z-index: 6; width: 285px; }
 @keyframes rb-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .robot-btn {
   position: relative;
@@ -278,7 +286,7 @@ body::before {
 }
 .home-hero { display: grid; grid-template-columns: minmax(0, 1fr) clamp(320px, 19vw, 390px); gap: 7px; min-height: 0; }
 /* 末行 1fr:安全事件卡拉伸填满,右栏不留底部空白 */
-.home-right { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 7px; min-height: 0; }
+.home-right { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 7px; min-height: 0; }
 .se-card { display: flex; flex-direction: column; min-height: 0; }
 
 /* 安全 & 近期事件卡 */

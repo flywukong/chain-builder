@@ -1,6 +1,5 @@
 import ValidatorRing from "../components/ValidatorRing.jsx";
 import HealthPanel from "../components/HealthPanel.jsx";
-import AiAnalysisPanel from "../components/AiAnalysisPanel.jsx";
 import { lookupValidator } from "../data/validators.js";
 
 const DAY = 86400000;
@@ -98,8 +97,6 @@ export default function HomePage({ state, onNav }) {
             syncErrors={state.syncErrors}
             gasUsed={state.gasUsed}
           />
-
-          <AiAnalysisPanel />
 
           <SafetyEventsCard
             slashStatus={state.slashStatus}

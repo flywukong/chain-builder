@@ -177,7 +177,7 @@ body::before {
 .rb-text { font-size: 11px; line-height: 1.7; color: #d8d2c0; }
 .rb-scroll { max-height: 190px; overflow: auto; white-space: pre-wrap; }
 /* 常驻悬浮位:机器人左侧偏下,精简两行,不遮挡 ring */
-.robot-brief-float { position: absolute; right: 128px; top: 76px; z-index: 6; width: 220px; padding: 8px 12px; gap: 4px; }
+.robot-brief-float { position: absolute; right: 128px; top: 62px; z-index: 6; width: 220px; padding: 8px 12px; gap: 4px; }
 .robot-brief-float .rb-head { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 9.5px; letter-spacing: .8px; }
 .rb-more { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--gold);
   border: 1px solid rgba(240,185,11,.4); border-radius: 4px; padding: 1.5px 7px; flex-shrink: 0; }

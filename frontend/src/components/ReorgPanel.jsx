@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import RobotWidget from "./RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
@@ -181,6 +182,8 @@ export default function ReorgPanel({ data }) {
               <span><i style={{ background: "#3FB8A0" }} />重组孤块数/日</span>
             </div>
             <canvas ref={canvasRef} className="reorg-canvas" />
+            {/* 图表下方空白区:Reorg 问答机器人(可查链上出块序列取证) */}
+            <div className="reorg-robot-anchor"><RobotWidget variant="reorg" /></div>
           </div>
 
           <div className="reorg-events">

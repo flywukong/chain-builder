@@ -10,9 +10,27 @@ const dayLabel = (d) => (d === 1 ? "24h" : `${d}天`);
 
 // 主页悬浮 AI 助手 = 巡检总结(常驻气泡,绿/黄/红)+ 时间窗选择 + 问答
 // 每小时自动巡检的结论直接由 LEO 呈现;原独立「AI 分析」面板已并入此处
-// variant="mev":纯问答形态(无巡检/天数),提示可问任何 MEV 相关问题
+// variant="mev"/"reorg":纯问答形态(无巡检/天数),文案按场景定制
+const QA_PRESET = {
+  mev: {
+    title: "🤖 LEO · MEV 问答",
+    greet: "MEV 相关的都可以问我:builder 格局与集中度、份额突变原因、v1/v2 (BEP-675) 进展、某 validator 依赖哪家 builder、instance 层的地区分布…",
+    placeholder: "例:48club 份额为什么在涨?v2 什么时候起量?",
+    bubbleHead: "LEO · MEV 问答",
+    bubbleLine: "任何 MEV 相关问题都可以问:格局 / 份额突变 / v2 进展…",
+  },
+  reorg: {
+    title: "🤖 LEO · Reorg / 共识问答",
+    greet: "Reorg 与共识相关的都可以问:近几天的 reorg 形态、某次事件的影响面、某个块是谁出的、某段区块的出块间隔有没有异常——我可以现场查链上出块序列取证。",
+    placeholder: "例:块 109,000,000 是谁出的?7/7 那次 reorg 严重吗?",
+    bubbleHead: "LEO · Reorg 问答",
+    bubbleLine: "reorg 事件 / 出块人 / 出块间隔…都可以问,我能查链取证",
+  },
+};
+
 export default function RobotWidget({ variant = "home" }) {
-  const isMev = variant === "mev";
+  const preset = QA_PRESET[variant];
+  const isMev = !!preset;   // 纯问答形态(mev/reorg)
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -89,15 +107,13 @@ export default function RobotWidget({ variant = "home" }) {
       {open && (
         <div className="robot-pop">
           <div className="robot-pop-head">
-            <span>{isMev ? "🤖 LEO · MEV 问答" : "🤖 LEO · 主网巡检 + 问答"}</span>
+            <span>{isMev ? preset.title : "🤖 LEO · 主网巡检 + 问答"}</span>
             <button className="robot-close" onClick={() => setOpen(false)}>×</button>
           </div>
 
-          {/* 巡检详情(与气泡同源,完整正文);MEV 形态只做问答 */}
+          {/* 巡检详情(与气泡同源,完整正文);问答形态只做问答 */}
           {isMev ? (
-            <div className="robot-greet">
-              MEV 相关的都可以问我:builder 格局与集中度、份额突变原因、v1/v2 (BEP-675) 进展、某 validator 依赖哪家 builder、instance 层的地区分布…
-            </div>
+            <div className="robot-greet">{preset.greet}</div>
           ) : pa.text ? (
             <div className={`robot-brief ${verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : ""}`}>
               <span className="rb-head">
@@ -114,7 +130,7 @@ export default function RobotWidget({ variant = "home" }) {
           <div className="robot-input-row">
             <input
               className="robot-input"
-              placeholder={isMev ? "例:48club 份额为什么在涨?v2 什么时候起量?" : "例:当前网络运行状态如何?"}
+              placeholder={isMev ? preset.placeholder : "例:当前网络运行状态如何?"}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
@@ -153,10 +169,10 @@ export default function RobotWidget({ variant = "home" }) {
       {!open && (isMev ? (
         <button className="robot-brief robot-brief-float rb-gold" onClick={() => setOpen(true)}>
           <span className="rb-head">
-            LEO · MEV 问答
+            {preset.bubbleHead}
             <em className="rb-more">点我提问</em>
           </span>
-          <span className="rb-text rb-oneline">任何 MEV 相关问题都可以问:格局 / 份额突变 / v2 进展…</span>
+          <span className="rb-text rb-oneline">{preset.bubbleLine}</span>
         </button>
       ) : (
         <button className={`robot-brief robot-brief-float ${!pa.text ? "" : verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : "rb-ok"}`}

@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // BSC fast-finality produces occasional harmless 1-block micro-reorgs; only a
 // 24h count above this signals real consensus trouble.
 const REORG_ALERT = 5;
+const GAS_LIMIT = 140e6;
 
 function cmpVer(a, b) {
   const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
@@ -46,9 +47,46 @@ function versionInfo(nodeStats) {
   return { latest, latestPct, total, behind: behindList.length, behindList, tiers };
 }
 
-export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats, syncErrors }) {
-  const [showAllBehind, setShowAllBehind] = useState(false);   // 默认只看风险 Top 3
+// Gas 利用率迷你走势(30m,2 台典型节点均值)
+function GasSpark({ gasUsed }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    function draw() {
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.offsetWidth, H = canvas.offsetHeight;
+      if (!W || !H) return;
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      const s = gasUsed?.avg?.[0];
+      const vals = (s?.values ?? []).filter((v) => typeof v === "number").map((v) => (v / GAS_LIMIT) * 100);
+      if (!vals.length) return;
+      const max = Math.max(...vals, 40) * 1.1;
+      ctx.strokeStyle = "#3FB8A0"; ctx.lineWidth = 1.4; ctx.lineJoin = "round";
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, "rgba(63,184,160,.25)"); grad.addColorStop(1, "rgba(63,184,160,.02)");
+      ctx.beginPath();
+      vals.forEach((v, i) => {
+        const x = (i / Math.max(vals.length - 1, 1)) * W;
+        const y = H - (v / max) * (H - 4) - 2;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+      ctx.fillStyle = grad; ctx.fill();
+    }
+    draw();
+    const ro = new ResizeObserver(draw); ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [gasUsed]);
+  return <canvas ref={ref} className="hp-gas-spark" />;
+}
+
+export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats, syncErrors, gasUsed }) {
   const [showSync, setShowSync] = useState(false);
+  const [showBehind, setShowBehind] = useState(false);
 
   const ws = windowStats;
   const reorg = reorgStats?.reorg24h ?? 0;                 // Keter ground truth (24h)
@@ -58,12 +96,12 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
   // 第一行:链运行(共识活性,看 reorg)与 流量分级,两个并列大字
   const chain = reorg > REORG_ALERT ? { v: "异常", tone: "bad" } : { v: "正常", tone: "ok" };
   // 流量按 Gas 利用率分级:<30 低 / 30~60 中等 / 60~90 大流量 / ≥90 超大流量
-  const traffic =
+  const gasLevel =
     gasUtil >= 90 ? { v: "超大流量", tone: "bad" } :
     gasUtil >= 60 ? { v: "大流量", tone: "warn" } :
     gasUtil >= 30 ? { v: "中等", tone: "mid" } :
     { v: "低", tone: "ok" };
-  traffic.aux = `Gas ${gasUtil}%`;
+  const traffic = { ...gasLevel, aux: `Gas ${gasUtil}%` };
   if (txpool?.anomalyNow) {   // pending 积压是独立拥堵信号,叠加提示
     traffic.aux = `pending ${txpool.current?.toLocaleString()} · Gas ${gasUtil}%`;
     if (traffic.tone === "ok" || traffic.tone === "mid") traffic.tone = "warn";
@@ -72,7 +110,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
 
   const syncCount = syncErrors?.count ?? null;
 
-  // 第二行「节点版本」:重点覆盖 = cabinet + candidate
+  // 「节点版本」:重点覆盖 = cabinet + candidate
   const keyOk = ver.tiers.cabinet.ok + ver.tiers.candidate.ok;
   const keyTot = ver.tiers.cabinet.total + ver.tiers.candidate.total;
   const verTone = keyTot && (keyTot - keyOk) / keyTot > 0.2 ? "warn" : "ok";
@@ -103,12 +141,17 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           </div>
         </div>
 
-        {/* 第二行:节点版本是否需要处理 → 下方列表看哪些落后 */}
+        {/* 第二行:节点版本;落后节点收进按钮弹窗 */}
         <div className={`hp-row hp-row-ver tone-${verTone}`}>
           <div className="hp-row-head">
             <span className="hp-row-k">节点版本</span>
             <span className="hp-row-v">{ver.latest ? "v" + ver.latest : "—"}</span>
             <span className="hp-row-aux">{ver.latest ? `重点覆盖 ${keyOk}/${keyTot}` : "等待 keter"}</span>
+            {ver.latest && (
+              ver.behind > 0
+                ? <button className="hp-behind-btn" onClick={() => setShowBehind(true)}>落后 {ver.behind} ▸</button>
+                : <span className="hp-behind-none">✓ 全部最新</span>
+            )}
           </div>
           {ver.latest && (
             <div className="hp-tier-rows">
@@ -125,6 +168,16 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
               })}
             </div>
           )}
+        </div>
+
+        {/* 第三行:Gas 利用率(采样 2 台典型 · 30m 走势) */}
+        <div className={`hp-row tone-${gasLevel.tone === "mid" ? "ok" : gasLevel.tone}`}>
+          <div className="hp-row-head">
+            <span className="hp-row-k">Gas 利用率</span>
+            <span className={`hp-row-v t-${gasLevel.tone}`}>{gasUtil}%</span>
+            <span className="hp-row-aux">上限 140M · 30m 走势</span>
+          </div>
+          <GasSpark gasUsed={gasUsed} />
         </div>
 
         {showSync && (
@@ -153,30 +206,26 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           </div>
         )}
 
-        <div className="hp-behind">
-          <div className="hp-behind-head">
-            <span className="hp-behind-title">Keter 节点版本风险 · 落后 {ver.behind}</span>
-            {ver.behind > 0 && <span className="hp-behind-hint">风险 Top {Math.min(ver.behind, 3)}</span>}
+        {showBehind && (
+          <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowBehind(false); }}>
+            <div className="ai-modal hp-modal">
+              <div className="ai-modal-head">
+                <span className="hp-modal-title">落后版本节点 · {ver.behind}</span>
+                <span className="ai-modal-meta">风险排序:Cabinet → Candidate → Inactive → 未知版本</span>
+                <button className="robot-close" onClick={() => setShowBehind(false)}>×</button>
+              </div>
+              <div className="hpd-list">
+                {ver.behindList.map((b, i) => (
+                  <div key={i} className="hp-behind-row">
+                    <span className="hp-behind-ip">{b.ip}</span>
+                    <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : b.ver === "unknown" ? "?" : "—"}</span>
+                    <span className="hp-behind-ver">{b.ver === "unknown" ? "未知版本" : "v" + b.ver}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          {ver.behind === 0
-            ? <div className="hp-behind-ok">✓ 全部节点已是最新版 v{ver.latest}</div>
-            : <>
-                <div className="hp-behind-list">
-                  {(showAllBehind ? ver.behindList : ver.behindList.slice(0, 3)).map((b, i) => (
-                    <div key={i} className="hp-behind-row">
-                      <span className="hp-behind-ip">{b.ip}</span>
-                      <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : b.ver === "unknown" ? "?" : "—"}</span>
-                      <span className="hp-behind-ver">{b.ver === "unknown" ? "未知版本" : "v" + b.ver}</span>
-                    </div>
-                  ))}
-                </div>
-                {ver.behind > 3 && (
-                  <button className="hp-behind-more" onClick={() => setShowAllBehind((x) => !x)}>
-                    {showAllBehind ? "收起 ▴" : `展开全部 ${ver.behind} ▾`}
-                  </button>
-                )}
-              </>}
-        </div>
+        )}
       </div>
     </div>
   );

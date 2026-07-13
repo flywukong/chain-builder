@@ -418,15 +418,12 @@ body::before {
 .hpd-btn { padding: 5px 11px; font-size: 10px; }
 .hpd-ai { font-size: 10.5px; line-height: 1.7; color: var(--text); white-space: pre-wrap; border-top: 1px solid #211e13; padding-top: 6px; }
 
-.hp-behind { display: flex; flex-direction: column; gap: 5px; min-height: 0; }
-.hp-behind-head { display: flex; justify-content: space-between; align-items: center; }
-.hp-behind-title { font-size: 10px; color: var(--text); }
-.hp-behind-hint { font-family: var(--mono); font-size: 8px; color: var(--dim); }
-.hp-behind-more { align-self: center; font-family: var(--mono); font-size: 9px; color: var(--muted); background: #14120c;
-  border: 1px solid #26231a; border-radius: 6px; padding: 3px 12px; cursor: pointer; transition: all .15s; }
-.hp-behind-more:hover { color: var(--gold); border-color: rgba(240,185,11,.4); }
-.hp-behind-ok { font-size: 10px; color: var(--green); }
-.hp-behind-list { display: flex; flex-direction: column; gap: 3px; max-height: 236px; overflow: auto; }
+/* 版本卡:落后按钮(点开弹窗)+ Gas 利用率行 */
+.hp-behind-btn { margin-left: 10px; flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--orange);
+  background: rgba(249,115,22,.1); border: 1px solid rgba(249,115,22,.45); border-radius: 6px; padding: 3px 10px; cursor: pointer; transition: all .15s; }
+.hp-behind-btn:hover { background: rgba(249,115,22,.22); }
+.hp-behind-none { margin-left: 10px; flex-shrink: 0; font-size: 9.5px; color: var(--green); }
+.hp-gas-spark { width: 100%; height: 46px; display: block; }
 /* 固定三列:IP 左 / tier 徽标居中列 / 版本右 —— 徽标不随 IP 长度漂移 */
 .hp-behind-row { display: grid; grid-template-columns: 1fr 64px 62px; align-items: center; font-family: var(--mono); font-size: 9.5px; background: #141414; border: 1px solid #222; border-radius: 4px; padding: 2px 7px; }
 .hp-behind-ip { color: var(--muted); }
@@ -712,9 +709,9 @@ body::before {
 .reorg-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 .reorg-canvas { flex: 1; min-height: 0; width: 100%; display: block; }
 .reorg-events { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: auto; border-left: 1px solid #1d1b15; padding-left: 10px; }
-.re-title { font-size: 8.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; flex-shrink: 0; }
+.re-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; flex-shrink: 0; }
 .re-empty { font-size: 10px; color: var(--green); padding: 6px 0; }
-.re-row { display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); font-size: 9.5px; background: #141310; border: 1px solid #201d15; border-radius: 4px; padding: 3px 8px; flex-shrink: 0; }
+.re-row { display: flex; align-items: baseline; gap: 9px; font-family: var(--mono); font-size: 11px; background: #141310; border: 1px solid #201d15; border-radius: 4px; padding: 3px 8px; flex-shrink: 0; }
 .re-time { color: var(--text); }
 .re-cnt { color: var(--gold); font-weight: 700; }
 .re-orph { color: #3FB8A0; }
@@ -780,7 +777,7 @@ body::before {
 .tcr-n { position: relative; text-align: right; }
 .tcr-n b { position: relative; color: var(--text); font-weight: 600; }
 .tcr-nbar { position: absolute; right: 0; top: 50%; transform: translateY(-50%); height: 12px; border-radius: 3px; }
-.tf-ep-btn { font-family: var(--mono); font-size: 8.5px; color: var(--gold); background: rgba(240,185,11,.08); border: 1px solid rgba(240,185,11,.3); border-radius: 5px; padding: 2px 8px; cursor: pointer; flex-shrink: 0; margin-left: auto; }
+.tf-ep-btn { font-family: var(--mono); font-size: 10.5px; color: var(--gold); background: rgba(240,185,11,.08); border: 1px solid rgba(240,185,11,.3); border-radius: 6px; padding: 4px 12px; cursor: pointer; flex-shrink: 0; margin-left: auto; }
 .tf-ep-btn:hover:not(:disabled) { background: rgba(240,185,11,.18); }
 .tf-ep-btn:disabled { opacity: .4; cursor: default; }
 .tf-ep-btn.busy { opacity: 1; background: rgba(240,185,11,.22); border-color: var(--gold); color: var(--gold); animation: tf-pulse 1.1s ease-in-out infinite; }
@@ -1106,6 +1103,29 @@ body::before {
 
 .tf-evgroup { display: flex; flex-direction: column; gap: 4px; }
 .tf-evgroup + .tf-evgroup { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1d1b15; }
+/* 24 小时流量:渐变描边醒目卡 */
+.tf24-panel { border: 1px solid transparent;
+  background: linear-gradient(180deg, rgba(30,25,10,.92), rgba(16,14,8,.96)) padding-box,
+              linear-gradient(135deg, rgba(240,185,11,.8), rgba(240,185,11,.18) 55%, rgba(63,184,160,.5)) border-box;
+  box-shadow: 0 0 18px rgba(240,185,11,.1); }
+.tf24-body { display: grid; grid-template-columns: 400px 1fr; gap: 20px; padding: 14px 16px; align-items: stretch; }
+@media (max-width: 1000px) { .tf24-body { grid-template-columns: 1fr; } }
+.tf24-left { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+.tf24-bigs { display: flex; gap: 26px; }
+.tf24-big { display: flex; flex-direction: column; gap: 4px; }
+.tf24-big b { font-family: var(--mono); font-size: 30px; font-weight: 800; line-height: 1; text-shadow: 0 0 14px rgba(240,185,11,.25); }
+.tf24-big em { font-style: normal; font-size: 10.5px; color: var(--muted); }
+.tf24-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.tf24-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; color: var(--muted);
+  background: rgba(255,255,255,.03); border: 1px solid #26231a; border-radius: 7px; padding: 5px 10px; }
+.tf24-chip b { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text); }
+.tf24-chip.hot { border-color: rgba(249,115,22,.45); }
+.tf24-chip.hot b { color: var(--orange); }
+.tf24-chart { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tf24-legend { display: flex; gap: 14px; font-size: 9.5px; color: var(--muted); }
+.tf24-legend i { display: inline-block; width: 9px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: 2px; }
+.tf24-canvas { width: 100%; flex: 1; min-height: 120px; display: block; }
+
 /* 事件行「⚡分析」的内联结果区 */
 .tf-ep-result { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: rgba(240,185,11,.03); border: 1px solid #2a2415; border-radius: 8px; }
 .tf-ep-head { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 700; color: var(--gold); }
@@ -1116,14 +1136,14 @@ body::before {
 .tf-panel { }
 .tf-body { display: flex; flex-direction: column; gap: 9px; padding: 10px 12px; }
 .tf-chips { grid-template-columns: repeat(5, 1fr); }
-.tf-main { display: grid; grid-template-columns: 1fr 265px; gap: 12px; min-height: 0; }
+.tf-main { display: grid; grid-template-columns: 1fr 360px; gap: 12px; min-height: 0; }
 .tf-charts { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .hc-wrap { display: flex; flex-direction: column; gap: 3px; }
-.hc-label { font-size: 9px; color: var(--muted); letter-spacing: .4px; padding-left: 2px; }
-.hc-canvas { width: 100%; height: 150px; display: block; cursor: crosshair; }
+.hc-label { font-size: 10.5px; color: var(--muted); letter-spacing: .4px; padding-left: 2px; }
+.hc-canvas { width: 100%; height: 215px; display: block; cursor: crosshair; }
 .tf-events { max-height: 336px; }
 .tf-ranges { display: inline-flex; gap: 4px; }
-.tf-range { font-family: var(--mono); font-size: 9.5px; padding: 3px 9px; border-radius: 6px; cursor: pointer;
+.tf-range { font-family: var(--mono); font-size: 11px; padding: 5px 13px; border-radius: 6px; cursor: pointer;
   background: #14120c; border: 1px solid #26231a; color: var(--muted); transition: all .15s; }
 .tf-range:hover { color: var(--text); border-color: #3a3527; }
 .tf-range.on { color: var(--gold); border-color: rgba(240,185,11,.55); background: linear-gradient(180deg, rgba(240,185,11,.14), rgba(240,185,11,.04)); font-weight: 700; }

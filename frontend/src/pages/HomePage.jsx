@@ -96,6 +96,7 @@ export default function HomePage({ state, onNav }) {
             txpool={tx}
             reorgStats={state.reorgStats}
             syncErrors={state.syncErrors}
+            gasUsed={state.gasUsed}
           />
 
           <AiAnalysisPanel />

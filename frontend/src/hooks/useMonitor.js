@@ -33,6 +33,7 @@ const init = {
   slashEvents:   null, // { count, recent:[{t,block,validator,tx}] } — validatorSlashed 24h
   blockGas:      null, // { mgasps:{times,values}, gasused:{...}, txsize:{...} } — execution view
   trafficTimeline: null, // { threshold, days, episodes, lastEpisode, summary } — 30d hourly
+  keterHealth:   null, // { okAt, timelineOkAt, error } — keter 快照新鲜度
 
   connected: false,
 };
@@ -91,6 +92,7 @@ function reducer(state, action) {
     case "syncErrors":   return { ...state, syncErrors:   action.data };
     case "slashEvents":  return { ...state, slashEvents:  action.data };
     case "slashStatus":  return { ...state, slashStatus:  action.data };
+    case "keterHealth":  return { ...state, keterHealth:  action.data };
 
     default: return state;
   }
@@ -237,6 +239,7 @@ export function useMonitor() {
       put("/api/traffic-timeline", "trafficTimeline");
       put("/api/sync-errors", "syncErrors");
       put("/api/slash-events", "slashEvents");
+      put("/api/keter-health", "keterHealth");
     };
     fast(); slow();
     const fastTimer = setInterval(fast, 2500);
@@ -266,6 +269,7 @@ export function useMonitor() {
       syncErrors:  (d) => dispatch({ type: "syncErrors",  data: d }),
       slashEvents: (d) => dispatch({ type: "slashEvents", data: d }),
       slashStatus: (d) => dispatch({ type: "slashStatus", data: d }),
+      keterHealth: (d) => dispatch({ type: "keterHealth", data: d }),
     });
 
     return () => { clearInterval(fastTimer); clearInterval(slowTimer); document.removeEventListener("visibilitychange", onVisible); client.close(); };

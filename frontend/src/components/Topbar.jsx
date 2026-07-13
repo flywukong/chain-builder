@@ -1,9 +1,14 @@
-export default function Topbar({ latestBlock, windowStats, mevStats, connected, page, zoomPref = 1, onZoomPref }) {
+export default function Topbar({ latestBlock, windowStats, mevStats, connected, keterHealth, page, zoomPref = 1, onZoomPref }) {
   // MEV% from the 2000-block aggregator — same source as the MEV page, so the
   // headline never contradicts the local-block count shown there.
   const mevPct   = (mevStats?.mevPct ?? windowStats?.mevPct)?.toFixed(1) ?? "--";
   const gasUtil  = windowStats?.avgGasUtilPct?.toFixed(1) ?? "--";
   const anomaly  = windowStats?.empty24h ?? windowStats?.anomalyCount ?? 0;   // 空块 24h
+
+  // keter 快照新鲜度:正常时不占位,数据超 25min 或一直拉不到才亮警示
+  const staleMin = keterHealth?.okAt ? Math.round((Date.now() - keterHealth.okAt) / 60000) : null;
+  const keterStale = staleMin != null && staleMin > 25;
+  const keterDown = !keterHealth?.okAt && !!keterHealth?.error;
 
   const PAGE_TITLE = {
     home: "Home", monitor: "Monitor 大盘", mev: "MEV 分析", traffic: "流量分析",
@@ -36,6 +41,14 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
         {anomaly > 0 && (
           <>
             <Stat label="空块" value={anomaly} warn />
+            <Divider />
+          </>
+        )}
+        {(keterStale || keterDown) && (
+          <>
+            <div title={keterHealth?.error ?? ""}>
+              <Stat label="KETER" value={keterDown ? "不可用" : `数据 ${staleMin}m 前`} warn />
+            </div>
             <Divider />
           </>
         )}

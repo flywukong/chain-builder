@@ -51,6 +51,7 @@ export default function App() {
           windowStats={state.windowStats}
           mevStats={state.mevStats}
           connected={state.connected}
+          keterHealth={state.keterHealth}
           page={page}
           zoomPref={zoomPref}
           onZoomPref={setZoomPref}

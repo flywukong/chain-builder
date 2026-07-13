@@ -118,6 +118,7 @@ const latest = {
   trafficTimeline: null,
   syncErrors:    null,
   slashEvents:   null,
+  keterHealth:   null,
 };
 
 function broadcast(type, data) {
@@ -160,6 +161,14 @@ setInterval(() => {
 }, 5000);
 
 // ── Periodic keter polling (every 30s) ─────────────────────────────────────
+// 新鲜度追踪:轮询静默失败时快照会变旧,前端据此提示「数据 N 分钟前」
+const keterHealth = { okAt: null, timelineOkAt: null, error: null };
+function keterMark(field, err) {
+  if (err) keterHealth.error = err.message;
+  else { keterHealth[field] = Date.now(); keterHealth.error = null; }
+  broadcast("keterHealth", { ...keterHealth });
+}
+
 async function pollKeter() {
   try {
     const [nodeStats, gasUsed, latVals, diskAlerts, txVals, reorgStats, blockGas, syncErrors, tiers] = await Promise.all([
@@ -192,8 +201,10 @@ async function pollKeter() {
     broadcast("reorgStats", reorgStats);
     broadcast("blockGas",   blockGas);
     broadcast("syncErrors", syncErrors);
+    keterMark("okAt");
   } catch (err) {
     console.error("[keter poll]", err.message);
+    keterMark("okAt", err);
   }
 }
 pollKeter();
@@ -247,10 +258,12 @@ async function enrichEpisodes(tl) {
 }
 
 async function pollTimelines() {
+  let ok = true;
   try { broadcast("reorgTimeline", await fetchReorgTimeline(cfg.keterConfigPath)); }
-  catch (err) { console.error("[reorg timeline poll]", err.message); }
+  catch (err) { ok = false; console.error("[reorg timeline poll]", err.message); keterMark("timelineOkAt", err); }
   try { broadcast("trafficTimeline", await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath))); }
-  catch (err) { console.error("[traffic timeline poll]", err.message); }
+  catch (err) { ok = false; console.error("[traffic timeline poll]", err.message); keterMark("timelineOkAt", err); }
+  if (ok) keterMark("timelineOkAt");
 }
 pollTimelines();
 setInterval(pollTimelines, 600_000);
@@ -349,6 +362,7 @@ app.get("/api/txpool",    async () => txpoolStore.getView());
 app.get("/api/empty-blocks", async () => emptyStore.view());
 app.get("/api/sync-errors", async () => latest.syncErrors ?? safe(fetchSyncErrors(cfg.keterConfigPath)));
 app.get("/api/slash-events", async () => slashEvents.view());
+app.get("/api/keter-health", async () => ({ ...keterHealth }));
 app.get("/api/db-stats", async (req) => {
   const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 24, 1), 168);
   return safe(fetchDbStats(cfg.keterConfigPath, hours));
@@ -394,15 +408,22 @@ app.get("/api/mev",       async () => mevAgg.getStats());
 
 // ── AI analyses (on-demand claude -p calls) ─────────────────────────────────
 const aiJobs = {};   // key → { text, at, running, error }
+// 同参数 5min 内重复请求直接吃上次结果:claude 调用要 30-40s,而数据源刷新周期 ≤10min
+const AI_TTL_MS = 300_000;
+
 function aiRoutes(key, path, buildAndRun) {
   aiJobs[key] = { text: null, at: null, running: false, error: null };
   app.post(path, async (req, reply) => {
     const job = aiJobs[key];
     if (job.running) return { running: true, text: job.text, at: job.at };
+    const bodyKey = JSON.stringify(req.body ?? {});
+    if (job.text && job.at && job.bodyKey === bodyKey && Date.now() - job.at < AI_TTL_MS) {
+      return { text: job.text, at: job.at, running: false, cached: true };
+    }
     job.running = true; job.error = null;
     try {
       const text = await buildAndRun(req.body ?? {});
-      aiJobs[key] = { text, at: Date.now(), running: false, error: null };
+      aiJobs[key] = { text, at: Date.now(), running: false, error: null, bodyKey };
       return { text, at: aiJobs[key].at, running: false };
     } catch (err) {
       job.running = false; job.error = err.message;
@@ -489,6 +510,10 @@ async function runNetworkAnalysis(days = 7, auto = true) {
 app.post("/api/ai/analyze", async (req, reply) => {
   if (aiJobs.network.running) return { running: true, text: aiJobs.network.text, at: aiJobs.network.at };
   const days = Math.min(Math.max(parseInt(req.body?.days, 10) || 7, 1), 30);
+  const n = aiJobs.network;
+  if (n.text && n.at && n.windowDays === days && Date.now() - n.at < AI_TTL_MS) {
+    return { text: n.text, brief: n.brief, verdict: n.verdict, windowDays: days, at: n.at, running: false, cached: true };
+  }
   const r = await runNetworkAnalysis(days, false);
   if (r.error) { reply.code(500); return { error: r.error }; }
   return { text: r.text, brief: r.brief, verdict: r.verdict, windowDays: r.windowDays, at: r.at, running: false };

@@ -1118,29 +1118,6 @@ body::before {
 
 .tf-evgroup { display: flex; flex-direction: column; gap: 4px; }
 .tf-evgroup + .tf-evgroup { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1d1b15; }
-/* 24 小时流量:渐变描边醒目卡 */
-.tf24-panel { border: 1px solid transparent;
-  background: linear-gradient(180deg, rgba(30,25,10,.92), rgba(16,14,8,.96)) padding-box,
-              linear-gradient(135deg, rgba(240,185,11,.8), rgba(240,185,11,.18) 55%, rgba(63,184,160,.5)) border-box;
-  box-shadow: 0 0 18px rgba(240,185,11,.1); }
-.tf24-body { display: grid; grid-template-columns: 400px 1fr; gap: 20px; padding: 14px 16px; align-items: stretch; }
-@media (max-width: 1000px) { .tf24-body { grid-template-columns: 1fr; } }
-.tf24-left { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
-.tf24-bigs { display: flex; gap: 26px; }
-.tf24-big { display: flex; flex-direction: column; gap: 4px; }
-.tf24-big b { font-family: var(--mono); font-size: 30px; font-weight: 800; line-height: 1; text-shadow: 0 0 14px rgba(240,185,11,.25); }
-.tf24-big em { font-style: normal; font-size: 10.5px; color: var(--muted); }
-.tf24-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.tf24-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; color: var(--muted);
-  background: rgba(255,255,255,.03); border: 1px solid #26231a; border-radius: 7px; padding: 5px 10px; }
-.tf24-chip b { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text); }
-.tf24-chip.hot { border-color: rgba(249,115,22,.45); }
-.tf24-chip.hot b { color: var(--orange); }
-.tf24-chart { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.tf24-legend { display: flex; gap: 14px; font-size: 9.5px; color: var(--muted); }
-.tf24-legend i { display: inline-block; width: 9px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: 2px; }
-.tf24-canvas { width: 100%; flex: 1; min-height: 120px; display: block; }
-
 /* 事件行「⚡分析」的内联结果区 */
 .tf-ep-result { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: rgba(240,185,11,.03); border: 1px solid #2a2415; border-radius: 8px; }
 .tf-ep-head { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 700; color: var(--gold); }

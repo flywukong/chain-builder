@@ -134,98 +134,6 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
   );
 }
 
-// ── 24 小时流量:醒目摘要卡(当前值大字 + 24h 峰值/拥堵 + 双迷你走势)──
-function Spark24({ times, pending, gasPct, thr }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    function draw() {
-      const dpr = window.devicePixelRatio || 1;
-      const W = canvas.offsetWidth, H = canvas.offsetHeight;
-      if (!W || !H) return;
-      canvas.width = W * dpr; canvas.height = H * dpr;
-      const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      if (!times?.length) { ctx.fillStyle = "#4a463c"; ctx.font = "10px monospace"; ctx.textAlign = "center"; ctx.fillText("加载中…", W / 2, H / 2); return; }
-      const n = times.length;
-      const X = (i) => (i / Math.max(n - 1, 1)) * W;
-      const line = (vals, max, color, fill) => {
-        ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.lineJoin = "round";
-        ctx.beginPath();
-        vals.forEach((v, i) => {
-          const y = H - ((typeof v === "number" ? v : 0) / max) * (H - 8) - 3;
-          i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y);
-        });
-        ctx.stroke();
-        if (fill) {
-          ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
-          const g = ctx.createLinearGradient(0, 0, 0, H);
-          g.addColorStop(0, fill); g.addColorStop(1, "rgba(0,0,0,0)");
-          ctx.fillStyle = g; ctx.fill();
-        }
-      };
-      const pMax = Math.max(...pending.filter(Number.isFinite), thr) * 1.12;
-      const gMax = Math.max(...gasPct.filter(Number.isFinite), 40) * 1.12;
-      line(pending, pMax, "#F0B90B", "rgba(240,185,11,.2)");
-      line(gasPct, gMax, "rgba(63,184,160,.9)");
-      // 首尾时间
-      ctx.font = "8.5px monospace"; ctx.fillStyle = "#5d594e"; ctx.textBaseline = "bottom";
-      ctx.textAlign = "left"; ctx.fillText(fmtT(times[0]), 2, H - 1);
-      ctx.textAlign = "right"; ctx.fillText(fmtT(times[n - 1]), W - 2, H - 1);
-    }
-    draw();
-    const ro = new ResizeObserver(draw); ro.observe(canvas);
-    return () => ro.disconnect();
-  }, [times, pending, gasPct, thr]);
-  return <canvas ref={ref} className="tf24-canvas" />;
-}
-
-function Traffic24hPanel({ tl, txpool, gasUtil }) {
-  const thr = tl?.threshold ?? 4000;
-  const h = tl?.hourly ?? { times: [], pending: [], gasPct: [] };
-  const cut = Math.max(h.times.length - 24, 0);
-  const times = h.times.slice(cut), pending = h.pending.slice(cut), gasPct = h.gasPct.slice(cut);
-  const peakP = Math.max(...pending.filter(Number.isFinite), 0);
-  const peakG = Math.max(...gasPct.filter(Number.isFinite), 0);
-  const hotHours = pending.filter((v) => v > thr).length;
-  const gasTone = gasUtil >= 90 ? "var(--red)" : gasUtil >= 60 ? "var(--orange)" : gasUtil >= 30 ? "var(--gold)" : "var(--green)";
-  return (
-    <div className="panel tf24-panel">
-      <div className="panel-header">
-        <span>24 小时流量</span>
-        <span className="sub">小时均值 · pending 阈值 {thr.toLocaleString()} · gas 上限 140M</span>
-      </div>
-      <div className="panel-body tf24-body">
-        <div className="tf24-left">
-          <div className="tf24-bigs">
-            <div className="tf24-big">
-              <b style={{ color: txpool?.anomalyNow ? "var(--orange)" : "var(--gold)" }}>{txpool?.current?.toLocaleString() ?? "--"}</b>
-              <em>当前 pending</em>
-            </div>
-            <div className="tf24-big">
-              <b style={{ color: gasTone }}>{gasUtil}%</b>
-              <em>当前 Gas 利用率</em>
-            </div>
-          </div>
-          <div className="tf24-chips">
-            <span className="tf24-chip"><b>{peakP.toLocaleString()}</b>24h 峰值 pending</span>
-            <span className="tf24-chip"><b>{Math.round(peakG)}%</b>24h 峰值 gas</span>
-            <span className={`tf24-chip ${hotHours > 0 ? "hot" : ""}`}><b>{hotHours}</b>拥堵小时(&gt;{thr / 1000}k)</span>
-          </div>
-        </div>
-        <div className="tf24-chart">
-          <div className="tf24-legend">
-            <span><i style={{ background: "#F0B90B" }} />pending</span>
-            <span><i style={{ background: "#3FB8A0" }} />gas 利用率</span>
-          </div>
-          <Spark24 times={times} pending={pending} gasPct={gasPct} thr={thr} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── 流量历史面板:范围切换 + pending/gas 双图 + 事件列表 ──
 const RANGES = [5, 7, 10, 30];
 
@@ -380,8 +288,6 @@ export default function TrafficPage({ state }) {
             <em>Gas 利用率 {util}%{gasHot ? ` ≥ ${hotPct}%` : ""}</em>
           </div>
         </div>
-
-        <Traffic24hPanel tl={state.trafficTimeline} txpool={tx} gasUtil={util} />
 
         <TrafficHistoryPanel tl={state.trafficTimeline} />
 

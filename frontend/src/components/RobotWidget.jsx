@@ -149,8 +149,7 @@ export default function RobotWidget() {
           {pa.text ? (
             <>
               <span className="rb-head">
-                {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · {dayLabel(pa.windowDays === 1 || pa.windowDays == null ? 1 : pa.windowDays)}巡检
-                {pa.at ? ` · ${new Date(pa.at).getHours()}:${String(new Date(pa.at).getMinutes()).padStart(2, "0")}` : ""}{pa.loading ? " · 分析中…" : ""}
+                {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 24小时巡检{pa.loading ? " · 分析中…" : ""}
                 <em className="rb-more">详情 ▸</em>
               </span>
               <span className="rb-text rb-oneline">{ok ? (pa.brief ?? "各项指标均在正常范围内") : `检测到${verdict === "alert" ? "告警" : "需关注"}项`}</span>

@@ -174,7 +174,8 @@ function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, bus
 }
 
 function TrafficHistoryPanel({ tl, blockGas }) {
-  const [rangeDays, setRangeDays] = useState(7);
+  const [rangeDays, setRangeDays] = useState(7);   // Pending 面板窗口
+  const [gasDays, setGasDays] = useState(7);       // Gas 面板窗口(独立,不与上方联动)
   // 事件行「分析」的独立结果区(不依赖已移除的 AI 面板)
   const [ep, setEp] = useState({ loading: false, label: null, text: null, at: null, err: null });
 
@@ -200,15 +201,19 @@ function TrafficHistoryPanel({ tl, blockGas }) {
   const thr = tl?.threshold ?? 4000;
   const hotPct = tl?.hotPct ?? 90;
 
-  // 从 30d hourly 序列切出所选范围
+  // 从 30d hourly 序列切出各自面板所选范围
   const h = tl?.hourly ?? { times: [], pending: [], gasPct: [] };
   const cut = Math.max(h.times.length - rangeDays * 24, 0);
-  const times = h.times.slice(cut), pending = h.pending.slice(cut), gasPct = h.gasPct.slice(cut);
+  const times = h.times.slice(cut), pending = h.pending.slice(cut);
+  const gasCut = Math.max(h.times.length - gasDays * 24, 0);
+  const gasTimes = h.times.slice(gasCut), gasPct = h.gasPct.slice(gasCut);
   const now = Date.now();
   const inWindow = (e) => now - e.start <= rangeDays * 86400000;
+  const inGasWindow = (e) => now - e.start <= gasDays * 86400000;
   const epsInRange = (tl?.episodes ?? []).filter(inWindow);
   const last = tl?.lastEpisode;
   const rangeLabel = rangeDays === 1 ? "24h" : `${rangeDays} 天`;
+  const gasLabel = gasDays === 1 ? "24h" : `${gasDays} 天`;
 
   // 速率:打包 = 近 30m 平均每块 txs ÷ 0.45s;pending 净变化 = 最近两个小时均值差;流入由二者推导
   const lastTxs = (blockGas?.txsize?.values ?? []).filter((v) => typeof v === "number").at(-1);
@@ -273,11 +278,11 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             <span className="sub">上限 {tl?.gasLimitM ?? 55}M</span>
             <span className="tf-ranges">
               {RANGES.map(([d, l]) => (
-                <button key={d} className={`tf-range ${rangeDays === d ? "on" : ""}`} onClick={() => setRangeDays(d)}>{l}</button>
+                <button key={d} className={`tf-range ${gasDays === d ? "on" : ""}`} onClick={() => setGasDays(d)}>{l}</button>
               ))}
             </span>
             <button className="st-auto-btn ai-cta panel-ai-btn" disabled={ep.loading}
-                    onClick={() => runAi({ days: rangeDays, focus: "gas" }, `Gas 形态 · 近 ${rangeLabel}`)}>
+                    onClick={() => runAi({ days: gasDays, focus: "gas" }, `Gas 形态 · 近 ${gasLabel}`)}>
               {ep.loading && ep.label?.startsWith("Gas") ? "解读中… ~20s" : "⚡ AI 解读"}
             </button>
           </span>
@@ -288,14 +293,14 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             <div className="reorg-chip tone-ok"><span className="rc-v">{hotPct}%</span><span className="rc-l">高占用阈值</span></div>
           </div>
           <div className="tf-main">
-            <HourlyChart times={times} values={gasPct} threshold={hotPct} color="#3FB8A0" unit="%"
+            <HourlyChart times={gasTimes} values={gasPct} threshold={hotPct} color="#3FB8A0" unit="%"
               label={`小时均值 · 阈值 ${hotPct}%`} fmtV={(v) => `${v}`} />
             <div className="reorg-events tf-events">
               <EventList
-                title={`Gas 高占用事件(≥${hotPct}%)· 近 ${rangeLabel}`}
-                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas")).filter(inWindow)}
+                title={`Gas 高占用事件(≥${hotPct}%)· 近 ${gasLabel}`}
+                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas")).filter(inGasWindow)}
                 metric={(e) => `${e.peakGasPct}%`}
-                emptyText={`近 ${rangeLabel} 无 gas≥${hotPct}%`}
+                emptyText={`近 ${gasLabel} 无 gas≥${hotPct}%`}
                 onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
             </div>
           </div>

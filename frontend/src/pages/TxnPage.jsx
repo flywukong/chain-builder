@@ -5,19 +5,20 @@ import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
+// 分类色只用于图表识别:柔和低饱和色板,不与状态红绿/品牌黄冲突(Bot 不用红)
 const CAT_META = {
-  meme:   { label: "Meme",     color: "#FF6BD5" },
-  defi:   { label: "DeFi",     color: "#45B8FF" },
-  predict:{ label: "预测市场", color: "#A3E635" },
-  bot:    { label: "Bot",      color: "#EF4444" },
-  stable: { label: "稳定币合约", color: "#22c55e" },
-  bnb:    { label: "BNB 转账", color: "#F0B90B" },
-  token:  { label: "代币转账", color: "#9A86F0" },
-  cex:    { label: "CEX 充提", color: "#22d3ee" },
-  bridge: { label: "Bridge",   color: "#f97316" },
-  infra:  { label: "Infra/Builder", color: "#7C93B0" },
-  system: { label: "系统交易", color: "#7a6a35" },
-  other:  { label: "其他",     color: "#8A8F99" },
+  meme:   { label: "Meme",     color: "#C875B2" },
+  defi:   { label: "DeFi",     color: "#4CA4D9" },
+  predict:{ label: "预测市场", color: "#8FAE5D" },
+  bot:    { label: "Bot",      color: "#E58A55" },
+  stable: { label: "稳定币合约", color: "#37A89A" },
+  bnb:    { label: "BNB 转账", color: "#D6A82F" },
+  token:  { label: "代币转账", color: "#8B7CF6" },
+  cex:    { label: "CEX 充提", color: "#5FA8C7" },
+  bridge: { label: "Bridge",   color: "#B08968" },
+  infra:  { label: "Infra/Builder", color: "#7890A8" },
+  system: { label: "系统交易", color: "#8A8471" },
+  other:  { label: "其他",     color: "#747D88" },
 };
 const CAT_KEYS = Object.keys(CAT_META);
 const TAIL_COLOR = "#5a5648";   // top5 之外的长尾统一灰
@@ -241,11 +242,12 @@ export default function TxnPage() {
           </div>
         )}
 
+        {/* KPI 数字统一白色;黄只给总量,分类靠标签前小色点识别 */}
         <div className="stat-cards">
           <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{(d?.total24 ?? 0).toLocaleString()}</div><div className="sc-l">{distMode === "all" ? "24H" : distLabel} 交易(全量)</div></div>
-          <div className="stat-card"><div className="sc-v" style={{ color: CAT_META.meme.color }}>{pct("meme")}%</div><div className="sc-l">Meme</div></div>
-          <div className="stat-card"><div className="sc-v" style={{ color: CAT_META.defi.color }}>{pct("defi")}%</div><div className="sc-l">DeFi</div></div>
-          <div className="stat-card"><div className="sc-v" style={{ color: CAT_META.bot.color }}>{pct("bot")}%</div><div className="sc-l">Bot(高频/夹子)</div></div>
+          <div className="stat-card"><div className="sc-v">{pct("meme")}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.meme.color }} />Meme</div></div>
+          <div className="stat-card"><div className="sc-v">{pct("defi")}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.defi.color }} />DeFi</div></div>
+          <div className="stat-card"><div className="sc-v">{pct("bot")}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.bot.color }} />Bot(高频/夹子)</div></div>
         </div>
 
         <div className="panel" style={{ maxWidth: 900 }}>

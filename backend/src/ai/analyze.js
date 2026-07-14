@@ -272,13 +272,15 @@ export async function runContractLabeling(candidates) {
     "判断依据优先级:1) 你认识的知名 BSC 合约地址直接定名;2) topSelectors 里的方法签名语义(updatePrices/fulfill/perform → bot(keeper/oracle);matchOrders/swap/trade/execute → defi;checkIn/claim/airdrop/mint → token(活动分发);deposit/withdraw/stake → defi);3) swapLogs 高 → defi 或 bot(调用方集中/selector 非标准偏 bot,分散偏 defi 聚合器);4) 无事件且单一 selector 极高频 → bot;5) transferLogs 高而无 swap → token;6) vanity 地址(0x0000…/连续重复)偏 bot。",
     "不认识且特征不明的填 other,禁止编造名字;认识的给出名字。",
     "",
+    "链上核实(重要):你可以调用只读工具现场查身份 —— read_contract(name()/symbol(),network 一律 \"bsc\")、get_erc20_token_info、is_contract。对 verifiedName 为空且特征不明的候选,按 n 从大到小优先核实(每个地址最多 1 次,总工具调用 ≤15 次):查到 name/symbol 就填进 name 字段(可信度高于推测),并按名字语义修正分类(xxxRouter/Swap → defi,xxxToken/明显 meme 名 → meme/token);查不到或工具失败就按特征判断,不要编。",
+    "",
     "只输出 JSON 数组,不要任何其他文字:",
     '[{"addr":"0x…","cat":"defi","name":"PancakeSwap xxx 或 null"}]',
     "",
     "候选合约(JSON):",
     "```json", JSON.stringify(candidates, null, 1), "```",
   ].join("\n");
-  const text = await spawnClaude(prompt, { timeoutMs: 300_000 });   // 批量归类偶尔慢,放宽超时
+  const text = await spawnClaude(prompt, { mcp: true, timeoutMs: 420_000 });   // 批量归类 + 链上核实,放宽超时
   const m = text.match(/\[[\s\S]*\]/);
   if (!m) throw new Error("labeling: no JSON array in response");
   return JSON.parse(m[0]);

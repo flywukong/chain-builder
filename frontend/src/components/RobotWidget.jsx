@@ -28,6 +28,13 @@ const QA_PRESET = {
     bubbleHead: "LEO · 监控问答",
     bubbleLine: "reorg / 空块 / 出块人 / 时延…监控相关都可以问",
   },
+  txn: {
+    title: "🤖 LEO · 交易问答",
+    greet: "链上交易相关的都可以问:各类交易占比与趋势、meme/DeFi/bot 热度、某个热门合约是什么(我可以链上查它的 name/symbol)、某地址是合约还是钱包…",
+    placeholder: "例:今天 meme 占比多少?0x278d85… 是什么合约?",
+    bubbleHead: "LEO · 交易问答",
+    bubbleLine: "交易结构 / 热门合约身份 / 分类趋势…都可以问",
+  },
 };
 
 export default function RobotWidget({ variant = "home" }) {

@@ -774,6 +774,13 @@ app.post("/api/ai/ask", async (req, reply) => {
           // instance 明细(24h):回答「某家族旗下有几个 builder/各占多少」
           builderInstances24h: (m.instances ?? []).slice(0, 20).map((i) => ({ name: i.name, family: i.family, blocks: i.n, pctOfMev: i.pct })),
         } : null,
+        // 交易分类摘要(24h):回答「今天 meme 占比/某热门合约是什么」
+        txn: (() => {
+          try {
+            const v = txnStore.view(labelBook);
+            return { total24: v.total24, catPct24: v.catPct24, topContracts24: (v.topContracts ?? []).slice(0, 10).map((c) => ({ addr: c.addr, name: c.name, cat: c.cat, txs: c.n })) };
+          } catch { return null; }
+        })(),
         keterNodes: (latest.nodeStats ?? []).length,
       };
       const text = await runAsk(question, context);
@@ -828,8 +835,9 @@ aiRoutes("txpool", "/api/ai/txpool", async () => {
   });
 });
 // 交易分析:7 天分类趋势 + 24h 分布 + top 合约(附地址情报,已缓存直挂、未缓存后台预热)
-app.get("/api/txn", async () => {
-  const v = txnStore.view(labelBook);
+app.get("/api/txn", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
+  const v = txnStore.view(labelBook, days);
   for (const c of v.topContracts ?? []) {
     const it = getCachedIntel(c.addr);
     if (it) c.intel = { type: it.type, codeSize: it.codeSize, nonce: it.nonce, verifiedName: it.verifiedName };

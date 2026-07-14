@@ -122,8 +122,10 @@ export class TxnStore {
       }));
   }
 
-  view(labelBook) {
+  // windowDays:分类分布统计窗口(1/3/7 天);趋势图与热门合约固定 24h
+  view(labelBook, windowDays = 1) {
     const now = Date.now();
+    const winMs = Math.min(Math.max(Number(windowDays) || 1, 1), 7) * 24 * HOUR;
     // 7d daily rollup
     const days = {};
     for (const b of this.buckets) {
@@ -155,14 +157,17 @@ export class TxnStore {
         const topSel = Object.entries(c.sels).sort((x, y) => y[1] - x[1])[0]?.[0] ?? null;
         return { addr: c.addr, n: c.n, gas: c.gas, swap: c.swap, xfer: c.xfer, topSel, name: l?.name ?? null, cat: l?.cat ?? c.cat, ai: l?.ai ?? false };
       });
-    const total24 = h24.reduce((s, b) => s + b.txs, 0);
+    // 分布统计按所选窗口聚合(字段名沿用 *24,窗口见 windowDays)
+    const bWin = this.buckets.filter((b) => b.t >= now - winMs);
+    const total24 = bWin.reduce((s, b) => s + b.txs, 0);
     const catTotals = {};
-    for (const b of h24) for (const [c, n] of Object.entries(b.cats)) catTotals[c] = (catTotals[c] ?? 0) + n;
-
-    // gas share:各类 24h 累计 gasUsed 占比(执行资源视角,与笔数占比互补)
-    const b24 = this.buckets.filter((b) => b.t >= now - 24 * HOUR);
     const catGas = {}; let gasTotal = 0;
-    for (const b of b24) for (const [c, v] of Object.entries(b.cats)) { catGas[c] = (catGas[c] ?? 0) + (v.gas || 0); gasTotal += (v.gas || 0); }
+    for (const b of bWin) {
+      for (const [c, v] of Object.entries(b.cats)) {
+        catTotals[c] = (catTotals[c] ?? 0) + (v.n || 0);
+        catGas[c] = (catGas[c] ?? 0) + (v.gas || 0); gasTotal += (v.gas || 0);
+      }
+    }
 
     // 环比:各类 tx 占比 today vs 昨日 vs 7d 日均(排除今日 partial 日)
     const dsort = Object.values(days).sort((a, b) => a.t - b.t);
@@ -191,6 +196,7 @@ export class TxnStore {
     };
     return {
       sampledSince: this.buckets[0]?.t ?? null,
+      windowDays: winMs / (24 * HOUR),
       allTime,
       daily: Object.values(days),
       hourly24: h24,

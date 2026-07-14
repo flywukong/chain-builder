@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
 import { AiText } from "../components/PanelAi.jsx";
+import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
@@ -130,7 +131,7 @@ const reasonOf = (c) => {
 };
 
 // 规则化生成的一句运维结论(即时,不依赖 AI):排名 + 显著变化/gas 负载 + 集中合约
-function Conclusion({ d }) {
+function Conclusion({ d, label = "24h" }) {
   if (!d?.total24) return null;
   const cats = CAT_KEYS.filter((c) => (d.catCount24?.[c] ?? 0) > 0).sort((a, b) => (d.catPct24[b] ?? 0) - (d.catPct24[a] ?? 0));
   if (!cats.length) return null;
@@ -142,7 +143,7 @@ function Conclusion({ d }) {
   const seg = [];
 
   const [c1, c2] = cats;
-  seg.push(<>过去 24h {cat(c1)} 笔数占比最高(<b>{p(c1)}%</b>){c2 && <>,{cat(c2)} 次之(<b>{p(c2)}%</b>)</>}。</>);
+  seg.push(<>过去 {label} {cat(c1)} 笔数占比最高(<b>{p(c1)}%</b>){c2 && <>,{cat(c2)} 次之(<b>{p(c2)}%</b>)</>}。</>);
 
   // 显著变化(需多日数据):较 7d 日均 |Δ|≥2pp 的最大波动项
   const movers = cats.filter((c) => d.catTrend?.[c]?.dAvg7 != null && Math.abs(d.catTrend[c].dAvg7) >= 2)
@@ -169,8 +170,10 @@ function Conclusion({ d }) {
 export default function TxnPage() {
   const [d, setD] = useState(null);
   const [openAddr, setOpenAddr] = useState(null);   // 展开完整地址 + 复制
-  const [distMode, setDistMode] = useState("24h");  // 分类分布口径:24h / all(历史累计)
+  const [distMode, setDistMode] = useState("1");    // 分类分布口径:1/3/7 天 / all(历史累计)
   const { s: ai, run: runAi } = TxnAiBox();
+  const distDays = distMode === "all" ? 1 : Number(distMode);
+  const distLabel = distMode === "all" ? "历史累计" : distMode === "1" ? "24H" : `${distMode}天`;
 
   const clickAddr = (addr) => {
     navigator.clipboard?.writeText(addr).catch(() => {});
@@ -179,12 +182,12 @@ export default function TxnPage() {
 
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + "/api/txn").then((r) => r.json())
+    const pull = () => fetch(API + `/api/txn?days=${distDays}`).then((r) => r.json())
       .then((j) => { if (alive) setD(j); }).catch(() => {});
     pull();
     const t = setInterval(pull, 60_000);
     return () => { alive = false; clearInterval(t); };
-  }, []);
+  }, [distDays]);
 
   const pct = (c) => d?.catPct24?.[c] ?? 0;
   const cnt = (c) => d?.catCount24?.[c] ?? 0;
@@ -229,7 +232,7 @@ export default function TxnPage() {
       </div>
 
       <div className="subpage-body">
-        <Conclusion d={d} />
+        <Conclusion d={d} label={distMode === "all" ? "24H" : distLabel} />
         {ai.err && <div className="ai-err" style={{ maxWidth: 900 }}>⚠ {ai.err}</div>}
         {ai.text && (
           <div className="panel" style={{ maxWidth: 900 }}>
@@ -239,7 +242,7 @@ export default function TxnPage() {
         )}
 
         <div className="stat-cards">
-          <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{(d?.total24 ?? 0).toLocaleString()}</div><div className="sc-l">24h 交易(全量)</div></div>
+          <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{(d?.total24 ?? 0).toLocaleString()}</div><div className="sc-l">{distMode === "all" ? "24H" : distLabel} 交易(全量)</div></div>
           <div className="stat-card"><div className="sc-v" style={{ color: CAT_META.meme.color }}>{pct("meme")}%</div><div className="sc-l">Meme</div></div>
           <div className="stat-card"><div className="sc-v" style={{ color: CAT_META.defi.color }}>{pct("defi")}%</div><div className="sc-l">DeFi</div></div>
           <div className="stat-card"><div className="sc-v" style={{ color: CAT_META.bot.color }}>{pct("bot")}%</div><div className="sc-l">Bot(高频/夹子)</div></div>
@@ -273,14 +276,15 @@ export default function TxnPage() {
           return (
             <div className="panel" style={{ maxWidth: 820 }}>
               <div className="panel-header">
-                <span>{at ? "历史累计交易类型分布" : "24H 交易类型分布"}</span>
+                <span>{at ? "历史累计交易类型分布" : `${distLabel} 交易类型分布`}</span>
                 <span className="txn-dist-ctl">
                   <span className="sub">
                     {at ? `自 ${sinceStr} · ${at.total.toLocaleString()} 笔累计` : `${d?.total24?.toLocaleString() ?? "…"} 笔 · 全量`}
                   </span>
                   <span className="tf-ranges">
-                    <button className={`tf-range ${distMode === "24h" ? "on" : ""}`} onClick={() => setDistMode("24h")}>24H</button>
-                    <button className={`tf-range ${distMode === "all" ? "on" : ""}`} onClick={() => setDistMode("all")}>历史累计</button>
+                    {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["all", "历史累计"]].map(([m, l]) => (
+                      <button key={m} className={`tf-range ${distMode === m ? "on" : ""}`} onClick={() => setDistMode(m)}>{l}</button>
+                    ))}
                   </span>
                 </span>
               </div>
@@ -290,7 +294,7 @@ export default function TxnPage() {
                   <span className="tdr-r">笔数</span>
                   <span>笔数占比</span>
                   <span>Gas 占比<InfoTip text="按各类交易消耗的 gasUsed 总量占比,反映对区块执行资源的占用(而非笔数)。DeFi swap / 复杂合约调用 gas 重,BNB 转账 / 稳定币转账 gas 轻。gasPrice 相近时≈手续费占比。" /></span>
-                  <span className="tdr-r">{at ? "环比" : "环比 vs 7d"}</span>
+                  <span className="tdr-r">{at ? "环比" : distMode === "1" ? "环比 vs 7d" : "今日环比 vs 7d"}</span>
                 </div>
                 {rows.map((c) => {
                   const t = trend(c);
@@ -359,6 +363,7 @@ export default function TxnPage() {
           未识别热门合约每 2h 交给 AI 归类,结果写入标签库持续积累。全量覆盖,数字为真实笔数。
         </div>
       </div>
+      <div className="mev-robot-anchor"><RobotWidget variant="txn" /></div>
     </div>
   );
 }

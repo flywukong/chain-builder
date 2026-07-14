@@ -1,9 +1,7 @@
+import { useState } from "react";
+
 export default function Topbar({ latestBlock, windowStats, mevStats, connected, keterHealth, page, zoomPref = 1, onZoomPref }) {
-  // MEV% from the 2000-block aggregator — same source as the MEV page, so the
-  // headline never contradicts the local-block count shown there.
-  const mevPct   = (mevStats?.mevPct ?? windowStats?.mevPct)?.toFixed(1) ?? "--";
-  const gasUtil  = windowStats?.avgGasUtilPct?.toFixed(1) ?? "--";
-  const anomaly  = windowStats?.empty24h ?? windowStats?.anomalyCount ?? 0;   // 空块 24h
+  const [netOpen, setNetOpen] = useState(false);
 
   // keter 快照新鲜度:正常时不占位,数据超 25min 或一直拉不到才亮警示
   const staleMin = keterHealth?.okAt ? Math.round((Date.now() - keterHealth.okAt) / 60000) : null;
@@ -28,22 +26,25 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
         <span className="topbar-title tt-binance">BNB CHAIN AI ANALYTICS</span>
         <span className="topbar-slash">/</span>
         <span className="topbar-page">{PAGE_TITLE[page] ?? page}</span>
-        <span className="topbar-net"><span className="net-dot" />MAINNET</span>
+        {/* 网络切换器:目前仅 BSC Mainnet,其余占位提示 */}
+        <span className="topbar-net-wrap">
+          <button className="topbar-net" onClick={() => setNetOpen((x) => !x)}>
+            <span className="net-dot" />BSC MAINNET<i className="net-caret">▾</i>
+          </button>
+          {netOpen && (
+            <div className="net-menu" onMouseLeave={() => setNetOpen(false)}>
+              <div className="net-item on"><span className="net-dot" />BSC Mainnet<em>当前</em></div>
+              <div className="net-item off"><span className="net-dot dot-dim" />opBNB Mainnet<em>即将支持</em></div>
+              <div className="net-item off"><span className="net-dot dot-dim" />BSC Testnet<em>即将支持</em></div>
+              <div className="net-tip">目前仅支持 BSC Mainnet</div>
+            </div>
+          )}
+        </span>
       </div>
 
       <div className="topbar-stats">
         <Stat label="当前区块" value={latestBlock ? `#${latestBlock.number.toLocaleString()}` : "--"} />
         <Divider />
-        <Stat label="MEV%" value={`${mevPct}%`} accent={parseFloat(mevPct) > 60} />
-        <Divider />
-        <Stat label="GAS 利用率" value={`${gasUtil}%`} warn={parseFloat(gasUtil) >= 90} />
-        <Divider />
-        {anomaly > 0 && (
-          <>
-            <Stat label="空块" value={anomaly} warn />
-            <Divider />
-          </>
-        )}
         {(keterStale || keterDown) && (
           <>
             <div title={keterHealth?.error ?? ""}>

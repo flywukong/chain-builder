@@ -464,7 +464,8 @@ async function buildAiData(days = 7) {
     block: streamer.lastNumber,
     avgBlockTimeMs: win.avgBlockTimeMs,
     gasUtilPct: win.avgGasUtilPct,
-    mevPct: win.mevPct,
+    // MEV 口径与 MEV 页 24h 卡对齐(持久化大样本,一位小数);2000 块窗口刚重启时样本小易凑成 100%
+    ...(() => { const m = mevAgg.getStats(); return { mevPct: m?.day24?.mevPct ?? m?.mevPct ?? win.mevPct, mev24h: m?.day24 ?? null }; })(),
     emptyBlocks24h: emptyStore.view().count,
     emptyRecent: emptyStore.view().recent.slice(0, 10),
     missedCount: win.missedCount,

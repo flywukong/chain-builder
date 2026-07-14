@@ -93,28 +93,8 @@ export default function RobotWidget({ variant = "home" }) {
   const ok = verdict === "ok";
   // 巡检新鲜度:后端每小时自动跑;超 75 分钟未更新 = 自动巡检可能中断
   const ageMin = pa.at ? Math.round((Date.now() - pa.at) / 60000) : null;
+  const agoStr = ageMin == null ? "" : ageMin < 1 ? "刚刚" : ageMin < 60 ? `${ageMin} 分钟前` : `${Math.floor(ageMin / 60)} 小时前`;
   const staleAuto = ageMin != null && ageMin > 75;
-  const hm = (t) => new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
-  const md = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}`; };
-
-  // 结构化指标快照(安全性/出块/负载/事件由前端直渲染,AI 只负责结论与评述)
-  const [snap, setSnap] = useState(null);
-  useEffect(() => {
-    if (isMev || !open) return;
-    fetch(API + `/api/ai/data?days=${pa.windowDays ?? days}`)
-      .then((r) => r.json()).then(setSnap).catch(() => {});
-  }, [open, pa.at, pa.windowDays]);   // eslint-disable-line react-hooks/exhaustive-deps
-
-  const KV = ({ k, v, tone }) => (
-    <div className="rp-kv"><span>{k}</span><b className={tone ?? ""}>{v}</b></div>
-  );
-  // 时延基线对比:附具体比较值,而非空泛的「优于基线」
-  const latCmp = (() => {
-    const l = snap?.latency24h;
-    if (!l?.p50 || !l?.baseline24h?.p50) return "";
-    const d = ((l.p50 - l.baseline24h.p50) / l.baseline24h.p50) * 100;
-    return Math.abs(d) < 1 ? " · 与基线持平" : ` · 较基线${d > 0 ? "慢" : "快"} ${Math.abs(d).toFixed(0)}%`;
-  })();
   // 正文首行的「正常/需关注/告警」与徽条重复,展示时剥掉
   const displayText = (t) => {
     if (!t) return t;
@@ -133,79 +113,24 @@ export default function RobotWidget({ variant = "home" }) {
             <button className="robot-close" onClick={() => setOpen(false)}>×</button>
           </div>
 
-          {/* 巡检摘要体:结论 → 指标分区(快照直渲染)→ 近期事件 → AI 评述;输入固定底部 */}
+          {/* 巡检详情(与气泡同源,完整正文);问答形态只做问答 */}
           {isMev ? (
             <div className="robot-greet">{preset.greet}</div>
           ) : pa.text ? (
-            <div className="robot-pop-body">
-              <div className={`rp-status ${verdict === "alert" ? "bad" : verdict === "warn" ? "warn" : "ok"}`}>
-                <i className="rp-dot" />{ok ? "运行正常" : verdict === "alert" ? "告警" : "需关注"}
-                <span className="rp-win">· 最近 {pa.windowDays ?? days} 天{pa.loading ? " · 分析中…" : ""}</span>
-              </div>
-              <div className="rp-when">
-                最近巡检 {pa.at ? hm(pa.at) : "--"} · 每小时更新{pa.at ? ` · 下次约 ${hm(pa.at + 3600e3)}` : ""}
-                {staleAuto && <em className="rp-stale"> · ⚠ 超 1 小时未更新,自动巡检可能中断</em>}
-              </div>
-              {pa.brief && <div className="rp-brief"><AiText text={pa.brief} /></div>}
-
-              {snap && (
-                <>
-                  <div className="rp-sec">
-                    <div className="rp-sec-t">安全性</div>
-                    <KV k="Slash" v={snap.slashEvents24h?.count ?? "--"} tone={(snap.slashEvents24h?.count ?? 0) > 0 ? "warn" : ""} />
-                    <KV k="Reorg" v={snap.reorgWindow?.count ?? "--"} tone={(snap.reorgWindow?.count ?? 0) > 3 ? "warn" : ""} />
-                    <KV k="空块" v={`${snap.emptyBlocks24h ?? "--"} 个块 · 24h`} />
-                  </div>
-                  <div className="rp-sec">
-                    <div className="rp-sec-t">出块结构 · 24h</div>
-                    <KV k="MEV 占比" v={`${snap.mev24h?.mevPct ?? snap.mevPct ?? "--"}%`} />
-                    <KV k="v1 / v2 Builder" v={`${(100 - (snap.mev24h?.v2Pct ?? 0)).toFixed(0)}% / ${snap.mev24h?.v2Pct ?? 0}%`} />
-                    <KV k="本地出块" v={`${snap.mev24h?.localCount?.toLocaleString() ?? "--"} 个块`} />
-                  </div>
-                  <div className="rp-sec">
-                    <div className="rp-sec-t">当前负载</div>
-                    <KV k="Gas 利用率" v={`${snap.gasUtilPct ?? "--"}%`} tone={(snap.gasUtilPct ?? 0) >= 90 ? "warn" : ""} />
-                    <KV k="Pending" v={`${snap.txpool24h?.current?.toLocaleString() ?? "--"} · 24h 峰值 ${snap.txpool24h?.max24h?.toLocaleString() ?? "--"}`} />
-                    <KV k="导入时延" v={`p50 ${Math.round(snap.latency24h?.p50 ?? 0)}ms · p95 ${Math.round(snap.latency24h?.p95 ?? 0)}ms${latCmp}`} />
-                  </div>
-                  <div className="rp-sec">
-                    <div className="rp-sec-t">近期事件</div>
-                    {(snap.trafficEpisodesWindow ?? []).length === 0 && (snap.reorgWindow?.events ?? []).length === 0
-                      ? <div className="rp-none">✓ 窗口内无异常事件</div>
-                      : <>
-                          {(snap.trafficEpisodesWindow ?? []).map((e) => (
-                            <div key={e.start} className="rp-event">
-                              <span>{md(e.start)} 流量峰值 · {e.trigger?.includes("gas") ? `Gas ${e.peakGasPct}%` : `Pending ${e.peakPending?.toLocaleString()}`}</span>
-                              <em className="ok">已恢复</em>
-                            </div>
-                          ))}
-                          {(snap.reorgWindow?.events ?? []).slice(0, 4).map((e) => (
-                            <div key={e.t} className="rp-event">
-                              <span>{md(e.t)} Reorg · {e.orphans ?? "?"} 孤块</span>
-                              <em>{(e.orphans ?? 0) >= 8 ? "需关注" : "常规"}</em>
-                            </div>
-                          ))}
-                        </>}
-                  </div>
-                </>
-              )}
-
-              {displayText(pa.text) && (
-                <div className="rp-ai"><AiText text={displayText(pa.text)} /></div>
-              )}
-              {busy && <div className="robot-busy">正在汇总监控快照并分析（约 20–40s）…</div>}
-              {err && <div className="ai-err">⚠ {err}</div>}
-              {ans && <div className="robot-ans"><AiText text={ans} /></div>}
+            <div className={`robot-brief ${verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : ""}`}>
+              <span className="rb-head">
+                {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 最近 {pa.windowDays ?? days} 天
+                {pa.at ? ` · ${agoStr}更新` : ""}{pa.loading ? " · 分析中…" : ""}
+              </span>
+              <span className="rb-text rb-auto-line">
+                每小时自动巡检{pa.at ? ` · 上次 ${new Date(pa.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}` : ""}
+                {staleAuto && " · ⚠ 超 1 小时未更新,自动巡检可能中断"}
+              </span>
+              {pa.brief && <span className="rb-text rb-brief-line"><AiText text={pa.brief} /></span>}
+              <span className="rb-text rb-scroll"><AiText text={displayText(pa.text)} /></span>
             </div>
           ) : (
             <div className="robot-greet">{pa.loading ? "分析中… 约 20–40s" : "巡检生成中(每小时自动)…也可直接提问。"}</div>
-          )}
-          {(isMev || !pa.text) && (
-            <>
-              {busy && <div className="robot-busy">正在汇总监控快照并分析（约 20–40s）…</div>}
-              {err && <div className="ai-err">⚠ {err}</div>}
-              {ans && <div className="robot-ans"><AiText text={ans} /></div>}
-            </>
           )}
 
           <div className="robot-input-row">
@@ -221,6 +146,9 @@ export default function RobotWidget({ variant = "home" }) {
               {busy ? "…" : "问"}
             </button>
           </div>
+          {busy && <div className="robot-busy">正在汇总监控快照并分析（约 20–40s）…</div>}
+          {err && <div className="ai-err">⚠ {err}</div>}
+          {ans && <div className="robot-ans"><AiText text={ans} /></div>}
         </div>
       )}
 

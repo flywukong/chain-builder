@@ -11,7 +11,7 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
   const keterDown = !keterHealth?.okAt && !!keterHealth?.error;
 
   const PAGE_TITLE = {
-    home: "BNB Chain AI 数据分析平台", monitor: "Monitor 大盘", mev: "MEV 分析", traffic: "流量分析",
+    home: "Home", monitor: "Monitor 大盘", mev: "MEV 分析", traffic: "流量分析",
     anomaly: "异常分析", storage: "存储", txn: "Txn 分析", alerts: "告警",
   };
 
@@ -25,7 +25,7 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
           <path d="M21.48 16l2.26-2.26L26 16l-2.26 2.26L21.48 16z" />
           <path d="M12.116 17.596L16 21.48l3.886-3.886 2.26 2.26L16 26l-6.144-6.144 2.26-2.26z" />
         </svg>
-        <span className="topbar-title tt-binance">BNB CHAIN BUILDER</span>
+        <span className="topbar-title tt-binance">BNB CHAIN AI ANALYTICS</span>
         <span className="topbar-slash">/</span>
         <span className="topbar-page">{PAGE_TITLE[page] ?? page}</span>
         <span className="topbar-net"><span className="net-dot" />MAINNET</span>

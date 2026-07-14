@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import RobotWidget from "./RobotWidget.jsx";
+import { AiText } from "./PanelAi.jsx";
 import { aiRequest } from "../lib/ai.js";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
@@ -154,7 +155,7 @@ export default function ReorgPanel({ data }) {
               {ai.at && <em className="ai-at">{new Date(ai.at).toLocaleTimeString()}</em>}
               <button className="tf-ep-close" onClick={() => setAi({ loading: false, label: null, text: null, at: null, err: null })}>×</button>
             </div>
-            <div className="ai-result" style={{ maxHeight: 200 }}>{ai.text}</div>
+            <div className="ai-result" style={{ maxHeight: 200 }}><AiText text={ai.text} /></div>
           </div>
         )}
         <div className="reorg-chips">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { aiRequest } from "../lib/ai.js";
+import { AiText } from "../components/PanelAi.jsx";
 import { lookupValidator } from "../data/validators.js";
 import BidMetricsPanel from "../components/BidMetricsPanel.jsx";
 import RobotWidget from "../components/RobotWidget.jsx";
@@ -96,7 +97,7 @@ export default function MevPage({ state }) {
         {ai.text && (
           <div className="panel" style={{ maxWidth: 1240 }}>
             <div className="panel-header"><span>🤖 AI 格局分析</span><span className="sub">claude code{ai.at ? ` · ${new Date(ai.at).toLocaleTimeString()}` : ""}</span></div>
-            <div className="panel-body"><div className="ai-result" style={{ padding: "10px 14px" }}>{ai.text}</div></div>
+            <div className="panel-body"><div className="ai-result" style={{ padding: "10px 14px" }}><AiText text={ai.text} /></div></div>
           </div>
         )}
         <div className="stat-cards mev-cards">

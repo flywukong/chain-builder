@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
+import { AiText } from "../components/PanelAi.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
@@ -316,7 +317,7 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             </div>
           )}
           {ep.err && <div className="ai-err">⚠ {ep.err}</div>}
-          {ep.text && <div className="ai-result">{ep.text}</div>}
+          {ep.text && <div className="ai-result"><AiText text={ep.text} /></div>}
         </div>
       )}
     </>

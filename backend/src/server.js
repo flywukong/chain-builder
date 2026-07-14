@@ -768,7 +768,12 @@ app.post("/api/ai/ask", async (req, reply) => {
         historyWindowDays: wantDays && wantDays > 14 ? wantDays : { reorg: 14, traffic: 30 },
         traffic: trafficTl ? { summary: trafficTl.summary, episodes: trafficTl.episodes.slice(-6) } : null,
         reorg: reorgTl ? { summary: reorgTl.summary, daily: reorgTl.days.filter((d) => d.count > 0), recentEvents: reorgTl.events?.slice(0, 5) ?? [] } : null,
-        mev: m ? { windowBlocks: m.total, mevPct: m.mevPct, v2Pct: m.v2Pct, topFamilies: m.builderFamilies.slice(0, 5) } : null,
+        mev: m ? {
+          windowBlocks: m.total, mevPct: m.mevPct, v2Pct: m.v2Pct,
+          topFamilies: m.builderFamilies.slice(0, 5),
+          // instance 明细(24h):回答「某家族旗下有几个 builder/各占多少」
+          builderInstances24h: (m.instances ?? []).slice(0, 20).map((i) => ({ name: i.name, family: i.family, blocks: i.n, pctOfMev: i.pct })),
+        } : null,
         keterNodes: (latest.nodeStats ?? []).length,
       };
       const text = await runAsk(question, context);

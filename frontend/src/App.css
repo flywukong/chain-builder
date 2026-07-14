@@ -459,6 +459,8 @@ body::before {
 .ai-panel { min-height: 0; }
 .ai-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; min-height: 0; height: 100%; }
 .ai-result { flex: 1; min-height: 0; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 11px; line-height: 1.65; color: var(--text); }
+/* AI 文本里的加粗(AiText 渲染的 **):提亮为米金色 */
+.ai-result b, .rb-scroll b, .rb-brief-line b, .robot-ans b, .hpd-ai b { color: #f5e9c8; font-weight: 700; }
 .ai-empty { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 10.5px; color: var(--muted); padding: 8px; line-height: 1.7; }
 .ai-err { font-size: 10px; color: #ef6464; background: #1a0808; border: 1px solid #3a1414; border-radius: 6px; padding: 6px 9px; flex-shrink: 0; }
 /* 常态折叠:一行正常 + 可展开 */

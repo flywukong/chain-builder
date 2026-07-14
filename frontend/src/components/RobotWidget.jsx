@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
+import { AiText } from "./PanelAi.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 // drop a mascot image at frontend/public/robot.png (透明背景 PNG 最佳) → auto-used;
@@ -118,8 +119,8 @@ export default function RobotWidget({ variant = "home" }) {
                 每小时自动巡检{pa.at ? ` · 上次 ${new Date(pa.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}` : ""}
                 {staleAuto && " · ⚠ 超 1 小时未更新,自动巡检可能中断"}
               </span>
-              {pa.brief && <span className="rb-text rb-brief-line">{pa.brief}</span>}
-              <span className="rb-text rb-scroll">{displayText(pa.text)}</span>
+              {pa.brief && <span className="rb-text rb-brief-line"><AiText text={pa.brief} /></span>}
+              <span className="rb-text rb-scroll"><AiText text={displayText(pa.text)} /></span>
             </div>
           ) : (
             <div className="robot-greet">{pa.loading ? "分析中… 约 20–40s" : "巡检生成中(每小时自动)…也可直接提问。"}</div>
@@ -140,7 +141,7 @@ export default function RobotWidget({ variant = "home" }) {
           </div>
           {busy && <div className="robot-busy">正在汇总监控快照并分析（约 20–40s）…</div>}
           {err && <div className="ai-err">⚠ {err}</div>}
-          {ans && <div className="robot-ans">{ans}</div>}
+          {ans && <div className="robot-ans"><AiText text={ans} /></div>}
         </div>
       )}
 

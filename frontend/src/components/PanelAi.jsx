@@ -28,6 +28,18 @@ export function AiButton({ ai, label = "AI 解读" }) {
   );
 }
 
+// AI 输出的轻量 markdown 渲染:**加粗** → <b>,其余原样(容器 pre-wrap 保留换行),
+// 避免星号原样露出;不引入完整 md 渲染器
+export function AiText({ text }) {
+  if (!text) return null;
+  return text.split("\n").map((line, i) => (
+    <span key={i}>
+      {line.split(/\*\*(.+?)\*\*/g).map((p, j) => (j % 2 ? <b key={j}>{p}</b> : p))}
+      {"\n"}
+    </span>
+  ));
+}
+
 export function AiResult({ ai, title }) {
   const { s } = ai;
   if (!s.text && !s.err) return null;
@@ -39,7 +51,7 @@ export function AiResult({ ai, title }) {
         <button className="tf-ep-close" onClick={ai.close}>×</button>
       </div>
       {s.err && <div className="ai-err">⚠ {s.err}</div>}
-      {s.text && <div className="ai-result" style={{ maxHeight: 200 }}>{s.text}</div>}
+      {s.text && <div className="ai-result" style={{ maxHeight: 200 }}><AiText text={s.text} /></div>}
     </div>
   );
 }

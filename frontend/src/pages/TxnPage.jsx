@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
+import { AiText } from "../components/PanelAi.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 
@@ -233,7 +234,7 @@ export default function TxnPage() {
         {ai.text && (
           <div className="panel" style={{ maxWidth: 900 }}>
             <div className="panel-header"><span>🤖 AI 流量特征</span><span className="sub">claude code{ai.at ? ` · ${new Date(ai.at).toLocaleTimeString()}` : ""}</span></div>
-            <div className="panel-body"><div className="ai-result" style={{ padding: "10px 14px" }}>{ai.text}</div></div>
+            <div className="panel-body"><div className="ai-result" style={{ padding: "10px 14px" }}><AiText text={ai.text} /></div></div>
           </div>
         )}
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
+import { AiText } from "./PanelAi.jsx";
 import { lookupValidator } from "../data/validators.js";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
@@ -57,7 +58,7 @@ export default function EmptyBlocksPanel() {
       </div>
       <div className="panel-body eb-body">
         {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
-        {ai.text && <div className="hpd-ai">{ai.text}</div>}
+        {ai.text && <div className="hpd-ai"><AiText text={ai.text} /></div>}
         {/* 三栏:计数 | Top validator | 最近列表;≥3 次的高频 validator 橙标 */}
         <div className="eb-cols">
           <div className={`eb-count ${(d?.count ?? 0) > 0 ? "warn" : "ok"}`}>

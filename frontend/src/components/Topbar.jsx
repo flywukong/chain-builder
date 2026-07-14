@@ -11,7 +11,7 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
   const keterDown = !keterHealth?.okAt && !!keterHealth?.error;
 
   const PAGE_TITLE = {
-    home: "Home", monitor: "Monitor 大盘", mev: "MEV 分析", traffic: "流量分析",
+    home: "BNB Chain AI 数据分析平台", monitor: "Monitor 大盘", mev: "MEV 分析", traffic: "流量分析",
     anomaly: "异常分析", storage: "存储", txn: "Txn 分析", alerts: "告警",
   };
 

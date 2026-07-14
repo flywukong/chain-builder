@@ -266,7 +266,7 @@ body::before {
 .reorg-chart { position: relative; }
 .reorg-robot-anchor { position: absolute; right: 14px; bottom: 4px; z-index: 5; }
 .reorg-robot-anchor .robot-widget { position: relative; right: auto; bottom: auto; }
-.reorg-robot-anchor .robot-brief-float { right: 84px; top: 40px; }
+.reorg-robot-anchor .robot-brief-float { right: 118px; top: 40px; }
 .rv-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
 .rv-item i { width: 8px; height: 8px; border-radius: 2px; }
 .rv-item i.latest { background: var(--green); }

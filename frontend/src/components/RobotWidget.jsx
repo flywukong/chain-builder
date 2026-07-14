@@ -20,12 +20,12 @@ const QA_PRESET = {
     bubbleHead: "LEO · MEV 问答",
     bubbleLine: "任何 MEV 相关问题都可以问:格局 / 份额突变 / v2 进展…",
   },
-  reorg: {
-    title: "🤖 LEO · Reorg / 共识问答",
-    greet: "Reorg 与共识相关的都可以问:近几天的 reorg 形态、某次事件的影响面、某个块是谁出的、某段区块的出块间隔有没有异常——我可以现场查链上出块序列取证。",
-    placeholder: "例:块 109,000,000 是谁出的?7/7 那次 reorg 严重吗?",
-    bubbleHead: "LEO · Reorg 问答",
-    bubbleLine: "reorg 事件 / 出块人 / 出块间隔…都可以问,我能查链取证",
+  monitor: {
+    title: "🤖 LEO · 监控问答",
+    greet: "监控页相关的都可以问:reorg 事件与影响面、空块与出块质量、导入时延、节点同步、某个块是谁出的、某段区块的出块间隔有没有异常…",
+    placeholder: "例:块 109,000,000 是谁出的?今天空块多吗?",
+    bubbleHead: "LEO · 监控问答",
+    bubbleLine: "reorg / 空块 / 出块人 / 时延…监控相关都可以问",
   },
 };
 

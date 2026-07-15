@@ -63,6 +63,12 @@ export default function MevPage({ state }) {
   const maxInst = Math.max(1, ...insts.map((i) => i.n));
   const vbRows = mev.validatorBuilders ?? [];
   const hhiInfo = (h) => (h < 1500 ? ["分散", "var(--green)"] : h <= 2500 ? ["中等集中", "var(--gold)"] : ["高度集中", "var(--orange)"]);
+  // 占比格式化:非零但舍入到 0 的显示「<1%」,避免 1,872 块被写成 0% 的误解
+  const fmtPct = (n, total) => {
+    if (!total || n <= 0) return "0%";
+    const p = (n / total) * 100;
+    return p < 1 ? "<1%" : `${Math.round(p)}%`;
+  };
   const fmtDelta = (pct, prevPct) => {
     if (prevPct == null) return <span style={{ color: "var(--dim)" }}>—</span>;
     const d = pct - prevPct;
@@ -150,7 +156,7 @@ export default function MevPage({ state }) {
                 <div key={f} className="ver-row">
                   <span className="ver-tag" style={{ width: 92, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
                   <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
-                  <span className="ver-count">{c.toLocaleString()}<em>· {famTotal ? Math.round((c / famTotal) * 100) : 0}%</em></span>
+                  <span className="ver-count">{c.toLocaleString()}<em>· {fmtPct(c, famTotal)}</em></span>
                   <span className="fam-24h">{d24 ? <>24h {d24.pct}% {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
                 </div>
               );
@@ -167,7 +173,7 @@ export default function MevPage({ state }) {
                 <div key={it.name} className="ver-row">
                   <span className="ver-tag" style={{ width: 150, color: FAMILY_COLORS[it.family] || "#aaa" }}>{it.name}</span>
                   <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(it.n / maxInst) * 100}%`, background: FAMILY_COLORS[it.family] || "#888" }} /></div>
-                  <span className="ver-count">{it.n.toLocaleString()}<em>· {it.pct}%</em></span>
+                  <span className="ver-count">{it.n.toLocaleString()}<em>· {it.n > 0 && it.pct === 0 ? "<0.1%" : `${it.pct}%`}</em></span>
                   <span className="mi-delta">{fmtDelta(it.pct, it.prevPct)}</span>
                 </div>
               ))}

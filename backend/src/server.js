@@ -419,18 +419,38 @@ const aiJobs = {};   // key → { text, at, running, error }
 // 同参数 5min 内重复请求直接吃上次结果:claude 调用要 30-40s,而数据源刷新周期 ≤10min
 const AI_TTL_MS = 300_000;
 
+// ── 每 IP 发起频率限制(缓存命中不计):防手快连点/滥用烧额度 ─────────────────
+const AI_IP_MAX = Math.max(2, parseInt(process.env.AI_IP_MAX_PER_10MIN, 10) || 8);
+const ipHits = new Map();   // ip -> [ts...]
+function ipAllowed(ip) {
+  const now = Date.now();
+  const arr = (ipHits.get(ip) ?? []).filter((t) => now - t < 600_000);
+  if (arr.length >= AI_IP_MAX) { ipHits.set(ip, arr); return false; }
+  arr.push(now); ipHits.set(ip, arr);
+  if (ipHits.size > 2000) ipHits.clear();   // 内存兜底
+  return true;
+}
+const RATE_MSG = `请求过于频繁(每 IP 10 分钟最多 ${AI_IP_MAX} 次分析),请稍后再试`;
+
 // 异步任务模式:POST 立即返回(queued),后台执行,前端轮询 GET 取结果。
 // MCP 取证分析可达 1-2 分钟,同步等待会撞反向代理的 60s 超时(网关吐 HTML 504)。
+// 并发语义:同参数请求共享同一次运行(第二人轮询同一结果);不同参数在运行期到来
+// 时返回明确的 busy 提示,而不是让对方吃到错味结果。
 function aiRoutes(key, path, buildAndRun) {
   aiJobs[key] = { text: null, at: null, running: false, error: null };
-  app.post(path, async (req) => {
+  app.post(path, async (req, reply) => {
     const job = aiJobs[key];
-    if (job.running) return { running: true, text: job.text, at: job.at };
     const bodyKey = JSON.stringify(req.body ?? {});
+    if (job.running) {
+      if (job.runningBodyKey === bodyKey) return { running: true, text: job.text, at: job.at };   // 同参共享
+      reply.code(409);
+      return { error: "该面板正在分析其他目标(约 1-2 分钟),请稍候再试", running: true };
+    }
     if (job.text && job.at && job.bodyKey === bodyKey && Date.now() - job.at < AI_TTL_MS) {
       return { text: job.text, at: job.at, running: false, cached: true };
     }
-    job.running = true; job.error = null;
+    if (!ipAllowed(req.ip)) { reply.code(429); return { error: RATE_MSG }; }
+    job.running = true; job.error = null; job.runningBodyKey = bodyKey;
     const body = req.body ?? {};
     (async () => {
       try {
@@ -738,13 +758,20 @@ aiRoutes("traffic", "/api/ai/traffic", async (body) => {
 });
 
 // 自由问答(主页机器人):监控快照 + 用户问题 → claude
-// 异步任务模式:POST 立即返回,后台跑(MCP 取证可达 1-2min),前端轮询 GET
-let askJob = { running: false, question: null, text: null, error: null, at: null };
+// jobId 化 + 小并发池:两个人同时提问各自拿各自的结果,互不覆盖
+const ASK_MAX_CONCURRENCY = 2;
+const askJobs = new Map();   // jobId -> { running, question, text, error, at }
+let askActive = 0;
 app.post("/api/ai/ask", async (req, reply) => {
   const question = String(req.body?.question ?? "").trim().slice(0, 500);
   if (!question) { reply.code(400); return { error: "empty question" }; }
-  if (askJob.running) { reply.code(429); return { error: "上一个问题还在回答中,请稍候", running: true }; }
-  askJob = { running: true, question, text: null, error: null, at: askJob.at ?? null };
+  if (askActive >= ASK_MAX_CONCURRENCY) { reply.code(429); return { error: "问答通道繁忙(已有多人提问中),请稍候再试", running: true }; }
+  if (!ipAllowed(req.ip)) { reply.code(429); return { error: RATE_MSG }; }
+  const jobId = Math.random().toString(36).slice(2, 10);
+  const job = { running: true, question, text: null, error: null, at: null };
+  askJobs.set(jobId, job);
+  askActive++;
+  setTimeout(() => askJobs.delete(jobId), 15 * 60_000);   // 完成后留 15min 供轮询取走
   (async () => {
     try {
       const base = await buildAiData();
@@ -784,14 +811,21 @@ app.post("/api/ai/ask", async (req, reply) => {
         keterNodes: (latest.nodeStats ?? []).length,
       };
       const text = await runAsk(question, context);
-      askJob = { running: false, question, text, error: null, at: Date.now() };
+      Object.assign(job, { running: false, text, error: null, at: Date.now() });
     } catch (err) {
-      askJob = { running: false, question, text: null, error: err.message, at: askJob.at };
+      Object.assign(job, { running: false, error: err.message });
+    } finally {
+      askActive = Math.max(0, askActive - 1);
     }
   })();
-  return { queued: true, running: true, at: askJob.at };
+  return { jobId, queued: true, running: true, at: null };
 });
-app.get("/api/ai/ask", async () => askJob);
+// 轮询取结果:?job=<jobId>;不带 job 时返回通道状态(兼容探测)
+app.get("/api/ai/ask", async (req) => {
+  const id = req.query?.job;
+  if (id) return askJobs.get(id) ?? { error: "任务不存在或已过期,请重新提问", running: false };
+  return { running: askActive > 0, active: askActive };
+});
 
 // MEV 格局分析:builder 集中度 / v1v2 / local & unknown(2000 块窗口)
 aiRoutes("mev", "/api/ai/mev", async () => {

@@ -331,18 +331,54 @@ export async function runAsk(question, context) {
   return spawnClaude(prompt, { mcp: true });
 }
 
+// ── 全局并发闸门 + 小时配额:多人同时点分析时排队而非无限 spawn ─────────────
+// 覆盖所有 AI 入口(面板/问答/巡检/标签库);排队超时给明确错误
+const AI_MAX_CONCURRENCY = Math.max(1, parseInt(process.env.AI_MAX_CONCURRENCY, 10) || 3);
+const AI_HOURLY_LIMIT = Math.max(10, parseInt(process.env.AI_HOURLY_LIMIT, 10) || 120);
+const AI_QUEUE_WAIT_MS = 90_000;
+let aiActive = 0;
+const aiWaiters = [];
+let hourWindow = 0, hourCalls = 0;
+
+function acquireAiSlot() {
+  const hw = Math.floor(Date.now() / 3600_000);
+  if (hw !== hourWindow) { hourWindow = hw; hourCalls = 0; }
+  if (hourCalls >= AI_HOURLY_LIMIT) return Promise.reject(new Error(`AI 调用达到每小时上限(${AI_HOURLY_LIMIT}),请下一小时再试`));
+  hourCalls++;
+  if (aiActive < AI_MAX_CONCURRENCY) { aiActive++; return Promise.resolve(); }
+  return new Promise((resolve, reject) => {
+    const w = { resolve, reject, timer: setTimeout(() => {
+      const i = aiWaiters.indexOf(w);
+      if (i >= 0) aiWaiters.splice(i, 1);
+      reject(new Error("AI 分析排队超时(当前请求较多),请稍后重试"));
+    }, AI_QUEUE_WAIT_MS) };
+    aiWaiters.push(w);
+  });
+}
+function releaseAiSlot() {
+  const w = aiWaiters.shift();
+  if (w) { clearTimeout(w.timer); w.resolve(); }   // 名额直接转交队首
+  else aiActive = Math.max(0, aiActive - 1);
+}
+export const aiLoad = () => ({ active: aiActive, queued: aiWaiters.length, hourCalls, hourlyLimit: AI_HOURLY_LIMIT });
+
 // 统一入口:按 AI_BACKEND 分发到 claude/codex × cli/api
 // opts.mcp = 允许 AI 调链上只读工具自主取证(仅 claude-cli 后端支持,其余后端静默降级为纯 prompt)
-function spawnClaude(prompt, opts = {}) {
+async function spawnClaude(prompt, opts = {}) {
   const mcp = !!opts.mcp;
   const timeoutMs = opts.timeoutMs ?? (mcp ? MCP_TIMEOUT_MS : TIMEOUT_MS);
-  switch (resolveBackend()) {
-    case "claude-api": return runViaApi(prompt, timeoutMs);
-    case "codex-cli":  return runViaCodexCli(prompt, timeoutMs);
-    case "codex-api":  return runViaOpenAI(prompt, timeoutMs);
-    case "codex-py":   return runViaOpenAIPy(prompt, timeoutMs);
-    case "claude-cli":
-    default:           return runViaCli(prompt, timeoutMs, mcp);
+  await acquireAiSlot();
+  try {
+    switch (resolveBackend()) {
+      case "claude-api": return await runViaApi(prompt, timeoutMs);
+      case "codex-cli":  return await runViaCodexCli(prompt, timeoutMs);
+      case "codex-api":  return await runViaOpenAI(prompt, timeoutMs);
+      case "codex-py":   return await runViaOpenAIPy(prompt, timeoutMs);
+      case "claude-cli":
+      default:           return await runViaCli(prompt, timeoutMs, mcp);
+    }
+  } finally {
+    releaseAiSlot();
   }
 }
 

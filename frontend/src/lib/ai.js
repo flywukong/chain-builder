@@ -17,16 +17,18 @@ export async function aiRequest(path, body, { pollMs = 3500, timeoutMs = 360_000
   });
   const first = await parseJson(r);
   if (!first.running && !first.queued) return first;          // 同步完成 / TTL 缓存命中 / 硬错误
-  if (first.error) return first;                              // 429 之类:已有任务在跑
+  if (first.error) return first;                              // 429/409:限流或他人任务进行中
+  // jobId 模式(问答):轮询自己的任务;面板模式:轮询共享槽
+  const pollUrl = first.jobId ? `${API + path}?job=${first.jobId}` : API + path;
   const prevAt = first.at ?? 0;
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
     await new Promise((res) => setTimeout(res, pollMs));
     let s;
-    try { s = await parseJson(await fetch(API + path)); } catch { continue; }   // 轮询期网关抖动忽略
+    try { s = await parseJson(await fetch(pollUrl)); } catch { continue; }   // 轮询期网关抖动忽略
     if (!s.running) {
       if (s.at && s.at !== prevAt) return s;                  // 新结果(成功)
-      if (s.error) return s;                                  // 任务失败
+      if (s.error) return s;                                  // 任务失败/过期
     }
   }
   return { error: "分析超时(6 分钟未完成),请稍后重试" };

@@ -119,7 +119,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
   return (
     <div className="panel health-panel">
       <div className="panel-header">
-        <span className="hp-title-badge">内部节点健康总览</span>
+        <span className="hp-title-badge">内部 Validator 健康总览</span>
         <span className="sub">{ver.total} nodes</span>
       </div>
       <div className="panel-body health-body">

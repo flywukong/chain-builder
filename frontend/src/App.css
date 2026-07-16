@@ -266,7 +266,7 @@ body::before {
 .rv-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 7px; }
 .rv-behind-btn { font-size: 10.5px; padding: 3px 10px; }
 /* 健康总览标题:金框徽标,醒目 */
-.hp-title-badge { display: inline-block; padding: 6px 26px; border: 1.5px solid rgba(240,185,11,.75); border-radius: 9px; color: var(--gold); background: linear-gradient(180deg, rgba(240,185,11,.16), rgba(240,185,11,.07)); font-weight: 800; font-size: 13px; letter-spacing: 1.5px; box-shadow: 0 0 16px rgba(240,185,11,.28), inset 0 1px 0 rgba(255,255,255,.08); }
+.hp-title-badge { display: inline-block; white-space: nowrap; padding: 6px 14px; border: 1.5px solid rgba(240,185,11,.75); border-radius: 9px; color: var(--gold); background: linear-gradient(180deg, rgba(240,185,11,.16), rgba(240,185,11,.07)); font-weight: 800; font-size: 15px; letter-spacing: 1px; box-shadow: 0 0 16px rgba(240,185,11,.28), inset 0 1px 0 rgba(255,255,255,.08); }
 
 /* Reorg 面板内嵌问答机器人(图表列右下空白) */
 .reorg-chart { position: relative; }

@@ -179,8 +179,8 @@ body::before {
 .rb-scroll { max-height: 190px; overflow: auto; white-space: pre-wrap; }
 /* 常驻悬浮位:机器人左侧偏下,精简两行,不遮挡 ring */
 .robot-brief-float { position: absolute; right: 128px; top: 62px; z-index: 6; width: 220px; padding: 8px 12px; gap: 4px; }
-/* 首页巡检气泡:两行宽长方形 —— 第一行状态色结论,第二行金色入口 */
-.robot-brief-float.rb-two { width: 305px; top: 46px; padding: 9px 16px; gap: 5px; }
+/* 首页巡检气泡:两行长方形,宽度贴合文字 —— 第一行状态色结论,第二行金色入口 */
+.robot-brief-float.rb-two { width: fit-content; max-width: 320px; top: 44px; padding: 11px 18px; gap: 6px; }
 .rb-line1 { font-size: 12px; letter-spacing: .8px; white-space: nowrap; }
 .rb-line2 { font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .6px; color: var(--gold); }
 .robot-brief-float.rb-two:hover .rb-line2 { text-shadow: 0 0 8px rgba(240,185,11,.6); }

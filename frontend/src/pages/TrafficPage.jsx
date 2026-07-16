@@ -163,7 +163,7 @@ function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, bus
                 <span className="re-cnt">{metric(e)}</span>
                 <span className="re-dur">持续{dur}</span>
                 <button className={`tf-ep-btn ${busy ? "busy" : ""}`} disabled={loading} onClick={() => onAnalyze?.(e)}>
-                  {busy ? "分析中…↓" : "⚡ 分析"}
+                  {busy ? "解读中…↓" : "⚡ AI 解读"}
                 </button>
                 {r?.startBlock != null && (
                   <span className="re-blocks">区块 {fmtBlk(r.startBlock)} ~ {fmtBlk(r.endBlock)}</span>
@@ -181,18 +181,35 @@ function TrafficHistoryPanel({ tl, blockGas }) {
   // 事件行「分析」的独立结果区(不依赖已移除的 AI 面板)
   const [ep, setEp] = useState({ loading: false, label: null, text: null, at: null, err: null });
 
-  // 统一入口:body {episodeStart} 单事件归因 / {days, focus} 窗口形态解读
-  const runAi = async (body, label) => {
+  // 单事件归因;group 决定结果渲染在哪个面板内(pending / gas)
+  const runAi = async (body, label, group) => {
     if (ep.loading) return;
-    setEp({ loading: true, label, text: null, at: null, err: null });
-    setTimeout(() => document.getElementById("tf-ep-result")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+    setEp({ loading: true, label, group, text: null, at: null, err: null });
     try {
       const d = await aiRequest("/api/ai/traffic", body);
-      if (d.error) setEp({ loading: false, label, text: null, at: null, err: d.error });
-      else setEp({ loading: false, label, text: d.text, at: d.at, err: null });
-    } catch (err) { setEp({ loading: false, label, text: null, at: null, err: String(err) }); }
+      if (d.error) setEp({ loading: false, label, group, text: null, at: null, err: d.error });
+      else setEp({ loading: false, label, group, text: d.text, at: d.at, err: null });
+    } catch (err) { setEp({ loading: false, label, group, text: null, at: null, err: String(err) }); }
   };
-  const analyze = (e) => runAi({ episodeStart: e.start }, `事件归因 ${fmtT(e.start)}`);
+  const clearEp = () => setEp({ loading: false, label: null, group: null, text: null, at: null, err: null });
+  // 结果块:渲染在触发按钮所在面板内,点了就能看见
+  const epResult = (group) => (ep.group === group && (ep.loading || ep.text || ep.err)) ? (
+    <div className="tf-ep-result">
+      <div className="tf-ep-head">
+        <span>🤖 {ep.label}</span>
+        {ep.at && <em className="ai-at">{new Date(ep.at).toLocaleTimeString()}</em>}
+        {!ep.loading && <button className="tf-ep-close" onClick={clearEp}>×</button>}
+      </div>
+      {ep.loading && (
+        <div className="tf-ai-loading">
+          <span className="tf-ai-spin" />
+          <span>claude 分析中…{ep.label},链上取证采样历史区块归因合约,约 30–40s</span>
+        </div>
+      )}
+      {ep.err && <div className="ai-err">⚠ {ep.err}</div>}
+      {ep.text && <div className="ai-result"><AiText text={ep.text} /></div>}
+    </div>
+  ) : null;
   const sum = tl?.summary;
   const thr = tl?.threshold ?? 4000;
   const hotPct = tl?.hotPct ?? 90;
@@ -230,10 +247,6 @@ function TrafficHistoryPanel({ tl, blockGas }) {
                 <button key={d} className={`tf-range ${rangeDays === d ? "on" : ""}`} onClick={() => setRangeDays(d)}>{l}</button>
               ))}
             </span>
-            <button className="st-auto-btn ai-cta panel-ai-btn" disabled={ep.loading}
-                    onClick={() => runAi({ days: rangeDays, focus: "pending" }, `Pending 形态 · 近 ${rangeLabel}`)}>
-              {ep.loading && ep.label?.startsWith("Pending") ? "解读中… ~20s" : "⚡ AI 解读"}
-            </button>
           </span>
         </div>
         <div className="panel-body tf-body">
@@ -260,9 +273,11 @@ function TrafficHistoryPanel({ tl, blockGas }) {
                 episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending")).filter(inWindow)}
                 metric={(e) => e.peakPending.toLocaleString()}
                 emptyText={`近 ${rangeLabel} 无 pending 拥堵`}
-                onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
+                onAnalyze={(e) => runAi({ episodeStart: e.start }, `事件归因 ${fmtT(e.start)}`, "pending")}
+                loading={ep.loading} busyLabel={ep.label} />
             </div>
           </div>
+          {epResult("pending")}
         </div>
       </div>
 
@@ -277,10 +292,6 @@ function TrafficHistoryPanel({ tl, blockGas }) {
                 <button key={d} className={`tf-range ${gasDays === d ? "on" : ""}`} onClick={() => setGasDays(d)}>{l}</button>
               ))}
             </span>
-            <button className="st-auto-btn ai-cta panel-ai-btn" disabled={ep.loading}
-                    onClick={() => runAi({ days: gasDays, focus: "gas" }, `Gas 形态 · 近 ${gasLabel}`)}>
-              {ep.loading && ep.label?.startsWith("Gas") ? "解读中… ~20s" : "⚡ AI 解读"}
-            </button>
           </span>
         </div>
         <div className="panel-body tf-body">
@@ -297,29 +308,13 @@ function TrafficHistoryPanel({ tl, blockGas }) {
                 episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("gas")).filter(inGasWindow)}
                 metric={(e) => `${e.peakGasPct}%`}
                 emptyText={`近 ${gasLabel} 无 gas≥${hotPct}%`}
-                onAnalyze={analyze} loading={ep.loading} busyLabel={ep.label} />
+                onAnalyze={(e) => runAi({ episodeStart: e.start }, `事件归因 ${fmtT(e.start)}`, "gas")}
+                loading={ep.loading} busyLabel={ep.label} />
             </div>
           </div>
+          {epResult("gas")}
         </div>
       </div>
-
-      {(ep.loading || ep.text || ep.err) && (
-        <div className="tf-ep-result" id="tf-ep-result">
-          <div className="tf-ep-head">
-            <span>🤖 {ep.label}</span>
-            {ep.at && <em className="ai-at">{new Date(ep.at).toLocaleTimeString()}</em>}
-            {!ep.loading && <button className="tf-ep-close" onClick={() => setEp({ loading: false, label: null, text: null, at: null, err: null })}>×</button>}
-          </div>
-          {ep.loading && (
-            <div className="tf-ai-loading">
-              <span className="tf-ai-spin" />
-              <span>claude 分析中…{ep.label}{ep.label?.startsWith("事件归因") ? ",链上取证采样历史区块归因合约,约 30–40s" : ",约 20–30s"}</span>
-            </div>
-          )}
-          {ep.err && <div className="ai-err">⚠ {ep.err}</div>}
-          {ep.text && <div className="ai-result"><AiText text={ep.text} /></div>}
-        </div>
-      )}
     </>
   );
 }

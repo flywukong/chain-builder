@@ -547,7 +547,9 @@ function cliOnce(prompt, timeoutMs, model = null, mcp = false) {
       const looksLikeError = text && text.length < 300 &&
         /(Failed to authenticate|API Error|Invalid API key|credit balance|rate limit|usage limit|limit reached|overloaded)/i.test(text.slice(0, 160));
       if (text && !looksLikeError && code === 0) return resolve(text);
-      const reason = looksLikeError ? text : String(err || `claude exited with code ${code}`);
+      let reason = looksLikeError ? text : String(err || `claude exited with code ${code}`);
+      if (/Failed to authenticate|Invalid API key|OAuth.*expired|401/i.test(reason))
+        reason = "AI 引擎未认证:服务器 claude CLI 登录已过期或 .env 未配置 ANTHROPIC_API_KEY,请联系管理员";
       console.error("[ai] claude failed code=%s model=%s\n%s", code, model ?? "(default)", reason);
       reject(new Error(reason.slice(0, 800)));
     });

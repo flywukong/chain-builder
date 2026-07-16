@@ -530,7 +530,11 @@ async function buildAiData(days = 7) {
     syncErrors: latest.syncErrors ? { count: latest.syncErrors.count, total: latest.syncErrors.total, nodes: latest.syncErrors.nodes.slice(0, 5) } : null,
     slashEvents24h: (() => {
       const v = slashEvents.view();
-      return { count: v.count, recent: v.recent.slice(0, 5).map((e) => ({ ...e, ...validatorInfo(e.validator) })) };
+      // timeLocal 预格式化(北京时间),避免 AI 拿毫秒时间戳自行转换出错或写成「深夜」
+      return { count: v.count, recent: v.recent.slice(0, 5).map((e) => ({
+        ...e, ...validatorInfo(e.validator),
+        timeLocal: e.t ? new Date(e.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : null,
+      })) };
     })(),
     slashed: (slash ?? []).filter((v) => v.slashCount > 0).map((v) => ({ addr: v.consensusAddr, count: v.slashCount })),
   };

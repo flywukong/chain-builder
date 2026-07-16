@@ -1354,13 +1354,18 @@ body::before {
 .bg-side-ref { margin-top: 4px; padding-top: 7px; border-top: 1px dashed #26231a; font-size: 9px; color: var(--dim); line-height: 1.6; }
 /* Block Gas 60/40:右侧 LEO 分析区(机器人 + 结论/关键点/建议 + 摘要并入) */
 .bg-main2 { grid-template-columns: 3fr 2fr; }
-.bg-leo { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; min-height: 0; }
+.bg-leo { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; height: 0; min-height: 100%; }
 .bg-leo-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; color: var(--gold); letter-spacing: .5px; }
 .bg-leo-head .panel-ai-btn { margin-left: auto; }
 .bg-leo-bot { width: 26px; height: 26px; object-fit: contain; filter: drop-shadow(0 0 6px rgba(240,185,11,.45)); }
-.bg-leo-text { font-size: 11px; line-height: 1.75; color: var(--text); white-space: pre-wrap; overflow: auto; max-height: 168px; }
+.bg-leo-text { font-size: 11px; line-height: 1.75; color: var(--text); white-space: pre-wrap; overflow: auto; flex: 1; min-height: 96px; }
 .bg-leo-hint { font-size: 10.5px; color: var(--dim); line-height: 1.7; padding: 4px 0; }
 .bg-leo-kv { margin-top: auto; border-top: 1px dashed #232830; padding-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+.bg-leo-at { font-style: normal; font-size: 9px; color: var(--dim); font-weight: 400; margin-left: auto; }
+.bg-leo-head .panel-ai-btn { margin-left: 8px; }
+.bg-leo-ask { margin-top: auto; display: flex; gap: 6px; border-top: 1px dashed #232830; padding-top: 8px; }
+.bg-leo-ask .robot-input { flex: 1; min-width: 0; }
+.bg-leo-ans { font-size: 11px; line-height: 1.7; color: var(--text); white-space: pre-wrap; max-height: 110px; overflow: auto; border-top: 1px dashed #232830; padding-top: 7px; flex-shrink: 0; }
 /* 导航列头(替代浮动红色提示) */
 .nav-sect { font-size: 8px; font-weight: 700; letter-spacing: 1px; color: var(--gold); opacity: .85; margin: 2px 0 2px; }
 

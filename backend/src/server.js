@@ -767,7 +767,7 @@ aiRoutes("traffic", "/api/ai/traffic", async (body) => {
   const win = streamer.getWindowStats() || {};
 
   if (body?.focus && body?.days) {
-    const days = Math.min(Math.max(Number(body.days), 1), 10);
+    const days = Math.min(Math.max(Number(body.days), 1), 15);
     const focus = body.focus === "gas" ? "gas" : "pending";
     const h = tl.hourly ?? { times: [], pending: [], gasPct: [] };
     const hours = Math.min(Math.round(days * 24), h.times.length);

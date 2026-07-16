@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { usePanelAi, AiButton, AiText } from "./PanelAi.jsx";
+import { AiText } from "./PanelAi.jsx";
+import { aiRequest } from "../lib/ai.js";
 
 const last = (s) => { const v = s?.values ?? []; for (let i = v.length - 1; i >= 0; i--) if (typeof v[i] === "number") return v[i]; return null; };
 const fmtM = (v) => (v == null ? "--" : (v / 1e6).toFixed(1) + "M");
@@ -46,7 +47,44 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
     return () => { alive = false; clearInterval(t); };
   }, [win]);
   const bg = win === 30 ? blockGas : fetched;
-  const ai = usePanelAi("/api/ai/blockgas", "~20s", () => ({ minutes: win }));
+
+  // 右区:15 天 gas 流量汇总(挂载自动加载;1h 内的同参缓存直接用,否则触发生成)
+  const SUM_BODY_KEY = '{"days":15,"focus":"gas"}';
+  const [sum, setSum] = useState({ text: null, at: null, loading: false, err: null });
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setSum((s) => ({ ...s, loading: true, err: null }));
+      try {
+        const g = await fetch(API + "/api/ai/traffic").then((r) => r.json()).catch(() => null);
+        if (alive && g?.text && g.bodyKey === SUM_BODY_KEY && g.at && Date.now() - g.at < 3600e3) {
+          setSum({ text: g.text, at: g.at, loading: false, err: null }); return;
+        }
+        const d = await aiRequest("/api/ai/traffic", { days: 15, focus: "gas" });
+        if (alive) setSum({ text: d.text ?? null, at: d.at ?? null, loading: false, err: d.error ?? null });
+      } catch (e) { if (alive) setSum({ text: null, at: null, loading: false, err: String(e) }); }
+    })();
+    return () => { alive = false; };
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  const refreshSum = async () => {
+    if (sum.loading) return;
+    setSum((s) => ({ ...s, loading: true, err: null }));
+    const d = await aiRequest("/api/ai/traffic", { days: 15, focus: "gas" }).catch((e) => ({ error: String(e) }));
+    setSum({ text: d.text ?? null, at: d.at ?? null, loading: false, err: d.error ?? null });
+  };
+
+  // 右区提问(独立 jobId 通道,监控快照 + MCP 链上查证)
+  const [q, setQ] = useState("");
+  const [qa, setQa] = useState({ busy: false, ans: null, err: null });
+  const ask = async () => {
+    const question = q.trim();
+    if (!question || qa.busy) return;
+    setQa({ busy: true, ans: null, err: null });
+    try {
+      const d = await aiRequest("/api/ai/ask", { question });
+      setQa({ busy: false, ans: d.text ?? null, err: d.error ?? null });
+    } catch (e) { setQa({ busy: false, ans: null, err: String(e) }); }
+  };
 
   // 上限与阈值:跟随链上实时 gasLimit;关注 = 50% 上限,高位 = 85% 上限
   const GL = gasLimit || DEFAULT_GAS_LIMIT;
@@ -69,7 +107,7 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   // 结论:正常/偏高 + 区间 + 距上限
   const headroom = gu != null ? Math.max(0, 100 - (gu / GL) * 100) : null;
   const verdict = gu == null ? null : (gu / GL) * 100 >= 60 || hotPoints > 0 ? { t: "偏高", cls: "warn" } : { t: "正常", cls: "ok" };
-  const aiFirstLine = ai.s.text ? ai.s.text.split("\n").find((l) => l.trim())?.replace(/^结论[::]\s*/, "") : null;
+  const aiFirstLine = sum.text ? sum.text.split("\n").find((l) => l.trim())?.replace(/^结论[::]\s*/, "") : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -193,7 +231,7 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
       </div>
       <div className="panel-body bg-body">
         {/* 图上方只留一行 AI 摘要,完整解读在右侧 LEO 区 */}
-        {aiFirstLine && !ai.s.err && (
+        {aiFirstLine && !sum.err && (
           <div className="bg-ai-line">AI:{aiFirstLine.slice(0, 90)}</div>
         )}
         {/* 紧凑 metric strip(替代四个大卡) */}
@@ -216,20 +254,24 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
           <div className="bg-leo">
             <div className="bg-leo-head">
               <img className="bg-leo-bot" src={(import.meta.env.BASE_URL ?? "/") + "robot.png"} alt="" />
-              <span>LEO 分析</span>
-              <AiButton ai={ai} />
+              <span>LEO · 近 15 天流量汇总</span>
+              {sum.at && <em className="bg-leo-at">{new Date(sum.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}</em>}
+              <button className="st-auto-btn ai-cta panel-ai-btn" onClick={refreshSum} disabled={sum.loading}>
+                {sum.loading ? "分析中…" : "↻ 刷新"}
+              </button>
             </div>
-            {ai.s.err && <div className="ai-err">⚠ {ai.s.err}</div>}
-            {ai.s.text
-              ? <div className="bg-leo-text"><AiText text={ai.s.text} /></div>
-              : <div className="bg-leo-hint">{ai.s.loading ? "解读中… ~20s" : "点「AI 解读」生成结论 · 关键点 · 建议(数据 = 图表窗口 + 全网 37 节点对比)"}</div>}
-            <div className="bg-leo-kv">
-              <div className="re-title">{winLabel} 关键数字 · {m.label}</div>
-              <div className="bg-side-row"><span>当前</span><b>{f1(st?.cur)}{u}</b></div>
-              <div className="bg-side-row"><span>均值 / 峰值</span><b>{f1(st?.avg)}{u} / {f1(st?.max)}{u}</b></div>
-              <div className="bg-side-row"><span>异常点(&gt;{watchM}M)</span><b style={{ color: hotPoints > 0 ? "var(--orange)" : "var(--green)" }}>{hotPoints}</b></div>
-              <div className="bg-side-ref">参考:正常 &lt;{watchM}M · 关注 {watchM}-{highM}M · 上限 {glM}M(链上实时)</div>
+            {sum.err && <div className="ai-err">⚠ {sum.err}</div>}
+            {sum.text
+              ? <div className="bg-leo-text"><AiText text={sum.text} /></div>
+              : <div className="bg-leo-hint">{sum.loading ? "汇总近 15 天 gas 利用率与打满情况(链上抽查未打满块的交易特征)… ~1-2min" : "暂无汇总"}</div>}
+            <div className="bg-leo-ask">
+              <input className="robot-input" placeholder="问 gas/打满相关:某块为什么没打满?"
+                     value={q} onChange={(e) => setQ(e.target.value)}
+                     onKeyDown={(e) => e.key === "Enter" && ask()} disabled={qa.busy} />
+              <button className="robot-send" onClick={ask} disabled={qa.busy || !q.trim()}>{qa.busy ? "…" : "问"}</button>
             </div>
+            {qa.err && <div className="ai-err">⚠ {qa.err}</div>}
+            {qa.ans && <div className="bg-leo-ans"><AiText text={qa.ans} /></div>}
           </div>
         </div>
       </div>

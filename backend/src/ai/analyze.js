@@ -114,20 +114,26 @@ export async function runTrafficAnalysis(data) {
 }
 
 // ── 流量窗口解读:pending / gas 单维度形态分析(窗口跟随前端选择)──
+// gas focus 额外做「打满深挖」:高峰时段未打满块的交易特征与归因(bundle/builder 窗口性能)
 export async function runTrafficTrendAnalysis(data) {
   const dim = data.focus === "gas" ? "区块 gas 利用率" : "TxPool pending";
+  const gasDeep = data.focus === "gas" ? [
+    MCP_GUIDE,
+    `打满深挖(重点):若窗口内有高占用事件或 ≥${data.hotPct ?? 90}% 的小时,对峰值时段做链上抽查——①用 bscops 的 get_block_miners 拉事件区块区间(episodes 里有 startBlock/endBlock)的序列,看 gasUsedM 分布:有多少块接近打满(≥${Math.round((data.gasLimitM ?? 55) * 0.9)}M)、多少块明明高负载却只有 55~70% 利用率;②对 1-2 个未打满的高负载块,用 bnbchain 的 get_block_by_number 取 transactionHashes,抽查 2-3 笔 get_transaction 看特征:同一 to 合约 + 同一 methodId 占块内 gas 大头、from 分散但每个只发 1-2 笔、gasPrice 低(如 0.1 gwei)——这是 builder bundle 批处理特征;③归因口径:出现该特征时,未打满的原因是 builder 在 450ms 出块窗口内的打包性能(优先处理 bundle 后提前 finalize,后续更高 gasUsed 的 bid 来不及被接受),不是需求不足;无该特征则按真实需求解读。本场景工具调用可放宽至 ≤12 次,优先批量工具。`,
+  ] : [];
   const prompt = [
-    `你是 BSC 主网的资深运维分析师。解读近 ${data.windowLabel} 的 ${dim} 形态,中文 markdown,180 字以内,直接正文。`,
+    `你是 BSC 主网的资深运维分析师。解读近 ${data.windowLabel} 的 ${dim} 形态,中文 markdown,220 字以内,直接正文。`,
     "",
     data.focus === "gas"
       ? `数据口径:windowStats 是所选窗口的小时均值统计(单位 %,按当前链上上限 ${data.gasLimitM ?? 55}M 折算);hoursOver = 利用率≥${data.hotPct ?? 90}% 的小时数;episodes 是窗口内的高占用事件(含 5m 精化时间与区块区间)。`
       : `数据口径:windowStats 是所选窗口的小时均值统计(单位 笔);hoursOver = pending>${data.threshold ?? 4000} 的小时数;episodes 是窗口内的拥堵事件(含 5m 精化时间与区块区间);baseline30d 是 30 天基线。`,
-    "要求:①首行给结论(正常/需关注):当前水位 vs 基线、窗口内波动;②有事件则逐个点评(时间/持续/峰值/块区间,引用区块区间方便取证),无事件就说平稳,不要制造风险;③短时冲高后是否已回落(用「冲高/回落」等值班口语,不用「脉冲/突刺」)。",
+    ...gasDeep,
+    "输出结构:①首行结论(正常/需关注 + 窗口水位一句话);②事件/打满情况:逐事件一行(日期时间/峰值/块区间/已回落);gas focus 时给出打满结论(打满 vs 未打满的块占比与未打满归因);③建议一句。用值班口语,不用「脉冲/突刺」。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
   ].join("\n");
-  return spawnClaude(prompt);
+  return spawnClaude(prompt, { mcp: data.focus === "gas" });
 }
 
 // ── TxPool 拥堵诊断 ──

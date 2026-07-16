@@ -52,13 +52,11 @@ export default function EmptyBlocksPanel() {
         <span className="bm-ctls">
           <span className="sub">判据 gasUsed &lt; 200k · 60s 刷新</span>
           <button className="st-auto-btn ai-cta panel-ai-btn" onClick={runAi} disabled={ai.loading || !(d?.count > 0)}>
-            {ai.loading ? "分析中… ~20s" : "⚡ AI 简析"}
+            {ai.loading ? "解读中… ~40s" : "⚡ AI 解读"}
           </button>
         </span>
       </div>
       <div className="panel-body eb-body">
-        {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
-        {ai.text && <div className="hpd-ai"><AiText text={ai.text} /></div>}
         {/* 三栏:计数 | Top validator | 最近列表;≥3 次的高频 validator 橙标 */}
         <div className="eb-cols">
           <div className={`eb-count ${(d?.count ?? 0) > 0 ? "warn" : "ok"}`}>
@@ -91,6 +89,15 @@ export default function EmptyBlocksPanel() {
             </div>
           </div>
         </div>
+        {/* AI 解读结果:Top validator 下方空白区;监控侧无节点日志,输出概况 + 排查名单 */}
+        {ai.loading && (
+          <div className="tf-ai-loading">
+            <span className="tf-ai-spin" />
+            <span>claude 分析中…空块分布 + 链上取证空块前后轮次,约 30–40s</span>
+          </div>
+        )}
+        {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
+        {ai.text && <div className="hpd-ai"><AiText text={ai.text} /></div>}
       </div>
     </div>
   );

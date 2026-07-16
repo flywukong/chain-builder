@@ -276,13 +276,13 @@ export async function runReorgEventAnalysis(data) {
 // ── 空块简析:validator 分布 / 时间聚集性 ──
 export async function runEmptyAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网运维分析师。分析 24h 内的空块记录(判据:gasUsed<200k,即仅系统交易、validator 未打包用户交易),中文,120 字以内,直接正文。",
+    "你是 BSC 主网运维分析师。分析 24h 内的空块记录(判据:gasUsed<200k,即仅系统交易、validator 未打包用户交易),中文,160 字以内,直接正文。",
     "",
-    "要点:哪些 validator 出的、是否同一 validator 连续/聚集(节点故障信号)、还是分散偶发(mempool 时序波动,属正常)。",
-    "mempool 常年 ~900 pending 下偶发 1-2 个孤立空块无需处理;同一 validator 短时多次才值得联系运营方。",
-    "称呼 validator 一律用 validator 字段的名称(如 NodeReal、Fuji),禁止报 0x 地址;internal=true 是我方自营节点,其空块聚集时明确点名建议排查。",
+    "输出两段:①**概况**:空块总数、集中在哪些 validator(次数)、时间上连续聚集(节点异常信号)还是分散偶发(mempool 时序波动,属正常),附代表块号与时间;②**排查建议**:点名空块 ≥2 次的 validator,列出其空块块号/时间点,建议运营方核对该时段节点侧日志——出块瞬间 txpool 是否为空、builder bid 是否到达、节点有无重启或性能抖动。",
+    "重要口径:监控侧没有 validator 节点日志,无法给出具体根因,禁止断言原因;只给排查名单和方向。偶发 1-2 个孤立空块无需处理,写明即可。",
+    "称呼 validator 一律用 validator 字段的名称(如 NodeReal、Fuji),禁止报 0x 地址;internal=true 是我方自营节点,优先点名排查。",
     MCP_GUIDE,
-    "本场景取证建议:对空块聚集的 validator,用 bscops 的 get_block_miners 拉其空块附近的连续区间(step=1,gasUsedM<0.2 即空块),看该 validator 的 8 块轮次内是连续空(节点故障)还是夹着正常块(偶发);结论附块号证据。",
+    "本场景取证建议:对空块聚集的 validator,用 bscops 的 get_block_miners 拉其空块附近的连续区间(step=1,gasUsedM<0.2 即空块),看该 validator 的 8 块轮次内是连续空还是夹着正常块(偶发);结论附块号证据。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

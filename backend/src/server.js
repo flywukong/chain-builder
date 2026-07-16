@@ -43,7 +43,8 @@ const contracts = new ChainContracts(provider);
 const streamer  = new BlockStreamer({ wsUrl: cfg.wsUrl, rpcUrl: cfg.rpcUrl });
 const dataDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../data");
 const mevAgg    = new MevAggregator({ file: path.join(dataDir, "mev-day.json") });   // continuous, tip-following (fed by streamer blocks)
-const latencyStore = new LatencyStore(path.join(dataDir, "latency-24h.json"));
+// v2:采样口径修正(每节点 q0.5,旧文件混入了 q0.9/q0.99 序列,基线虚高),换文件名废弃旧数据
+const latencyStore = new LatencyStore(path.join(dataDir, "latency-24h-v2.json"));
 const txpoolStore  = new TxpoolStore(path.join(dataDir, "txpool-24h.json"));
 const emptyStore   = new EmptyBlockStore(path.join(dataDir, "empty-24h.json"));
 const reorgObs     = new ReorgObsStore(path.join(dataDir, "reorg-obs-24h.json"));
@@ -169,6 +170,7 @@ function keterMark(field, err) {
   broadcast("keterHealth", { ...keterHealth });
 }
 
+let lastLatSnap = [];   // 每节点 q0.5 即时快照(点名慢节点用)
 async function pollKeter() {
   try {
     const [nodeStats, gasUsed, latVals, diskAlerts, txVals, reorgStats, blockGas, syncErrors, tiers] = await Promise.all([
@@ -191,7 +193,9 @@ async function pollKeter() {
       }
     }
     const now = Date.now();
-    latencyStore.addSample(now, latVals);            // app-side 24h rolling caches
+    // fetchLatencySnapshot 返回 [{instance, ms}](每节点 q0.5);store 只吃数值,快照留作点名慢节点
+    lastLatSnap = latVals;
+    latencyStore.addSample(now, latVals.map((x) => x.ms));   // app-side 24h rolling caches
     txpoolStore.addSample(now, txVals);
     broadcast("nodeStats",  nodeStats);
     broadcast("gasUsed",    gasUsed);
@@ -509,7 +513,13 @@ async function buildAiData(days = 7) {
     reorg24h: reorg?.reorg24h ?? null,
     trafficEpisodesWindow: trafficEp,
     txpool24h: tx ? { current: tx.current, max24h: tx.max24h, threshold: tx.threshold, anomalyCount24h: tx.anomalyCount, anomalyNow: tx.anomalyNow } : null,
-    latency24h: lat ? { p50: lat.p50?.at(-1), p95: lat.p95?.at(-1), p99: lat.p99?.at(-1), baseline24h: lat.baseline24h } : null,
+    latency24h: lat ? {
+      caliber: "跨自营节点的每节点导入时延中位数(q0.5)分布:p50=中位节点、p95=最慢5%节点的水平,反映节点差异而非区块整体",
+      nodes: lastLatSnap.length || null,
+      p50: lat.p50?.at(-1), p95: lat.p95?.at(-1), p99: lat.p99?.at(-1),
+      baseline24h: lat.baseline24h,
+      slowestNodesNow: [...lastLatSnap].sort((a, b) => b.ms - a.ms).slice(0, 3),
+    } : null,
     syncErrors: latest.syncErrors ? { count: latest.syncErrors.count, total: latest.syncErrors.total, nodes: latest.syncErrors.nodes.slice(0, 5) } : null,
     slashEvents24h: (() => {
       const v = slashEvents.view();

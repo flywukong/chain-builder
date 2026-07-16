@@ -81,11 +81,16 @@ export async function fetchGasUtilization(configPath, from = "now-30m") {
 // ── Latency snapshot (instant, per-instance) — for app-side 24h store ───────
 // Returns current per-instance insert-delay values (ms). The LatencyStore turns
 // these into p50/p95/p99 + a rolling 24h baseline (no keter avg_over_time query).
+// 每节点导入时延中位数(q0.5)即时值。必须过滤 quantile:该指标是 summary,
+// 不过滤会把每台的 q0.5/q0.9/q0.99 全混进数组,跨节点分位数就成了无意义的混合口径
 export async function fetchLatencySnapshot(configPath) {
   const jobs = DS_JOBS["dex-prod"];
-  const raw = await grafanaQuery(DATASOURCES["dex-prod"], `chain_delay_block_insert{job=~"${jobs}"}`, { configPath });
+  const raw = await grafanaQuery(DATASOURCES["dex-prod"], `chain_delay_block_insert{job=~"${jobs}",quantile="0.5"}`, { configPath });
   const series = extractSeries(raw);
-  return series.map((s) => s.values?.[s.values.length - 1]).filter((v) => typeof v === "number" && isFinite(v));
+  return series
+    .map((s) => ({ instance: s.labels?.instance ?? "?", ms: s.values?.[s.values.length - 1] }))
+    .filter((x) => typeof x.ms === "number" && isFinite(x.ms))
+    .map((x) => ({ instance: x.instance, ms: Math.round(x.ms) }));
 }
 
 // ── Block insert latency:4 台样本机均值曲线 + >450ms(出块间隔)异常段 ────

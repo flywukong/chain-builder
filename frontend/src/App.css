@@ -256,8 +256,8 @@ body::before {
 /* 全网版本分布(实时) */
 .ring-versions { flex-shrink: 0; margin: 0 10px 8px; padding: 8px 12px 9px; background: linear-gradient(180deg, rgba(240,185,11,.05), rgba(240,185,11,.015)); border: 1px solid #34290d; border-radius: 10px; }
 .rv-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
-.rv-title { font-size: 10px; font-weight: 700; letter-spacing: .8px; color: var(--gold); text-shadow: 0 0 9px rgba(240,185,11,.35); display: inline-flex; align-items: center; gap: 7px; }
-.rv-title::before { content: ""; width: 3px; height: 10px; background: linear-gradient(180deg, var(--gold), #7a5e00); box-shadow: 0 0 6px rgba(240,185,11,.55); border-radius: 1px; }
+.rv-title { font-size: 15px; font-weight: 800; letter-spacing: 1px; color: var(--gold); text-shadow: 0 0 12px rgba(240,185,11,.45); display: inline-flex; align-items: center; gap: 8px; }
+.rv-title::before { content: ""; width: 4px; height: 15px; background: linear-gradient(180deg, var(--gold), #7a5e00); box-shadow: 0 0 7px rgba(240,185,11,.6); border-radius: 1px; }
 .rv-sub { font-size: 8.5px; color: var(--dim); font-family: var(--mono); }
 .rv-bar { display: flex; width: 50%; margin: 0 auto; height: 8px; border-radius: 4px; overflow: hidden; background: #17150f; gap: 1px; }
 .rv-seg { height: 100%; }

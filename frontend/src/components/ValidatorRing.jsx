@@ -20,7 +20,7 @@ function RingVersions({ mevStats }) {
   return (
     <div className="ring-versions">
       <div className="rv-head">
-        <span className="rv-title">出块 validator 版本</span>
+        <span className="rv-title">全网 Validator 版本信息</span>
         <span className="rv-sub">{total} 个出块 validator · 24h · 来自 extraData</span>
       </div>
       <div className="rv-bar">

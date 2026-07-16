@@ -235,7 +235,7 @@ export default function LatencyPanel() {
           </div>
           <div className="bg-leo">
             <div className="bg-leo-head">
-              <span>LEO 分析</span>
+              <span>AI 分析</span>
               <AiButton ai={ai} />
             </div>
             {ai.s.err && <div className="ai-err">⚠ {ai.s.err}</div>}

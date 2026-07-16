@@ -254,7 +254,7 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
           <div className="bg-leo">
             <div className="bg-leo-head">
               <img className="bg-leo-bot" src={(import.meta.env.BASE_URL ?? "/") + "robot.png"} alt="" />
-              <span>LEO · 近 15 天流量汇总</span>
+              <span>近 15 天流量汇总</span>
               {sum.at && <em className="bg-leo-at">{new Date(sum.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}</em>}
               <button className="st-auto-btn ai-cta panel-ai-btn" onClick={refreshSum} disabled={sum.loading}>
                 {sum.loading ? "分析中…" : "↻ 刷新"}

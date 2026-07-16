@@ -196,6 +196,20 @@ export async function runLatencyAnalysis(data) {
   return spawnClaude(prompt);
 }
 
+// ── Greedy merge 命中率解读:bid 中标后触发链上 greedy merge 的比例 ──
+export async function runGreedyMergeAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网 MEV 运维分析师。解读自营 validator 节点的 greedy merge 命中率(近 ${data.hours}h),中文,160 字以内,直接正文。`,
+    "指标含义:命中率 = bid_greedyMerge_onchain / worker_bidWin × 100,即中标 bid 中触发「贪婪合并(把本地 mempool 交易并入 builder bid 再出块)」并成功上链的比例。比例越高说明 validator 越多地在 builder bid 基础上追加本地交易增收。",
+    "数据口径:chartNodes 是图表采样的典型节点(所选窗口均值/峰值/低值);allNodes 是全部自营 validator 的均值,按降序 —— 横向对比以它为准。",
+    "要点:①整体水位:典型节点均值与全网 validator 的档位(命中率无绝对好坏,重点看一致性与异常);②节点差异:命中率显著低于群体的节点点名(IP),可能是本地打包策略或 mempool 差异,建议关注;明显高的也点出;③水位平稳就说稳。不猜没有数据支撑的根因(这是 validator 内部行为,链上只能看结果)。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
 // ── Reorg 解读:无节点日志,不做根因;判涉及方(自营/外部)+ 严重度 + 总结 ──
 export async function runReorgAnalysis(data) {
   const prompt = [

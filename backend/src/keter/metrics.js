@@ -127,6 +127,41 @@ export async function fetchInsertLatency(configPath, hours = 24) {
   };
 }
 
+// ── Greedy merge 命中率(validator 侧):中标 bid 中触发链上 greedy merge 的比例 ──
+// bid_greedyMerge_onchain / worker_bidWin × 100,per-instance;展示取典型节点,AI 喂全量
+const GREEDY_IPS = (process.env.GREEDY_MERGE_IPS ?? INSERT_LAT_IPS.slice(0, 4).join(",")).split(",").map((s) => s.trim());
+export async function fetchGreedyMerge(configPath, hours = 6) {
+  const dsUid = DATASOURCES["dex-prod"];
+  const jobs = DS_JOBS["dex-prod"];
+  const from = `now-${hours}h`;
+  const ips = GREEDY_IPS.join("|");
+  const rate = (sel) => `increase(bid_greedyMerge_onchain{${sel}}[5m]) / increase(worker_bidWin{${sel}}[5m]) * 100`;
+  const [avgRaw, perRaw] = await Promise.all([
+    rangeQuery(dsUid, `avg(${rate(`instance=~"${ips}"`)})`, { configPath, from, maxDataPoints: 300 }).then(extractSeries),
+    rangeQuery(dsUid, rate(`instance=~"${ips}"`), { configPath, from, maxDataPoints: 300 }).then(extractSeries),
+    // 全量(喂 AI 横向对比):所有 validator job 的均值统计
+  ]);
+  const allRaw = await rangeQuery(dsUid, rate(`job=~"${jobs}"`), { configPath, from, maxDataPoints: 60 }).then(extractSeries);
+  const round1 = (v) => (typeof v === "number" && isFinite(v) ? +v.toFixed(1) : null);
+  const main = avgRaw[0] ?? { times: [], values: [] };
+  const avg = main.values.map(round1);
+  const nums = avg.filter((v) => typeof v === "number");
+  const nodeStat = (s) => {
+    const v = (s.values ?? []).filter((x) => typeof x === "number" && isFinite(x));
+    return v.length ? { instance: s.labels.instance, avg: +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1), max: +Math.max(...v).toFixed(1), min: +Math.min(...v).toFixed(1) } : null;
+  };
+  return {
+    hours, ips: GREEDY_IPS,
+    times: main.times, avg,
+    perNode: perRaw.map((s) => ({ instance: s.labels.instance, times: s.times, values: s.values.map(round1) })),
+    cur: nums.at(-1) ?? null,
+    mean: nums.length ? +(nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) : null,
+    max: nums.length ? Math.max(...nums) : null,
+    min: nums.length ? Math.min(...nums) : null,
+    allNodes: allRaw.map(nodeStat).filter(Boolean).sort((a, b) => b.avg - a.avg),
+  };
+}
+
 // ── TxPool pending (dataseed nodes) — for traffic-anomaly detection ─────────
 // Traffic anomaly = avg pending tx across dataseed nodes > 4000 (user's定义).
 // validators sit at ~30-50; dataseed nodes spike to thousands under heavy traffic.

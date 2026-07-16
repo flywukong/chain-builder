@@ -3,6 +3,7 @@ import { aiRequest } from "../lib/ai.js";
 import { AiText } from "../components/PanelAi.jsx";
 import { lookupValidator } from "../data/validators.js";
 import BidMetricsPanel from "../components/BidMetricsPanel.jsx";
+import GreedyMergePanel from "../components/GreedyMergePanel.jsx";
 import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
@@ -185,6 +186,7 @@ export default function MevPage({ state }) {
         <div className="mev-robot-anchor"><RobotWidget variant="mev" /></div>
 
         <BidMetricsPanel />
+        <GreedyMergePanel />
 
         {mev.recent?.length > 0 && (
           <div className="panel" style={{ maxWidth: 1240 }}>

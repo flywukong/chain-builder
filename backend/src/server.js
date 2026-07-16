@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -397,6 +397,14 @@ app.get("/api/bid-metrics", async (req) => {
   }
   return data;
 });
+let greedyCache = { at: 0, hours: 0, data: null };
+app.get("/api/greedy-merge", async (req) => {
+  const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 6, 1), 24);
+  if (greedyCache.data && greedyCache.hours === hours && Date.now() - greedyCache.at < 60_000) return greedyCache.data;
+  const data = await safe(fetchGreedyMerge(cfg.keterConfigPath, hours));
+  if (data) greedyCache = { at: Date.now(), hours, data };
+  return data;
+});
 app.get("/api/reorg",     async () => latest.reorgTimeline ? { reorg24h: reorg24hFiltered(), source: "keter · ≥2节点" } : safe(fetchReorgStats(cfg.keterConfigPath)));
 app.get("/api/reorg-events", async () => ({
   keterEvents: (latest.reorgTimeline?.events ?? []).slice(0, 10),   // 链级(≥2节点),小时粒度
@@ -604,6 +612,24 @@ aiRoutes("latency", "/api/ai/latency", async (body) => {
     allNodesInsertMs: all?.insertMs ?? null,
     episodesOverThreshold: (d.episodes ?? []).map((e) => ({ from: new Date(e.from).toISOString(), to: new Date(e.to).toISOString(), peakMs: e.peak })),
     focusEpisode: focus ? { from: new Date(focus.from).toISOString(), to: new Date(focus.to).toISOString(), peakMs: focus.peak } : null,
+  });
+});
+
+// Greedy merge 命中率解读:典型节点均值形态 + 全量节点横向对比
+aiRoutes("greedy", "/api/ai/greedy", async (body) => {
+  const hours = Math.min(Math.max(parseInt(body?.hours, 10) || 6, 1), 24);
+  const d = (greedyCache.hours === hours && greedyCache.data && Date.now() - greedyCache.at < 55_000)
+    ? greedyCache.data : await fetchGreedyMerge(cfg.keterConfigPath, hours);
+  if (!d?.times?.length) throw new Error("keter greedy-merge 数据不可用");
+  return runGreedyMergeAnalysis({
+    hours,
+    chartSampleNodes: d.ips,
+    overallMean: d.mean, overallMax: d.max, overallMin: d.min, current: d.cur,
+    chartNodes: (d.perNode ?? []).map((s) => {
+      const v = (s.values ?? []).filter((x) => typeof x === "number");
+      return v.length ? { instance: s.instance, avg: +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1), max: Math.max(...v), min: Math.min(...v) } : { instance: s.instance };
+    }),
+    allNodes: d.allNodes,
   });
 });
 

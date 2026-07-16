@@ -192,6 +192,12 @@ body::before {
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .rb-brief-line { font-size: 11px; font-weight: 600; color: #f0e9d2; border-bottom: 1px dashed #2a2415; padding-bottom: 6px; }
 .rb-auto-line { font-size: 9.5px; color: var(--muted); letter-spacing: .3px; }
+/* 监控问答弹窗:前置 7 天 reorg 总结卡 */
+.rb-mon-sum { border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); padding: 9px 12px; display: flex; flex-direction: column; gap: 6px; }
+.rb-mon-head { font-size: 10px; font-weight: 700; letter-spacing: .8px; color: var(--green); display: flex; align-items: baseline; gap: 8px; }
+.rb-mon-head em { font-style: normal; font-weight: 400; color: var(--dim); font-size: 9px; margin-left: auto; }
+.rb-mon-hint { font-size: 10px; color: var(--dim); }
+.rb-mon-text { font-size: 11px; line-height: 1.7; color: var(--text); white-space: pre-wrap; max-height: 170px; overflow: auto; }
 @keyframes rb-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .robot-btn {
   position: relative;

@@ -39,8 +39,25 @@ const QA_PRESET = {
 
 export default function RobotWidget({ variant = "home" }) {
   const preset = QA_PRESET[variant];
-  const isMev = !!preset;   // 纯问答形态(mev/reorg)
+  const isMev = !!preset;   // 纯问答形态(mev/monitor/txn)
+  const isMonitor = variant === "monitor";
   const [open, setOpen] = useState(false);
+  // monitor 形态:打开时先呈现「近 7 天 Reorg 总结」(1h 内有缓存直接用,否则自动生成一次)
+  const [rs, setRs] = useState({ text: null, at: null, loading: false, err: null });
+  useEffect(() => {
+    if (!isMonitor || !open || rs.text || rs.loading) return;
+    let alive = true;
+    (async () => {
+      setRs({ text: null, at: null, loading: true, err: null });
+      try {
+        const g = await fetch(API + "/api/ai/reorg").then((r) => r.json()).catch(() => null);
+        if (alive && g?.text && g.at && Date.now() - g.at < 3600e3) { setRs({ text: g.text, at: g.at, loading: false, err: null }); return; }
+        const d = await aiRequest("/api/ai/reorg", { days: 7 });
+        if (alive) setRs({ text: d.text ?? null, at: d.at ?? null, loading: false, err: d.error ?? null });
+      } catch (e) { if (alive) setRs({ text: null, at: null, loading: false, err: String(e) }); }
+    })();
+    return () => { alive = false; };
+  }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [ans, setAns] = useState(null);
@@ -113,9 +130,22 @@ export default function RobotWidget({ variant = "home" }) {
             <button className="robot-close" onClick={() => setOpen(false)}>×</button>
           </div>
 
-          {/* 巡检详情(与气泡同源,完整正文);问答形态只做问答 */}
+          {/* 巡检详情(与气泡同源,完整正文);问答形态只做问答(monitor 额外前置 7 天 reorg 总结) */}
           {isMev ? (
-            <div className="robot-greet">{preset.greet}</div>
+            <>
+              {isMonitor && (
+                <div className="rb-mon-sum">
+                  <div className="rb-mon-head">
+                    近 7 天 Reorg 总结
+                    {rs.at && <em>{new Date(rs.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}</em>}
+                  </div>
+                  {rs.loading && <div className="rb-mon-hint">生成中… ~20s</div>}
+                  {rs.err && <div className="ai-err">⚠ {rs.err}</div>}
+                  {rs.text && <div className="rb-mon-text"><AiText text={rs.text} /></div>}
+                </div>
+              )}
+              <div className="robot-greet">{preset.greet}</div>
+            </>
           ) : pa.text ? (
             <div className={`robot-brief ${verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : ""}`}>
               <span className="rb-head">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { usePanelAi, AiButton, AiResult } from "./PanelAi.jsx";
+import { usePanelAi, AiButton, AiText } from "./PanelAi.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 const NODE_COLORS = ["#3FB8A0", "#9A86F0", "#38bdf8", "#ec4899"];
@@ -15,14 +15,21 @@ export default function LatencyPanel() {
   const [hover, setHover] = useState(null);   // index into times
   const [win, setWin] = useState(24);         // 窗口小时数:24 | 168(7天)
   const winLabel = win === 24 ? "24h" : "7天";
+  const [stages, setStages] = useState(null);   // 阶段分解:insert/validation/execution/commit
   const ai = usePanelAi("/api/ai/latency", "~20s", () => ({ days: win / 24 }));
 
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + `/api/insert-latency?hours=${win}`)
-      .then((r) => r.json())
-      .then((j) => { if (alive && j?.times) setD(j); })
-      .catch(() => {});
+    const pull = () => {
+      fetch(API + `/api/insert-latency?hours=${win}`)
+        .then((r) => r.json())
+        .then((j) => { if (alive && j?.times) setD(j); })
+        .catch(() => {});
+      fetch(API + `/api/latency-stages?hours=${win}`)
+        .then((r) => r.json())
+        .then((j) => { if (alive && j?.stages) setStages(j.stages); })
+        .catch(() => {});
+    };
     pull();
     const t = setInterval(pull, 60_000);
     return () => { alive = false; clearInterval(t); };
@@ -190,11 +197,9 @@ export default function LatencyPanel() {
               <button key={h} className={`tf-range ${win === h ? "on" : ""}`} onClick={() => setWin(h)}>{l}</button>
             ))}
           </span>
-          <AiButton ai={ai} />
         </span>
       </div>
       <div className="panel-body latency-body">
-        <AiResult ai={ai} title="导入时延解读 · 节点差异与超阈段" />
         <div className="lat-strip">
           <span className="lat-stat"><em style={{ color: "#F0B90B" }}>{d?.cur ?? "--"}</em>ms 当前</span>
           <span className="lat-stat"><em>{d?.mean ?? "--"}</em>ms 均值</span>
@@ -215,14 +220,37 @@ export default function LatencyPanel() {
             {nEp > 6 && <span className="lat-ep-chip">+{nEp - 6}</span>}
           </div>
         )}
-        <canvas ref={canvasRef} className="latency-canvas"
-                onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
-        <div className="lat-nodes">
-          {(d?.perNode ?? []).map((s, i) => (
-            <span key={s.instance} className="lat-node">
-              <span className="lat-dot" style={{ background: NODE_COLORS[i % NODE_COLORS.length] }} />{s.instance}
-            </span>
-          ))}
+        {/* 主体 60/40:左图 + 右侧 LEO 总结(阶段分解 validation/execution/commit 并入) */}
+        <div className="bg-main bg-main2">
+          <div className="bg-chartcol">
+            <canvas ref={canvasRef} className="latency-canvas"
+                    onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+            <div className="lat-nodes">
+              {(d?.perNode ?? []).map((s, i) => (
+                <span key={s.instance} className="lat-node">
+                  <span className="lat-dot" style={{ background: NODE_COLORS[i % NODE_COLORS.length] }} />{s.instance}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="bg-leo">
+            <div className="bg-leo-head">
+              <span>LEO 分析</span>
+              <AiButton ai={ai} />
+            </div>
+            {ai.s.err && <div className="ai-err">⚠ {ai.s.err}</div>}
+            {ai.s.text
+              ? <div className="bg-leo-text"><AiText text={ai.s.text} /></div>
+              : <div className="bg-leo-hint">{ai.s.loading ? "解读中… ~20s" : "点「AI 解读」生成结论 · 关键点 · 建议(含全节点各阶段异常定位)"}</div>}
+            <div className="bg-leo-kv">
+              <div className="re-title">导入阶段分解 · {winLabel}(4 台典型 q0.5)</div>
+              <div className="bg-side-row"><span>Insert 总延迟</span><b>{stages?.insert ? `${Math.round(stages.insert.avg)}ms · 峰 ${Math.round(stages.insert.max)}` : "--"}</b></div>
+              <div className="bg-side-row"><span>Execution 执行</span><b>{stages?.execution ? `${stages.execution.avg.toFixed(1)}ms · 峰 ${stages.execution.max.toFixed(1)}` : "--"}</b></div>
+              <div className="bg-side-row"><span>Validation 校验</span><b>{stages?.validation ? `${stages.validation.avg.toFixed(2)}ms` : "--"}</b></div>
+              <div className="bg-side-row"><span>Commit 状态写入</span><b>{stages?.commit ? `${stages.commit.avg.toFixed(2)}ms` : "--"}</b></div>
+              <div className="bg-side-ref">insert ≈ validation + execution + commit + 传播等;execution 为大头,单节点持续 &gt;450ms 才算跟不上 tip</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

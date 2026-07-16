@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
+import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -387,6 +387,14 @@ app.get("/api/insert-latency", async (req) => {
   if (data) insertLatCache = { at: Date.now(), hours, data };   // 只缓存成功结果,失败下次重试
   return data;
 });
+let latStagesCache = { at: 0, hours: 0, data: null };
+app.get("/api/latency-stages", async (req) => {
+  const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 24, 1), 168);
+  if (latStagesCache.data && latStagesCache.hours === hours && Date.now() - latStagesCache.at < 60_000) return latStagesCache.data;
+  const data = await safe(fetchLatencyStages(cfg.keterConfigPath, hours));
+  if (data) latStagesCache = { at: Date.now(), hours, data };
+  return data;
+});
 let bidMetricsCache = { at: 0, hours: 0, data: null };
 app.get("/api/bid-metrics", async (req) => {
   const hours = Math.min(Math.max(parseInt(req.query?.hours, 10) || 6, 1), 24);
@@ -624,14 +632,16 @@ aiRoutes("latency", "/api/ai/latency", async (body) => {
     return { instance: s.instance, avgMs: +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1), maxMs: +Math.max(...v).toFixed(1) };
   };
   const focus = body?.episodeFrom ? (d.episodes ?? []).find((e) => e.from === Number(body.episodeFrom)) : null;
-  // 图表只画 4 台典型;解读时喂 keter 全部自营节点的导入时延统计
-  const all = await fetchExecStatsAll(cfg.keterConfigPath).catch(() => null);
+  // 图表只画 4 台典型;解读时喂:各阶段分解(validation/execution/commit)+ 全节点 per-stage 统计
+  const st = (latStagesCache.hours === hours && latStagesCache.data && Date.now() - latStagesCache.at < 55_000)
+    ? latStagesCache.data : await fetchLatencyStages(cfg.keterConfigPath, hours).catch(() => null);
   return runLatencyAnalysis({
     hours, windowLabel: days === 1 ? "24h" : `${days} 天`, thresholdMs: d.threshold,
     chartSampleNodes: d.ips,
     overallMeanMs: d.mean, overallMaxMs: d.max, currentMs: d.cur,
     chartNodes: (d.perNode ?? []).map(nodeStat),
-    allNodesInsertMs: all?.insertMs ?? null,
+    stagesTypical: st?.stages ?? null,
+    perNodeStages: (st?.perNode ?? []).slice(0, 40),
     episodesOverThreshold: (d.episodes ?? []).map((e) => ({ from: new Date(e.from).toISOString(), to: new Date(e.to).toISOString(), peakMs: e.peak })),
     focusEpisode: focus ? { from: new Date(focus.from).toISOString(), to: new Date(focus.to).toISOString(), peakMs: focus.peak } : null,
   });

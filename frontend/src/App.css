@@ -572,7 +572,7 @@ body::before {
 .dash-monitor-v2 > .panel { flex-shrink: 0; }
 .dash-monitor-v2 .bg-body, .dash-monitor-v2 .latency-body { height: auto; }
 .dash-monitor-v2 .bg-canvas { flex: none; height: 260px; cursor: crosshair; }
-.dash-monitor-v2 .latency-canvas { flex: none; height: 300px; }
+.dash-monitor-v2 .latency-canvas { flex: none; height: 240px; }
 .dash-monitor-v2 .reorg-canvas { flex: none; height: 280px; }
 .dash-monitor-v2 .reorg-main { grid-template-columns: 1fr 320px; }
 .dash-monitor-v2 .eb-list { max-height: 300px; }

@@ -170,6 +170,43 @@ export async function fetchGreedyMerge(configPath, hours = 6) {
   };
 }
 
+// ── 导入阶段耗时分解:insert 总延迟 + validation / execution / commit(write)──
+// chain_validation/execution/write 是纳秒 timer(q0.5);chain_delay_block_insert 是 ms。
+// stages = 4 台典型窗口统计;perNode = 全部 validator 各阶段均值(AI 找异常节点用)
+const STAGE_METRICS = [
+  ["insert",     "chain_delay_block_insert", 1],
+  ["validation", "chain_validation",         1e6],
+  ["execution",  "chain_execution",          1e6],
+  ["commit",     "chain_write",              1e6],
+];
+export async function fetchLatencyStages(configPath, hours = 24) {
+  const jobs = DS_JOBS["dex-prod"];
+  const ips = INSERT_LAT_IPS.join("|");
+  const stages = {}, perNodeMap = {};
+  await Promise.all(STAGE_METRICS.map(async ([key, metric, div]) => {
+    const [typRaw, allRaw] = await Promise.all([
+      rangeQuery(DATASOURCES["dex-prod"], `avg(${metric}{instance=~"${ips}",quantile="0.5"})`, { from: `now-${hours}h`, configPath, maxDataPoints: 200 }).then(extractSeries),
+      rangeQuery(DATASOURCES["dex-prod"], `${metric}{job=~"${jobs}",quantile="0.5"}`, { from: `now-${hours}h`, configPath, maxDataPoints: 40 }).then(extractSeries),
+    ]);
+    const vals = (typRaw[0]?.values ?? []).filter((v) => typeof v === "number").map((v) => v / div);
+    stages[key] = vals.length ? {
+      cur: +vals.at(-1).toFixed(2),
+      avg: +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2),
+      max: +Math.max(...vals).toFixed(2),
+    } : null;
+    for (const s of allRaw) {
+      const v = (s.values ?? []).filter((x) => typeof x === "number").map((x) => x / div);
+      if (!v.length) continue;
+      const inst = s.labels?.instance ?? "?";
+      (perNodeMap[inst] ??= { instance: inst })[`${key}Ms`] = +(v.reduce((a, b) => a + b, 0) / v.length).toFixed(2);
+    }
+  }));
+  return {
+    hours, ips: INSERT_LAT_IPS, stages,
+    perNode: Object.values(perNodeMap).sort((a, b) => (b.insertMs ?? 0) - (a.insertMs ?? 0)),
+  };
+}
+
 // ── TxPool pending (dataseed nodes) — for traffic-anomaly detection ─────────
 // Traffic anomaly = avg pending tx across dataseed nodes > 4000 (user's定义).
 // validators sit at ~30-50; dataseed nodes spike to thousands under heavy traffic.

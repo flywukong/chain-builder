@@ -170,7 +170,7 @@ function keterMark(field, err) {
   broadcast("keterHealth", { ...keterHealth });
 }
 
-let lastLatSnap = [];   // 每节点 q0.5 即时快照(点名慢节点用)
+let lastLatSnap = { mid: [], tail: [] };   // 每节点 q0.5 / q0.95 即时快照(点名慢节点用)
 async function pollKeter() {
   try {
     const [nodeStats, gasUsed, latVals, diskAlerts, txVals, reorgStats, blockGas, syncErrors, tiers] = await Promise.all([
@@ -193,9 +193,9 @@ async function pollKeter() {
       }
     }
     const now = Date.now();
-    // fetchLatencySnapshot 返回 [{instance, ms}](每节点 q0.5);store 只吃数值,快照留作点名慢节点
+    // fetchLatencySnapshot 返回 {mid, tail}(每节点 q0.5 / q0.95);store 只吃 q0.5 数值
     lastLatSnap = latVals;
-    latencyStore.addSample(now, latVals.map((x) => x.ms));   // app-side 24h rolling caches
+    latencyStore.addSample(now, latVals.mid.map((x) => x.ms));   // app-side 24h rolling caches
     txpoolStore.addSample(now, txVals);
     broadcast("nodeStats",  nodeStats);
     broadcast("gasUsed",    gasUsed);
@@ -514,11 +514,12 @@ async function buildAiData(days = 7) {
     trafficEpisodesWindow: trafficEp,
     txpool24h: tx ? { current: tx.current, max24h: tx.max24h, threshold: tx.threshold, anomalyCount24h: tx.anomalyCount, anomalyNow: tx.anomalyNow } : null,
     latency24h: lat ? {
-      caliber: "跨自营节点的每节点导入时延中位数(q0.5)分布:p50=中位节点、p95=最慢5%节点的水平,反映节点差异而非区块整体",
-      nodes: lastLatSnap.length || null,
+      caliber: "跨自营节点的每节点导入时延中位数(q0.5)分布:p50=中位节点、p95=最慢5%节点的水平,反映节点差异而非区块整体;tailNow 是每节点 q0.95 尾延迟即时值(毛刺视角,对齐 keter Block processing 面板)",
+      nodes: lastLatSnap.mid.length || null,
       p50: lat.p50?.at(-1), p95: lat.p95?.at(-1), p99: lat.p99?.at(-1),
       baseline24h: lat.baseline24h,
-      slowestNodesNow: [...lastLatSnap].sort((a, b) => b.ms - a.ms).slice(0, 3),
+      slowestNodesNow: [...lastLatSnap.mid].sort((a, b) => b.ms - a.ms).slice(0, 3),
+      tailNow: [...lastLatSnap.tail].sort((a, b) => b.ms - a.ms).slice(0, 3),
     } : null,
     syncErrors: latest.syncErrors ? { count: latest.syncErrors.count, total: latest.syncErrors.total, nodes: latest.syncErrors.nodes.slice(0, 5) } : null,
     slashEvents24h: (() => {

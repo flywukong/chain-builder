@@ -169,8 +169,8 @@ export async function runMevAnalysis(data) {
 // ── Block Gas 执行负载解读 ──
 export async function runBlockGasAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网运维分析师。解读执行负载,中文,160 字以内,直接正文。",
-    "数据口径:mgasPerSec/gasPerBlockM/txsPerBlock 是图表采样的 2 台典型 validator 均值(30m);allNodes 是 keter 全部自营节点的 per-instance 统计(mgasps=MGas/s,gasusedM=每块 M gas),覆盖 dex-prod 与 vaas-prod。",
+    `你是 BSC 主网运维分析师。解读执行负载(近 ${data.windowLabel ?? "30 分钟"}),中文,160 字以内,直接正文。`,
+    `数据口径:mgasPerSec/gasPerBlockM/txsPerBlock 是图表采样的 2 台典型 validator 均值(所选窗口 ${data.windowLabel ?? "30 分钟"});allNodes 是 keter 全部自营节点的 per-instance 统计(mgasps=MGas/s,gasusedM=每块 M gas,固定 30m/24h 快照),覆盖 dex-prod 与 vaas-prod。`,
     `基线:区块 gas 上限 ${data.gasLimitM ?? 55}M(链上实时值,勿用旧 140M 口径);块 gas 8~25M、MGas/s 200~600、执行耗时 <25% slot(450ms)均属常态,范围内不要当风险。`,
     "要点:①整体水位与波动(短时冲高给出时间与幅度)②全节点横向对比:吞吐显著低于同伴(如低 30%+)的节点点名(IP)建议关注,一致就说一致;③执行耗时占 slot 是否有压力。正常就一句话说稳,不要凑内容,不用「脉冲/突刺」这类词。",
     "",

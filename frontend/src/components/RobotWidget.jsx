@@ -181,13 +181,15 @@ export default function RobotWidget({ variant = "home" }) {
           <span className="rb-text rb-oneline">{preset.bubbleLine}</span>
         </button>
       ) : (
-        <button className={`robot-brief robot-brief-float ${!pa.text ? "" : verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : "rb-ok"}`}
+        <button className={`robot-brief robot-brief-float rb-two ${!pa.text ? "" : verdict === "alert" ? "rb-alert" : verdict === "warn" ? "rb-warn" : "rb-ok"}`}
                 onClick={() => setOpen(true)}>
           {pa.text ? (
-            <span className="rb-head">
-              {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 24小时巡检{pa.loading ? " · 分析中…" : ""}
-              <em className="rb-more">点击看详情</em>
-            </span>
+            <>
+              <span className="rb-head rb-line1">
+                {ok ? "✓ 正常" : verdict === "alert" ? "⛔ 告警" : "⚠ 需关注"} · 24小时巡检{pa.loading ? " · 分析中…" : ""}
+              </span>
+              <span className="rb-line2">点击看详情 →</span>
+            </>
           ) : (
             <span className="rb-text rb-oneline">{pa.loading ? "LEO 分析中… 约 20–40s" : "我是 LEO · 点我看巡检 / 提问"}</span>
           )}

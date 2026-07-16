@@ -411,7 +411,15 @@ app.get("/api/reorg-events", async () => ({
   observed: reorgObs.view(),                                        // 本机 WS 观测,含精确高度
 }));
 app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReorgTimeline(cfg.keterConfigPath)));
-app.get("/api/block-gas", async () => latest.blockGas ?? safe(fetchBlockGas(cfg.keterConfigPath)));
+let blockGasWinCache = { at: 0, minutes: 0, data: null };
+app.get("/api/block-gas", async (req) => {
+  const minutes = Math.min(Math.max(parseInt(req.query?.minutes, 10) || 30, 30), 1440);
+  if (minutes === 30) return latest.blockGas ?? safe(fetchBlockGas(cfg.keterConfigPath));
+  if (blockGasWinCache.data && blockGasWinCache.minutes === minutes && Date.now() - blockGasWinCache.at < 60_000) return blockGasWinCache.data;
+  const data = await safe(fetchBlockGas(cfg.keterConfigPath, minutes));
+  if (data) blockGasWinCache = { at: Date.now(), minutes, data };
+  return data;
+});
 app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath).then(enrichEpisodes)));
 app.get("/api/disk",      async (req) => {
   // threshold=0 返回全部节点水位(topk 100),存储页磁盘总览用;默认 80 供告警
@@ -567,8 +575,12 @@ setTimeout(runNetworkAnalysis, 45_000);          // first pass once data is warm
 setInterval(runNetworkAnalysis, 3600_000);       // hourly auto-refresh
 
 // Block Gas 执行负载解读(30m 序列压缩为统计量)
-aiRoutes("blockgas", "/api/ai/blockgas", async () => {
-  const bg = latest.blockGas ?? await fetchBlockGas(cfg.keterConfigPath);
+aiRoutes("blockgas", "/api/ai/blockgas", async (body) => {
+  const minutes = Math.min(Math.max(parseInt(body?.minutes, 10) || 30, 30), 1440);
+  const bg = minutes === 30
+    ? (latest.blockGas ?? await fetchBlockGas(cfg.keterConfigPath))
+    : ((blockGasWinCache.minutes === minutes && blockGasWinCache.data && Date.now() - blockGasWinCache.at < 55_000)
+        ? blockGasWinCache.data : await fetchBlockGas(cfg.keterConfigPath, minutes));
   if (!bg?.mgasps?.values?.length) throw new Error("keter blockGas 数据不可用");
   const stat = (s, scale = 1) => {
     const v = (s?.values ?? []).filter((x) => typeof x === "number").map((x) => x / scale);
@@ -580,7 +592,8 @@ aiRoutes("blockgas", "/api/ai/blockgas", async () => {
   const all = await fetchExecStatsAll(cfg.keterConfigPath).catch(() => null);
   return runBlockGasAnalysis({
     chartSampleValidators: ["10.213.32.160", "10.213.32.78"],
-    windowMinutes: 30,
+    windowMinutes: minutes,
+    windowLabel: minutes === 30 ? "30 分钟" : `${minutes / 60} 小时`,
     gasLimitM: liveGasLimitM(),
     mgasPerSec: stat(bg.mgasps),
     gasPerBlockM: stat(bg.gasused, 1e6),

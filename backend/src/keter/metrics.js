@@ -48,7 +48,8 @@ export async function fetchGasUsed(configPath, from = "now-30m") {
 // ── Block gas (execution view, Monitor) — mgasps / gasused / txsize ─────────
 // Distinct from the traffic view (utilization%): how fast blocks EXECUTE and
 // how much gas/txs each carries. Same 2 representative IPs as fetchGasUsed.
-export async function fetchBlockGas(configPath, from = "now-30m") {
+export async function fetchBlockGas(configPath, minutes = 30) {
+  const from = `now-${Math.min(Math.max(Math.trunc(minutes) || 30, 30), 1440)}m`;
   const ips = GAS_SAMPLE_IPS.join("|");
   const q = (metric) =>
     rangeQuery(DATASOURCES["dex-prod"], `avg(${metric}{instance=~"${ips}"})`, { from, configPath })

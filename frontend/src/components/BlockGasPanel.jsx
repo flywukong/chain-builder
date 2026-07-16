@@ -25,12 +25,28 @@ const seriesStat = (s, scale = 1) => {
   };
 };
 
+const API = import.meta.env.VITE_API_BASE ?? "";
+
 // Block Gas — 执行视角:紧凑 strip + 趋势图(70%)+ 摘要栏(30%)
+// 窗口 30m(WS 实时)/ 6h / 24h(按需查 keter);AI 解读跟随所选窗口
 export default function BlockGasPanel({ blockGas, gasLimit }) {
   const canvasRef = useRef(null);
   const [hover, setHover] = useState(null);
   const [metric, setMetric] = useState("gasused");
-  const ai = usePanelAi("/api/ai/blockgas");
+  const [win, setWin] = useState(30);
+  const winLabel = win === 30 ? "30m" : `${win / 60}h`;
+  const [fetched, setFetched] = useState(null);
+  useEffect(() => {
+    if (win === 30) { setFetched(null); return; }
+    let alive = true;
+    const pull = () => fetch(API + `/api/block-gas?minutes=${win}`).then((r) => r.json())
+      .then((j) => { if (alive && j?.mgasps) setFetched(j); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [win]);
+  const bg = win === 30 ? blockGas : fetched;
+  const ai = usePanelAi("/api/ai/blockgas", "~20s", () => ({ minutes: win }));
 
   // 上限与阈值:跟随链上实时 gasLimit;关注 = 50% 上限,高位 = 85% 上限
   const GL = gasLimit || DEFAULT_GAS_LIMIT;
@@ -38,17 +54,17 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   const WATCH_GAS = GL * 0.5;
   const watchM = Math.round(WATCH_GAS / 1e6), highM = Math.round(GL * 0.85 / 1e6);
 
-  const mg = last(blockGas?.mgasps);
-  const gu = last(blockGas?.gasused);
-  const tx = last(blockGas?.txsize);
+  const mg = last(bg?.mgasps);
+  const gu = last(bg?.gasused);
+  const tx = last(bg?.txsize);
   const execMs = mg && gu ? (gu / (mg * 1e6)) * 1000 : null;
   const slotPct = execMs != null ? (execMs / 450) * 100 : null;
 
   const m = METRICS[metric];
-  const st = seriesStat(m.src(blockGas), m.scale === 1e6 ? 1e6 : 1);   // gasused 以 M 计
-  const guStat = seriesStat(blockGas?.gasused, 1e6);
+  const st = seriesStat(m.src(bg), m.scale === 1e6 ? 1e6 : 1);   // gasused 以 M 计
+  const guStat = seriesStat(bg?.gasused, 1e6);
   // 异常点:块 gas 超关注阈值(50% 上限)的采样点数
-  const hotPoints = (blockGas?.gasused?.values ?? []).filter((v) => typeof v === "number" && v > WATCH_GAS).length;
+  const hotPoints = (bg?.gasused?.values ?? []).filter((v) => typeof v === "number" && v > WATCH_GAS).length;
 
   // 结论:正常/偏高 + 区间 + 距上限
   const headroom = gu != null ? Math.max(0, 100 - (gu / GL) * 100) : null;
@@ -65,10 +81,10 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
       canvas.width = W * dpr; canvas.height = H * dpr;
       const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      const s = m.src(blockGas);
+      const s = m.src(bg);
       if (!s?.values?.length) {
         ctx.fillStyle = "#4a463c"; ctx.font = "10px monospace"; ctx.textAlign = "center";
-        ctx.fillText("加载 keter 30m 数据…", W / 2, H / 2); return;
+        ctx.fillText(`加载 keter ${winLabel} 数据…`, W / 2, H / 2); return;
       }
       const padL = 50, padR = 12, padT = 10, padB = 18;
       const iw = W - padL - padR, ih = H - padT - padB;
@@ -133,11 +149,11 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
     draw();
     const ro = new ResizeObserver(draw); ro.observe(canvas);
     return () => ro.disconnect();
-  }, [blockGas, hover, metric, gasLimit]);
+  }, [bg, hover, metric, gasLimit, win]);
 
   const onMove = (e) => {
     const canvas = canvasRef.current;
-    const n = m.src(blockGas)?.values?.length;
+    const n = m.src(bg)?.values?.length;
     if (!canvas || !n) return;
     const rect = canvas.getBoundingClientRect();
     const sx = rect.width / (canvas.offsetWidth || rect.width) || 1;
@@ -167,6 +183,11 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
               <button key={mm.key} className={`tf-range ${metric === mm.key ? "on" : ""}`} onClick={() => setMetric(mm.key)}>{mm.label}</button>
             ))}
           </span>
+          <span className="tf-ranges">
+            {[[30, "30m"], [360, "6h"], [1440, "24h"]].map(([v, l]) => (
+              <button key={v} className={`tf-range ${win === v ? "on" : ""}`} onClick={() => setWin(v)}>{l}</button>
+            ))}
+          </span>
           <AiButton ai={ai} />
         </span>
       </div>
@@ -188,12 +209,12 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
           <div className="bg-chartcol">
             <div className="bg-legend">
               <span><i style={{ background: m.color }} />{m.label}</span>
-              <em className="bg-src">曲线为 {SAMPLE_IPS.join(" / ")} 两台典型 validator 均值 · 30m</em>
+              <em className="bg-src">曲线为 {SAMPLE_IPS.join(" / ")} 两台典型 validator 均值 · {winLabel}</em>
             </div>
             <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
           </div>
           <div className="bg-side">
-            <div className="re-title">30m 摘要 · {m.label}</div>
+            <div className="re-title">{winLabel} 摘要 · {m.label}</div>
             <div className="bg-side-row"><span>当前</span><b>{f1(st?.cur)}{u}</b></div>
             <div className="bg-side-row"><span>均值</span><b>{f1(st?.avg)}{u}</b></div>
             <div className="bg-side-row"><span>峰值</span><b>{f1(st?.max)}{u}</b></div>

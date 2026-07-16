@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { usePanelAi, AiButton, AiResult } from "./PanelAi.jsx";
+import { usePanelAi, AiButton, AiText } from "./PanelAi.jsx";
 
 const last = (s) => { const v = s?.values ?? []; for (let i = v.length - 1; i >= 0; i--) if (typeof v[i] === "number") return v[i]; return null; };
 const fmtM = (v) => (v == null ? "--" : (v / 1e6).toFixed(1) + "M");
@@ -69,7 +69,7 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   // 结论:正常/偏高 + 区间 + 距上限
   const headroom = gu != null ? Math.max(0, 100 - (gu / GL) * 100) : null;
   const verdict = gu == null ? null : (gu / GL) * 100 >= 60 || hotPoints > 0 ? { t: "偏高", cls: "warn" } : { t: "正常", cls: "ok" };
-  const aiFirstLine = ai.s.text ? ai.s.text.split("\n").find((l) => l.trim()) : null;
+  const aiFirstLine = ai.s.text ? ai.s.text.split("\n").find((l) => l.trim())?.replace(/^结论[::]\s*/, "") : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -105,9 +105,9 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
       }
       if (m.key === "gasused" && WATCH_GAS <= maxV) {
         const yW = Y(WATCH_GAS);
-        ctx.setLineDash([5, 4]); ctx.strokeStyle = "rgba(240,185,11,.5)"; ctx.lineWidth = 1;
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = "rgba(240,185,11,.3)"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(padL, yW); ctx.lineTo(W - padR, yW); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = "rgba(240,185,11,.7)"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+        ctx.fillStyle = "rgba(240,185,11,.5)"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
         ctx.fillText(`关注 ${watchM}M`, padL + 4, yW - 2);
       }
       const ts = s.times ?? [];
@@ -117,14 +117,15 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
           ctx.fillText(fmtT(ts[i]), padL + f * iw, H - padB + 6));
       }
 
+      // 降噪:细线 + 弱 glow + 淡填充,让波峰/阈值/异常点成为视觉主体
       const area = ctx.createLinearGradient(0, padT, 0, padT + ih);
-      area.addColorStop(0, m.color + "42"); area.addColorStop(1, m.color + "05");
+      area.addColorStop(0, m.color + "24"); area.addColorStop(1, m.color + "03");
       ctx.beginPath();
       s.values.forEach((v, i) => { const y = Y(typeof v === "number" ? v : 0); i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y); });
       ctx.lineTo(X(n - 1), padT + ih); ctx.lineTo(X(0), padT + ih); ctx.closePath();
       ctx.fillStyle = area; ctx.fill();
-      ctx.strokeStyle = m.color; ctx.lineWidth = 1.8; ctx.lineJoin = "round";
-      ctx.shadowColor = m.color; ctx.shadowBlur = 6;
+      ctx.strokeStyle = m.color; ctx.lineWidth = 1.5; ctx.lineJoin = "round";
+      ctx.shadowColor = m.color; ctx.shadowBlur = 3;
       ctx.beginPath();
       s.values.forEach((v, i) => { const y = Y(typeof v === "number" ? v : 0); i === 0 ? ctx.moveTo(X(i), y) : ctx.lineTo(X(i), y); });
       ctx.stroke(); ctx.shadowBlur = 0;
@@ -188,14 +189,13 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
               <button key={v} className={`tf-range ${win === v ? "on" : ""}`} onClick={() => setWin(v)}>{l}</button>
             ))}
           </span>
-          <AiButton ai={ai} />
         </span>
       </div>
       <div className="panel-body bg-body">
+        {/* 图上方只留一行 AI 摘要,完整解读在右侧 LEO 区 */}
         {aiFirstLine && !ai.s.err && (
           <div className="bg-ai-line">AI:{aiFirstLine.slice(0, 90)}</div>
         )}
-        <AiResult ai={ai} title="Block Gas 解读 · 执行负载" />
         {/* 紧凑 metric strip(替代四个大卡) */}
         <div className="bg-strip">
           <span>Gas/块 <em style={{ color: "#3FB8A0" }}>{fmtM(gu)}</em></span>
@@ -204,8 +204,8 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
           <span>Txs/块 <em>{tx != null ? Math.round(tx) : "--"}</em></span>
           <span>耗时 <em style={{ color: slotPct > 40 ? "var(--orange)" : "var(--green)" }}>{execMs != null ? execMs.toFixed(0) + "ms" : "--"}</em>{slotPct != null ? ` · ${slotPct.toFixed(0)}% slot` : ""}</span>
         </div>
-        {/* 主体:趋势图 70% + 摘要栏 30% */}
-        <div className="bg-main">
+        {/* 主体:趋势图 60% + LEO 分析区 40%(结论/关键数字/建议 + 摘要并入) */}
+        <div className="bg-main bg-main2">
           <div className="bg-chartcol">
             <div className="bg-legend">
               <span><i style={{ background: m.color }} />{m.label}</span>
@@ -213,14 +213,23 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
             </div>
             <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
           </div>
-          <div className="bg-side">
-            <div className="re-title">{winLabel} 摘要 · {m.label}</div>
-            <div className="bg-side-row"><span>当前</span><b>{f1(st?.cur)}{u}</b></div>
-            <div className="bg-side-row"><span>均值</span><b>{f1(st?.avg)}{u}</b></div>
-            <div className="bg-side-row"><span>峰值</span><b>{f1(st?.max)}{u}</b></div>
-            <div className="bg-side-row"><span>最低</span><b>{f1(st?.min)}{u}</b></div>
-            <div className="bg-side-row"><span>异常点(&gt;{watchM}M)</span><b style={{ color: hotPoints > 0 ? "var(--orange)" : "var(--green)" }}>{hotPoints}</b></div>
-            <div className="bg-side-ref">参考:正常 &lt;{watchM}M · 关注 {watchM}-{highM}M · 上限 {glM}M(链上实时)</div>
+          <div className="bg-leo">
+            <div className="bg-leo-head">
+              <img className="bg-leo-bot" src={(import.meta.env.BASE_URL ?? "/") + "robot.png"} alt="" />
+              <span>LEO 分析</span>
+              <AiButton ai={ai} />
+            </div>
+            {ai.s.err && <div className="ai-err">⚠ {ai.s.err}</div>}
+            {ai.s.text
+              ? <div className="bg-leo-text"><AiText text={ai.s.text} /></div>
+              : <div className="bg-leo-hint">{ai.s.loading ? "解读中… ~20s" : "点「AI 解读」生成结论 · 关键点 · 建议(数据 = 图表窗口 + 全网 37 节点对比)"}</div>}
+            <div className="bg-leo-kv">
+              <div className="re-title">{winLabel} 关键数字 · {m.label}</div>
+              <div className="bg-side-row"><span>当前</span><b>{f1(st?.cur)}{u}</b></div>
+              <div className="bg-side-row"><span>均值 / 峰值</span><b>{f1(st?.avg)}{u} / {f1(st?.max)}{u}</b></div>
+              <div className="bg-side-row"><span>异常点(&gt;{watchM}M)</span><b style={{ color: hotPoints > 0 ? "var(--orange)" : "var(--green)" }}>{hotPoints}</b></div>
+              <div className="bg-side-ref">参考:正常 &lt;{watchM}M · 关注 {watchM}-{highM}M · 上限 {glM}M(链上实时)</div>
+            </div>
           </div>
         </div>
       </div>

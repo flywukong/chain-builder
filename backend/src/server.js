@@ -513,14 +513,12 @@ async function buildAiData(days = 7) {
     reorg24h: reorg?.reorg24h ?? null,
     trafficEpisodesWindow: trafficEp,
     txpool24h: tx ? { current: tx.current, max24h: tx.max24h, threshold: tx.threshold, anomalyCount24h: tx.anomalyCount, anomalyNow: tx.anomalyNow } : null,
-    latency24h: lat ? {
-      caliber: "跨自营节点的每节点导入时延中位数(q0.5)分布:p50=中位节点、p95=最慢5%节点的水平,反映节点差异而非区块整体;tailNow 是每节点 q0.95 尾延迟即时值(毛刺视角,对齐 keter Block processing 面板)",
-      nodes: lastLatSnap.mid.length || null,
-      p50: lat.p50?.at(-1), p95: lat.p95?.at(-1), p99: lat.p99?.at(-1),
-      baseline24h: lat.baseline24h,
-      slowestNodesNow: [...lastLatSnap.mid].sort((a, b) => b.ms - a.ms).slice(0, 3),
-      tailNow: [...lastLatSnap.tail].sort((a, b) => b.ms - a.ms).slice(0, 3),
-    } : null,
+    // 导入时延不进首页巡检:个别 1-2 个节点的偏慢属节点差异,由监控子系统的
+    // Latency AI 解读(per-node + 全量对比)负责;仅当大面积异常(中位节点超一个
+    // 出块间隔)才作为链级信号带入
+    ...(lat && (lat.p50?.at(-1) ?? 0) > 450 ? {
+      latencyAlert: { p50AcrossNodes: lat.p50.at(-1), note: "自营节点导入中位数大面积超过 450ms 出块间隔,链级异常" },
+    } : {}),
     syncErrors: latest.syncErrors ? { count: latest.syncErrors.count, total: latest.syncErrors.total, nodes: latest.syncErrors.nodes.slice(0, 5) } : null,
     slashEvents24h: (() => {
       const v = slashEvents.view();

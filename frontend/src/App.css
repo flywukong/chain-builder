@@ -1366,6 +1366,14 @@ body::before {
 .bg-leo-ask { margin-top: auto; display: flex; gap: 6px; border-top: 1px dashed #232830; padding-top: 8px; }
 .bg-leo-ask .robot-input { flex: 1; min-width: 0; }
 .bg-leo-ans { font-size: 11px; line-height: 1.7; color: var(--text); white-space: pre-wrap; max-height: 110px; overflow: auto; border-top: 1px dashed #232830; padding-top: 7px; flex-shrink: 0; }
+/* Block Gas 图表窗口醒目标签 */
+.bg-canvas-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+.dash-monitor-v2 .bg-canvas-wrap { flex: none; height: 260px; }
+.bg-canvas-wrap .bg-canvas { flex: 1; height: 100%; }
+.bg-chart-tag { position: absolute; top: 8px; left: 54px; z-index: 2; pointer-events: none;
+  font-size: 11px; font-weight: 800; letter-spacing: .5px; color: var(--gold);
+  background: rgba(240,185,11,.08); border: 1px solid rgba(240,185,11,.4); border-radius: 6px; padding: 3px 10px; }
+
 /* 导航列头(替代浮动红色提示) */
 .nav-sect { font-size: 8px; font-weight: 700; letter-spacing: 1px; color: var(--gold); opacity: .85; margin: 2px 0 2px; }
 

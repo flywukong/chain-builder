@@ -175,7 +175,7 @@ async function pollKeter() {
   try {
     const [nodeStats, gasUsed, latVals, diskAlerts, txVals, reorgStats, blockGas, syncErrors, tiers] = await Promise.all([
       fetchNodeStats(cfg.keterConfigPath),
-      fetchGasUsed(cfg.keterConfigPath),
+      fetchGasUsed(cfg.keterConfigPath, "now-24h"),
       fetchLatencySnapshot(cfg.keterConfigPath),
       fetchDiskAlerts(cfg.keterConfigPath),
       fetchTxpoolSnapshot(cfg.keterConfigPath),
@@ -360,7 +360,7 @@ app.register(async (fastify) => {
 const safe = (p) => Promise.resolve(p).then((x) => x, () => null);
 app.get("/api/slash",     async () => contracts.getSlashStatus());
 app.get("/api/nodes",     async () => latest.nodeStats ?? safe(fetchNodeStats(cfg.keterConfigPath)));
-app.get("/api/gas-used",  async () => safe(fetchGasUsed(cfg.keterConfigPath)));
+app.get("/api/gas-used",  async () => safe(fetchGasUsed(cfg.keterConfigPath, "now-24h")));
 app.get("/api/latency",   async () => latencyStore.getView());
 app.get("/api/txpool",    async () => txpoolStore.getView());
 app.get("/api/empty-blocks", async () => emptyStore.view());

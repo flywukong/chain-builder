@@ -34,8 +34,9 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   const canvasRef = useRef(null);
   const [hover, setHover] = useState(null);
   const [metric, setMetric] = useState("gasused");
-  const [win, setWin] = useState(30);
+  const [win, setWin] = useState(1440);
   const winLabel = win === 30 ? "30m" : `${win / 60}h`;
+  const winCn = win === 30 ? "30 分钟" : win === 360 ? "6 小时" : "24 小时";
   const [fetched, setFetched] = useState(null);
   useEffect(() => {
     if (win === 30) { setFetched(null); return; }
@@ -249,7 +250,10 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
               <span><i style={{ background: m.color }} />{m.label}</span>
               <em className="bg-src">曲线为 {SAMPLE_IPS.join(" / ")} 两台典型 validator 均值 · {winLabel}</em>
             </div>
-            <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+            <div className="bg-canvas-wrap">
+              <span className="bg-chart-tag">近 {winCn} 流量</span>
+              <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+            </div>
           </div>
           <div className="bg-leo">
             <div className="bg-leo-head">

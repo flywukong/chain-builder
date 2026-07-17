@@ -47,7 +47,7 @@ function versionInfo(nodeStats) {
   return { latest, latestPct, total, behind: behindList.length, behindList, tiers };
 }
 
-// Gas 利用率迷你走势(30m,2 台典型节点均值)
+// Gas 利用率迷你走势(24h,2 台典型节点均值)
 function GasSpark({ gasUsed, gasLimit }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -170,12 +170,12 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           )}
         </div>
 
-        {/* 第三行:Gas 利用率(采样 2 台典型 · 30m 走势) */}
+        {/* 第三行:Gas 利用率(采样 2 台典型 · 24h 走势) */}
         <div className={`hp-row tone-${gasLevel.tone === "mid" ? "ok" : gasLevel.tone}`}>
           <div className="hp-row-head">
             <span className="hp-row-k">Gas 利用率</span>
             <span className={`hp-row-v t-${gasLevel.tone}`}>{gasUtil}%</span>
-            <span className="hp-row-aux">上限 {Math.round((gasLimit || DEFAULT_GAS_LIMIT) / 1e6)}M · 30m 走势</span>
+            <span className="hp-row-aux">最近 24 小时</span>
           </div>
           <GasSpark gasUsed={gasUsed} gasLimit={gasLimit} />
         </div>

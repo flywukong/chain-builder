@@ -921,19 +921,15 @@ app.get("/api/ai/ask", async (req) => {
   return { running: askActive > 0, active: askActive };
 });
 
-// MEV 格局分析:builder 集中度 / v1v2 / local & unknown(2000 块窗口)
+// MEV 状态分析:24h 小时桶口径(占比/集中度/家族与实例份额环比),与 MEV 页四卡对齐
 aiRoutes("mev", "/api/ai/mev", async () => {
   const m = mevAgg.getStats();
   if (!m) throw new Error("MEV 窗口尚未积累数据,请稍候");
-  const win = streamer.getWindowStats() || {};
   return runMevAnalysis({
-    windowBlocks: m.total,
-    approxWindowMinutes: Math.round((m.total * 0.45) / 60),
-    mevPct: m.mevPct,
-    v2Pct: m.v2Pct,
-    typeCounts: m.typeCounts,
-    builderFamilies: m.builderFamilies,
-    topBuilderInstances: Object.entries(win.builderCounts ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 10),
+    day24: m.day24,
+    concentration: m.concentration,
+    familiesDay: m.famsDay,
+    instances: (m.instances ?? []).slice(0, 12),
   });
 });
 

@@ -202,7 +202,7 @@ export class MevAggregator extends EventEmitter {
       topMiners: Object.entries(minerCounts).sort((a, b) => b[1] - a[1]).slice(0, 25),
       minerVersions,
       versions,
-      recent: w.slice(-16).reverse(),
+      recent: w.slice(-20).reverse(),
       day24,
       buildersAll,
       buildersSince: this.day.since,

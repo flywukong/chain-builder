@@ -182,28 +182,6 @@ export default function MevPage({ state }) {
           </div>
         )}
 
-        {/* 右侧固定 LEO:MEV 问答 */}
-        <div className="mev-robot-anchor"><RobotWidget variant="mev" /></div>
-
-        <BidMetricsPanel />
-        <GreedyMergePanel />
-
-        {mev.recent?.length > 0 && (
-          <div className="panel" style={{ maxWidth: 1240 }}>
-            <div className="panel-header"><span>最近出块</span><span className="sub">block · miner · builder</span></div>
-            <div className="panel-body mev-recent">
-              {mev.recent.map((b) => (
-                <div key={b.number} className="mev-recent-row">
-                  <span className="mr-num">#{b.number?.toLocaleString()}</span>
-                  <span className={`mr-type mr-${b.type}`}>{b.type}</span>
-                  <span className="mr-miner">{minerName(b.miner)}</span>
-                  <span className="mr-builder" style={{ color: FAMILY_COLORS[b.family] || "#aaa" }}>{b.builderName}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* 核心表:某 validator 是否只依赖一个 builder、是否 fallback local、某类是否集体异常 */}
         <div className="panel" style={{ maxWidth: 1240 }}>
           <div className="panel-header"><span>Validator → Builder 关系</span><span className="sub">窗口 {mev.total} 块 · 版本自 extraData</span></div>
@@ -228,7 +206,29 @@ export default function MevPage({ state }) {
           </div>
         </div>
 
-        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算),最近出块/validator 榜为滚动 {mev.total} 块。当前主网 ~99% 是 mev_v1，v2 bidblock 尚未起量。</div>
+        {mev.recent?.length > 0 && (
+          <div className="panel" style={{ maxWidth: 1240 }}>
+            <div className="panel-header"><span>最近出块</span><span className="sub">block · miner · builder · 最近 20 块</span></div>
+            <div className="panel-body mev-recent">
+              {mev.recent.slice(0, 20).map((b) => (
+                <div key={b.number} className="mev-recent-row">
+                  <span className="mr-num">#{b.number?.toLocaleString()}</span>
+                  <span className={`mr-type mr-${b.type}`}>{b.type}</span>
+                  <span className="mr-miner">{minerName(b.miner)}</span>
+                  <span className="mr-builder" style={{ color: FAMILY_COLORS[b.family] || "#aaa" }}>{b.builderName}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 右侧固定 LEO:MEV 问答 */}
+        <div className="mev-robot-anchor"><RobotWidget variant="mev" /></div>
+
+        <BidMetricsPanel />
+        <GreedyMergePanel />
+
+        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。当前主网 ~99% 是 mev_v1，v2 bidblock 尚未起量。</div>
       </div>
     </div>
   );

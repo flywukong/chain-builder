@@ -155,16 +155,14 @@ export async function runTxpoolAnalysis(data) {
 // ── MEV 格局分析:builder 集中度 / v1v2 路径 / local & unknown ──
 export async function runMevAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网的 MEV 格局分析师。基于滚动窗口的实时出块数据分析 builder 格局,中文 markdown,250 字以内,直接正文。",
+    "你是 BSC 主网的 MEV 格局分析师。解读近 24 小时的 MEV 出块状态,中文 markdown,220 字以内,直接正文,首行以「结论:」开头给一句话水位判断。",
     "",
-    "注意:窗口约 2000 块(≈15 分钟),只代表当前时段,不要外推为长期趋势。",
-    "",
+    "数据口径:day24 是 24h 汇总(total 总块数,mevPct MEV 占比,v2Pct 为 MEV 块中 v2 份额,localCount 本地打包块);concentration/familiesDay/instances 的 pct 分母是 24h MEV 块,prevPct 是上一 24h(环比)。",
     "要求:",
-    "1. 集中度:各 builder 家族份额、top2 合计占比,判断是否双寡头/单一依赖(单家 >70% 才算依赖风险)。",
-    "2. v1/v2 路径:v2 bidblock(BEP-675)当前 0% 属预期(SendBidBlock 待 Pasteur 硬分叉后经 RPC 启用),不是异常。",
-    "3. local(非 MEV)块 = validator 本地打包;unknown = 未识别 builder 地址,数量偏高时建议补 BUILDER_MAP。",
-    "4. topBuilderInstances 是家族内实例粒度(如 blockrazor virginia/nyc),可指出主力实例。",
-    "5. 格局正常就说稳定,不要制造风险点。",
+    "1. 水位:MEV 占比与 local 块量级是否正常(主网常态 MEV 占比 ~99%,local 明显抬升才值得点出)。",
+    "2. 集中度:top1/top2 份额 + HHI(<1500 分散,1500-2500 中等,>2500 高度集中),单家 >70% 才算依赖风险;环比变化 >3 个百分点的家族/实例点名并给数字。",
+    "3. v1/v2:v2 bidblock(BEP-675)当前 0% 属预期(待 Pasteur 硬分叉后起量),不是异常。",
+    "4. 格局正常就说稳定,不要制造风险点;不要提「单视角/本机观测」之类口径。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

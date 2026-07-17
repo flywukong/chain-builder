@@ -20,6 +20,7 @@ const QA_PRESET = {
     placeholder: "例:48club 份额为什么在涨?v2 什么时候起量?",
     bubbleHead: "LEO · MEV 问答",
     bubbleLine: "任何 MEV 相关问题都可以问:格局 / 份额突变 / v2 进展…",
+    summary: { title: "近 24h MEV 状态", url: "/api/ai/mev", body: null },
   },
   monitor: {
     title: "🤖 LEO · 监控问答",
@@ -27,6 +28,7 @@ const QA_PRESET = {
     placeholder: "例:块 109,000,000 是谁出的?今天空块多吗?",
     bubbleHead: "LEO · 监控问答",
     bubbleLine: "reorg / 空块 / 出块人 / 时延…监控相关都可以问",
+    summary: { title: "近 7 天 Reorg 总结", url: "/api/ai/reorg", body: { days: 7 } },
   },
   txn: {
     title: "🤖 LEO · 交易问答",
@@ -40,19 +42,19 @@ const QA_PRESET = {
 export default function RobotWidget({ variant = "home" }) {
   const preset = QA_PRESET[variant];
   const isMev = !!preset;   // 纯问答形态(mev/monitor/txn)
-  const isMonitor = variant === "monitor";
+  const summary = preset?.summary ?? null;
   const [open, setOpen] = useState(false);
-  // monitor 形态:打开时先呈现「近 7 天 Reorg 总结」(1h 内有缓存直接用,否则自动生成一次)
+  // 带 summary 的问答形态(monitor/mev):打开时先呈现默认总结(1h 内有缓存直接用,否则自动生成一次)
   const [rs, setRs] = useState({ text: null, at: null, loading: false, err: null });
   useEffect(() => {
-    if (!isMonitor || !open || rs.text || rs.loading) return;
+    if (!summary || !open || rs.text || rs.loading) return;
     let alive = true;
     (async () => {
       setRs({ text: null, at: null, loading: true, err: null });
       try {
-        const g = await fetch(API + "/api/ai/reorg").then((r) => r.json()).catch(() => null);
+        const g = await fetch(API + summary.url).then((r) => r.json()).catch(() => null);
         if (alive && g?.text && g.at && Date.now() - g.at < 3600e3) { setRs({ text: g.text, at: g.at, loading: false, err: null }); return; }
-        const d = await aiRequest("/api/ai/reorg", { days: 7 });
+        const d = await aiRequest(summary.url, summary.body);
         if (alive) setRs({ text: d.text ?? null, at: d.at ?? null, loading: false, err: d.error ?? null });
       } catch (e) { if (alive) setRs({ text: null, at: null, loading: false, err: String(e) }); }
     })();
@@ -130,13 +132,13 @@ export default function RobotWidget({ variant = "home" }) {
             <button className="robot-close" onClick={() => setOpen(false)}>×</button>
           </div>
 
-          {/* 巡检详情(与气泡同源,完整正文);问答形态只做问答(monitor 额外前置 7 天 reorg 总结) */}
+          {/* 巡检详情(与气泡同源,完整正文);问答形态只做问答(monitor/mev 额外前置默认总结) */}
           {isMev ? (
             <>
-              {isMonitor && (
+              {summary && (
                 <div className="rb-mon-sum">
                   <div className="rb-mon-head">
-                    近 7 天 Reorg 总结
+                    {summary.title}
                     {rs.at && <em>{new Date(rs.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}</em>}
                   </div>
                   {rs.loading && <div className="rb-mon-hint">生成中… ~20s</div>}

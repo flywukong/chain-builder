@@ -42,7 +42,7 @@ export function aiInfo() {
   const backend = resolveBackend();
   switch (backend) {
     case "claude-api": return `claude-api · model=${MODEL}`;
-    case "claude-cli": return `claude-cli · model=${process.env.CLAUDE_CLI_MODEL || "claude-opus-4-8(默认)"} · 额度回退=${CLI_FALLBACK_MODEL}`;
+    case "claude-cli": return `claude-cli · model=${process.env.CLAUDE_CLI_MODEL || "claude-fable-5(默认)"} · 额度回退=${CLI_FALLBACK_MODEL}`;
     case "codex-cli":  return `codex-cli · model=${CODEX_MODEL || "(codex 默认)"}`;
     case "codex-api":  return `codex-api · model=${OPENAI_MODEL}`;
     case "codex-py":   return `codex-py · model=${OPENAI_MODEL}`;
@@ -564,8 +564,8 @@ function cliOnce(prompt, timeoutMs, model = null, mcp = false) {
 }
 
 async function runViaCli(prompt, timeoutMs = TIMEOUT_MS, mcp = false) {
-  // 主模型:默认 opus 4.8(周额度稳定);CLAUDE_CLI_MODEL 可覆盖
-  const primary = process.env.CLAUDE_CLI_MODEL || "claude-opus-4-8";
+  // 主模型:默认 Fable 5(Max 账号);CLAUDE_CLI_MODEL 可覆盖,周额度用尽自动回退 CLI_FALLBACK_MODEL
+  const primary = process.env.CLAUDE_CLI_MODEL || "claude-fable-5";
   try {
     return await cliOnce(prompt, timeoutMs, primary, mcp);
   } catch (e) {

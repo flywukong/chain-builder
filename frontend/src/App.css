@@ -1373,6 +1373,12 @@ body::before {
 .bg-chart-tag { position: absolute; top: 8px; left: 54px; z-index: 2; pointer-events: none;
   font-size: 11px; font-weight: 800; letter-spacing: .5px; color: var(--gold);
   background: rgba(240,185,11,.08); border: 1px solid rgba(240,185,11,.4); border-radius: 6px; padding: 3px 10px; }
+/* 高峰(>45M)黄色方框:图表上部居中,展示最近一段高峰的时间 + 区块区间 */
+.bg-peak-tag { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 2; pointer-events: none;
+  max-width: 62%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--dim);
+  background: rgba(240,185,11,.05); border: 1px solid rgba(240,185,11,.35); border-radius: 6px; padding: 3px 10px; }
+.bg-peak-tag.hot { color: var(--gold); background: rgba(240,185,11,.1); border-color: var(--gold); }
 
 /* 导航列头(替代浮动红色提示) */
 .nav-sect { font-size: 8px; font-weight: 700; letter-spacing: 1px; color: var(--gold); opacity: .85; margin: 2px 0 2px; }

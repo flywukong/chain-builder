@@ -419,7 +419,7 @@ function runViaCodexCli(prompt, timeoutMs = TIMEOUT_MS) {
       "--color", "never", "-C", os.tmpdir(), "--json"];
     if (CODEX_MODEL) args.push("-m", CODEX_MODEL);
     args.push("-");   // prompt 从 stdin 读
-    const child = spawn(CODEX_BIN, args, { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: { ...process.env } });
+    const child = spawn(CODEX_BIN, args, { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: CODEX_ENV() });
     let out = "", err = "";
     child.stdout.on("data", (d) => { out += d.toString(); });
     child.stderr.on("data", (d) => { err += d.toString(); });
@@ -474,7 +474,7 @@ async function runViaOpenAI(prompt, timeoutMs = TIMEOUT_MS) {
 // OpenAI Python SDK(codex-py):Node 调 Python 脚本走 responses.create,依赖只在 venv 里
 function runViaOpenAIPy(prompt, timeoutMs = TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
-    const child = spawn(PYTHON_BIN, [OPENAI_PY], { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: { ...process.env } });
+    const child = spawn(PYTHON_BIN, [OPENAI_PY], { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: CODEX_ENV() });
     let out = "", err = "";
     child.stdout.on("data", (d) => { out += d.toString(); });
     child.stderr.on("data", (d) => { err += d.toString(); });
@@ -526,6 +526,17 @@ export const MCP_GUIDE = [
   "取证纪律:①先用给定上下文,关键疑点才查链,总工具调用 ≤8 次(get_block_miners 批量算 1 次,优先用它);②结论只引用可验证事实(块号/地址/数值);③工具失败或查不到就直说,不要编造。",
 ].join("\n");
 
+// 子进程 env 白名单:CLI 与其拉起的第三方 MCP npm 包(@bnb-chain/mcp)会继承整份 env,
+// 全量透传会把 keter 配置路径 / BSCSCAN / OPENAI 等无关凭据泄给供应链。只给各后端所需变量。
+const BASE_ENV_KEYS = ["PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL", "TMPDIR", "TERM"];
+function pickEnv(extra = []) {
+  const out = {};
+  for (const k of [...BASE_ENV_KEYS, ...extra]) if (process.env[k] != null) out[k] = process.env[k];
+  return out;
+}
+const CLAUDE_ENV = () => pickEnv(["ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "CLAUDE_CLI_MODEL", "CLAUDE_CLI_FALLBACK_MODEL", "BSC_RPC_URL"]);   // BSC_RPC_URL 供 bscops 取证
+const CODEX_ENV  = () => pickEnv(["OPENAI_API_KEY", "OPENAI_MODEL", "CODEX_MODEL", "CODEX_HOME"]);
+
 function cliOnce(prompt, timeoutMs, model = null, mcp = false) {
   return new Promise((resolve, reject) => {
     const args = ["-p", "--output-format", "text"];   // headless one-shot; prompt via stdin
@@ -534,7 +545,7 @@ function cliOnce(prompt, timeoutMs, model = null, mcp = false) {
     const child = spawn(
       CLAUDE_BIN,
       args,
-      { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: { ...process.env } }
+      { stdio: ["pipe", "pipe", "pipe"], timeout: timeoutMs, env: CLAUDE_ENV() }
     );
 
     let out = "", err = "";

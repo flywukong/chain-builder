@@ -39,15 +39,20 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   const winCn = win === 30 ? "30 分钟" : win === 360 ? "6 小时" : "24 小时";
   const [fetched, setFetched] = useState(null);
   useEffect(() => {
-    if (win === 30) { setFetched(null); return; }
+    setFetched(null);
     let alive = true;
+    // 30m 窗口曲线走 WS 实时(props),但仍拉一次拿 peaks(>45M 高峰段 + 区块区间)
     const pull = () => fetch(API + `/api/block-gas?minutes=${win}`).then((r) => r.json())
       .then((j) => { if (alive && j?.mgasps) setFetched(j); }).catch(() => {});
     pull();
     const t = setInterval(pull, 60_000);
     return () => { alive = false; clearInterval(t); };
   }, [win]);
-  const bg = win === 30 ? blockGas : fetched;
+  const bg = win === 30 ? (blockGas ?? fetched) : fetched;
+  const peaks = fetched?.peaks ?? [];
+  const lastPeak = peaks.at(-1);
+  const peakT = (t) => new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  const peakBlk = (n) => (n == null ? "?" : "#" + n.toLocaleString());
 
   // 右区:15 天 gas 流量汇总(挂载自动加载;1h 内的同参缓存直接用,否则触发生成)
   const SUM_BODY_KEY = '{"days":15,"focus":"gas"}';
@@ -252,6 +257,11 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
             </div>
             <div className="bg-canvas-wrap">
               <span className="bg-chart-tag">近 {winCn} 流量</span>
+              <span className={`bg-peak-tag ${lastPeak ? "hot" : ""}`}>
+                {lastPeak
+                  ? <>高峰(&gt;{fetched?.peakThresholdM ?? 45}M):{peakT(lastPeak.startT)}{lastPeak.endT !== lastPeak.startT ? `-${peakT(lastPeak.endT)}` : ""} · 块 {peakBlk(lastPeak.startBlock)}{lastPeak.endBlock !== lastPeak.startBlock ? ` ~ ${peakBlk(lastPeak.endBlock)}` : " 附近"} · 峰 {lastPeak.peakM}M{(fetched?.peakTotal ?? 0) > 1 ? ` · 共 ${fetched.peakTotal} 段` : ""}</>
+                  : <>近 {winCn} 无 &gt;{fetched?.peakThresholdM ?? 45}M 高峰</>}
+              </span>
               <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
             </div>
           </div>

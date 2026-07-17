@@ -15,12 +15,24 @@ const vinfo = (addr) => {
            : { validator: (addr || "").slice(0, 10), group: "unknown", internal: false };
 };
 
+// 批量 RPC;429/5xx/网络抖动指数退避重试(公共节点限流下取证不至于一击即溃)
 async function rpcBatch(calls) {
   const body = calls.map((c, i) => ({ jsonrpc: "2.0", id: i, method: c.method, params: c.params }));
-  const r = await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error(`RPC ${r.status}`);
-  const arr = await r.json();
-  return (Array.isArray(arr) ? arr : [arr]).sort((a, b) => a.id - b.id).map((x) => x.result ?? null);
+  let lastErr;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await new Promise((res) => setTimeout(res, 300 * 3 ** (attempt - 1)));
+    try {
+      const r = await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      if (r.status === 429 || r.status >= 500) { lastErr = new Error(`RPC ${r.status}`); continue; }
+      if (!r.ok) throw new Error(`RPC ${r.status}`);
+      const arr = await r.json();
+      return (Array.isArray(arr) ? arr : [arr]).sort((a, b) => a.id - b.id).map((x) => x.result ?? null);
+    } catch (e) {
+      lastErr = e;
+      if (/^RPC \d/.test(e.message ?? "") && !/^RPC (429|5\d\d)/.test(e.message)) throw e;   // 4xx(非 429)不重试
+    }
+  }
+  throw lastErr ?? new Error("RPC batch failed");
 }
 
 const normBlock = (h) => {

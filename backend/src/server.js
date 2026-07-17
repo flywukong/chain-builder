@@ -424,12 +424,43 @@ app.get("/api/reorg-events", async () => ({
 }));
 app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReorgTimeline(cfg.keterConfigPath)));
 let blockGasWinCache = { at: 0, minutes: 0, data: null };
+// 流量高峰段:gasused > 45M 的连续区间(相邻 ≤2 个采样点的间隙合并),附区块高度区间
+const PEAK_GAS = 45e6;
+async function gasPeaks(gasused) {
+  const ts = gasused?.times ?? [], vs = gasused?.values ?? [];
+  const segs = [];
+  let cur = null, gap = 0;
+  for (let i = 0; i < vs.length; i++) {
+    const hot = typeof vs[i] === "number" && vs[i] > PEAK_GAS;
+    if (hot) {
+      if (!cur) cur = { startT: ts[i], endT: ts[i], peak: vs[i] };
+      else { cur.endT = ts[i]; cur.peak = Math.max(cur.peak, vs[i]); }
+      gap = 0;
+    } else if (cur && ++gap > 2) { segs.push(cur); cur = null; }
+  }
+  if (cur) segs.push(cur);
+  const recent = segs.slice(-3);
+  return Promise.all(recent.map(async (s) => ({
+    startT: s.startT, endT: s.endT, peakM: +(s.peak / 1e6).toFixed(1),
+    startBlock: await blockAtTime(s.startT).catch(() => null),
+    endBlock: await blockAtTime(s.endT).catch(() => null),
+  }))).then((peaks) => ({ peaks, total: segs.length }));
+}
 app.get("/api/block-gas", async (req) => {
   const minutes = Math.min(Math.max(parseInt(req.query?.minutes, 10) || 30, 30), 1440);
-  if (minutes === 30) return latest.blockGas ?? safe(fetchBlockGas(cfg.keterConfigPath));
+  if (minutes === 30) {
+    const data = latest.blockGas ?? await safe(fetchBlockGas(cfg.keterConfigPath));
+    if (!data) return data;
+    const p = await gasPeaks(data.gasused).catch(() => null);
+    return { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6 };
+  }
   if (blockGasWinCache.data && blockGasWinCache.minutes === minutes && Date.now() - blockGasWinCache.at < 60_000) return blockGasWinCache.data;
-  const data = await safe(fetchBlockGas(cfg.keterConfigPath, minutes));
-  if (data) blockGasWinCache = { at: Date.now(), minutes, data };
+  let data = await safe(fetchBlockGas(cfg.keterConfigPath, minutes));
+  if (data) {
+    const p = await gasPeaks(data.gasused).catch(() => null);
+    data = { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6 };
+    blockGasWinCache = { at: Date.now(), minutes, data };
+  }
   return data;
 });
 app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath).then(enrichEpisodes)));
@@ -453,9 +484,10 @@ const ipHits = new Map();   // ip -> [ts...]
 function ipAllowed(ip) {
   const now = Date.now();
   const arr = (ipHits.get(ip) ?? []).filter((t) => now - t < 600_000);
+  ipHits.delete(ip);                        // Map 插入序当 LRU 用:重插到末尾
   if (arr.length >= AI_IP_MAX) { ipHits.set(ip, arr); return false; }
   arr.push(now); ipHits.set(ip, arr);
-  if (ipHits.size > 2000) ipHits.clear();   // 内存兜底
+  if (ipHits.size > 2000) ipHits.delete(ipHits.keys().next().value);   // 逐出最久未用,防地址轮换撑爆内存
   return true;
 }
 const RATE_MSG = `请求过于频繁(每 IP 10 分钟最多 ${AI_IP_MAX} 次分析),请稍后再试`;

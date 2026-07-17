@@ -74,17 +74,14 @@ const HOP  = 104;
 
 const last = (s) => { const v = s?.values ?? []; for (let i = v.length - 1; i >= 0; i--) if (typeof v[i] === "number") return v[i]; return null; };
 
-// header metric strip — all real: active set / block time / TPS / MEV%
-function RingStats({ windowStats, mevStats, blockGas }) {
+// header metric strip — all real: active set / TPS
+function RingStats({ windowStats, blockGas }) {
   const btMs = windowStats?.avgBlockTimeMs;
   const tx = last(blockGas?.txsize);
   const tps = tx && btMs ? Math.round(tx / (btMs / 1000)) : null;
-  const mev = mevStats?.mevPct ?? windowStats?.mevPct;
   const cells = [
     { icon: "◈", label: "活跃集合", value: ACTIVE_SET.length, unit: "验证者" },
-    { icon: "◷", label: "出块时间", value: btMs ? (btMs / 1000).toFixed(2) : "--", unit: "s" },
     { icon: "⤢", label: "吞吐", value: tps ?? "--", unit: "TPS" },
-    { icon: "◆", label: "MEV 占比", value: mev != null ? mev.toFixed(1) : "--", unit: "%", gold: true },
   ];
   return (
     <div className="ring-stats">
@@ -322,7 +319,7 @@ export default function ValidatorRing({ latestBlock, windowStats, mevStats, bloc
 
   return (
     <div className="ring-panel">
-      <RingStats windowStats={windowStats} mevStats={mevStats} blockGas={blockGas} />
+      <RingStats windowStats={windowStats} blockGas={blockGas} />
       <canvas ref={canvasRef} className="ring-canvas" />
       <RobotWidget />
       <div className="ring-legend-bar">

@@ -769,7 +769,7 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       days: (tl?.days ?? []).slice(-days),     // 逐日数组,尾部 N 个即近 N 天
       events: (tl?.events ?? []).filter((e) => e.t >= cut),
     },
-    observed24h: { count: obs.count, events },
+    sampleEvents24h: events,   // 本机观测样例仅供判断涉及方,单视角计数不下发(避免 AI 引用误导性次数)
   });
 });
 

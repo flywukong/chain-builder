@@ -230,7 +230,7 @@ export async function runReorgAnalysis(data) {
   const prompt = [
     `你是 BSC 主网的资深运维分析师。基于下面的 reorg 监控数据解读近 ${data.windowDays ?? 14} 天窗口,中文 markdown,180 字以内,直接正文。`,
     "",
-    "数据口径:keterWindow.days/events 已按所选窗口截取,以它们为准;summary 是 14d 全窗口背景值,窗口小于 14 天时不要直接引用 summary 的次数。observed24h 是本机 24h 观测(单视角)。",
+    "数据口径:keterWindow.days/events 已按所选窗口截取,以它们为准;summary 是 14d 全窗口背景值,窗口小于 14 天时不要直接引用 summary 的次数。sampleEvents24h 是近 24h 事件样例,只用来判断涉及方与深度,不要引用其条数,也不要提「本机/单视角观测」这类口径。",
     "重要:手头没有节点日志,禁止推测底层根因(网络分区/时钟/代码 bug 等一律不猜)。只做三件事:",
     "1. 严重程度:对照基线(fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常),按频率与深度给出 正常/需关注/告警。",
     "2. 涉及方:displacedValidators 是被重组掉的出块方(嫌疑方),canonicalWinner 是重组后的胜者。区分我方自营(internal=true)与外部 validator:自营节点若反复被重组,明确点名并建议排查该节点(出块时延/网络连通);外部节点只陈述事实,不给对方运营建议。displacedValidators 为空的事件是早期数据未记 miner,只按高度/深度评估。",

@@ -516,7 +516,10 @@ export const MCP_GUIDE = [
 
 // 子进程 env 白名单:CLI 与其拉起的第三方 MCP npm 包(@bnb-chain/mcp)会继承整份 env,
 // 全量透传会把 keter 配置路径 / BSCSCAN / OPENAI 等无关凭据泄给供应链。只给各后端所需变量。
-const BASE_ENV_KEYS = ["PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL", "TMPDIR", "TERM"];
+const BASE_ENV_KEYS = ["PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL", "TMPDIR", "TERM",
+  // 网络代理与 CLI 配置目录:非敏感,缺失会让 CLI 在代理环境/自定义配置下直接失败
+  "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy",
+  "CLAUDE_CONFIG_DIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "NODE_EXTRA_CA_CERTS"];
 function pickEnv(extra = []) {
   const out = {};
   for (const k of [...BASE_ENV_KEYS, ...extra]) if (process.env[k] != null) out[k] = process.env[k];

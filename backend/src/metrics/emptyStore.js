@@ -1,14 +1,15 @@
 /**
- * EmptyBlockStore — 24h rolling record of empty blocks (gasUsed below the
+ * EmptyBlockStore — rolling record of empty blocks (gasUsed below the
  * system-txs-only floor). Fed per-block by the streamer; empties are rare on
  * mainnet so the persisted file stays tiny. Zero extra RPC.
+ * Store keeps up to `windowMs` (15d); view() slices a sub-window (default 24h).
  */
 
 import fs from "fs";
 import path from "path";
 
 export class EmptyBlockStore {
-  constructor(file, windowMs = 24 * 3600e3) {
+  constructor(file, windowMs = 15 * 86400e3) {
     this.file = file;
     this.windowMs = windowMs;
     this.items = [];
@@ -29,8 +30,11 @@ export class EmptyBlockStore {
     if (this.items[0]?.t < cut) this.items = this.items.filter((x) => x.t >= cut);
   }
 
-  view(now = Date.now()) {
+  // 子窗口视图(默认 24h);store 总窗口 15d,历史自上线起积累
+  view(subWindowMs = 24 * 3600e3, now = Date.now()) {
     this._prune(now);
-    return { count: this.items.length, recent: this.items.slice(-50).reverse() };
+    const cut = now - Math.min(subWindowMs, this.windowMs);
+    const items = this.items.filter((x) => x.t >= cut);
+    return { count: items.length, recent: items.slice(-80).reverse() };
   }
 }

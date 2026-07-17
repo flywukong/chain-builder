@@ -8,21 +8,23 @@ const fmtT = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: 
 
 // 空块详情(24h 滚动,判据 gasUsed < 200k):计数 + 按 validator 聚合 + 最近列表 + AI 简析
 export default function EmptyBlocksPanel() {
+  const [days, setDays] = useState(1);        // 1(24h)/ 7 / 15;store 总窗口 15d,历史自上线起积累
+  const winLabel = days === 1 ? "24h" : `${days} 天`;
   const [d, setD] = useState(null);
   const [ai, setAi] = useState({ loading: false, text: null, err: null });
 
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + "/api/empty-blocks").then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
+    const pull = () => fetch(API + `/api/empty-blocks?days=${days}`).then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
     pull();
     const t = setInterval(pull, 60_000);
     return () => { alive = false; clearInterval(t); };
-  }, []);
+  }, [days]);
 
   const runAi = async () => {
     setAi({ loading: true, text: null, err: null });
     try {
-      const j = await aiRequest("/api/ai/empty");
+      const j = await aiRequest("/api/ai/empty", { days });
       if (j.error) setAi({ loading: false, text: null, err: j.error });
       else setAi({ loading: false, text: j.text, err: null });
     } catch (e) { setAi({ loading: false, text: null, err: String(e) }); }
@@ -42,7 +44,7 @@ export default function EmptyBlocksPanel() {
   return (
     <div className="panel eb-panel">
       <div className="panel-header">
-        <span>空块 · 24h
+        <span>空块 · {winLabel}
           {d && (
             <em className={`panel-verdict pv-${(d.count ?? 0) > 0 ? "mid" : "ok"}`}>
               {d.count > 0 ? `空块 ${d.count}${top3 ? ` · Top: ${top3}` : ""}` : "无空块"}
@@ -51,6 +53,11 @@ export default function EmptyBlocksPanel() {
         </span>
         <span className="bm-ctls">
           <span className="sub">判据 gasUsed &lt; 200k · 60s 刷新</span>
+          <span className="tf-ranges">
+            {[[1, "24h"], [7, "7天"], [15, "15天"]].map(([v, l]) => (
+              <button key={v} className={`tf-range ${days === v ? "on" : ""}`} onClick={() => setDays(v)}>{l}</button>
+            ))}
+          </span>
           <button className="st-auto-btn ai-cta panel-ai-btn" onClick={runAi} disabled={ai.loading || !(d?.count > 0)}>
             {ai.loading ? "解读中… ~40s" : "⚡ AI 解读"}
           </button>
@@ -61,12 +68,12 @@ export default function EmptyBlocksPanel() {
         <div className="eb-cols">
           <div className={`eb-count ${(d?.count ?? 0) > 0 ? "warn" : "ok"}`}>
             <b>{d?.count ?? "--"}</b>
-            <span>空块 / 24h</span>
+            <span>空块 / {winLabel}</span>
           </div>
           <div className="eb-miners">
             <div className="re-title">Top validator</div>
             {miners.length === 0
-              ? <div className="eb-none">✓ 24h 内无空块</div>
+              ? <div className="eb-none">✓ 近 {winLabel} 无空块</div>
               : miners.slice(0, 6).map(([name, n]) => (
                   <div key={name} className="eb-miner">
                     <em className={n >= 3 ? "eb-hot" : ""}>{name}{n >= 3 ? " ⚠" : ""}</em>

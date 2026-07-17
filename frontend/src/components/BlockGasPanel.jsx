@@ -54,28 +54,29 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   const peakT = (t) => new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
   const peakBlk = (n) => (n == null ? "?" : "#" + n.toLocaleString());
 
-  // 右区:15 天 gas 流量汇总(挂载自动加载;1h 内的同参缓存直接用,否则触发生成)
-  const SUM_BODY_KEY = '{"days":15,"focus":"gas"}';
+  // 右区:gas 流量汇总(默认 7 天,可切 15 天;挂载/切换自动加载,1h 内的同参缓存直接用)
+  const [sumDays, setSumDays] = useState(7);
   const [sum, setSum] = useState({ text: null, at: null, loading: false, err: null });
   useEffect(() => {
     let alive = true;
     (async () => {
-      setSum((s) => ({ ...s, loading: true, err: null }));
+      setSum({ text: null, at: null, loading: true, err: null });
       try {
+        const bodyKey = JSON.stringify({ days: sumDays, focus: "gas" });
         const g = await fetch(API + "/api/ai/traffic").then((r) => r.json()).catch(() => null);
-        if (alive && g?.text && g.bodyKey === SUM_BODY_KEY && g.at && Date.now() - g.at < 3600e3) {
+        if (alive && g?.text && g.bodyKey === bodyKey && g.at && Date.now() - g.at < 3600e3) {
           setSum({ text: g.text, at: g.at, loading: false, err: null }); return;
         }
-        const d = await aiRequest("/api/ai/traffic", { days: 15, focus: "gas" });
+        const d = await aiRequest("/api/ai/traffic", { days: sumDays, focus: "gas" });
         if (alive) setSum({ text: d.text ?? null, at: d.at ?? null, loading: false, err: d.error ?? null });
       } catch (e) { if (alive) setSum({ text: null, at: null, loading: false, err: String(e) }); }
     })();
     return () => { alive = false; };
-  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sumDays]);   // eslint-disable-line react-hooks/exhaustive-deps
   const refreshSum = async () => {
     if (sum.loading) return;
     setSum((s) => ({ ...s, loading: true, err: null }));
-    const d = await aiRequest("/api/ai/traffic", { days: 15, focus: "gas" }).catch((e) => ({ error: String(e) }));
+    const d = await aiRequest("/api/ai/traffic", { days: sumDays, focus: "gas" }).catch((e) => ({ error: String(e) }));
     setSum({ text: d.text ?? null, at: d.at ?? null, loading: false, err: d.error ?? null });
   };
 
@@ -268,7 +269,12 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
           <div className="bg-leo">
             <div className="bg-leo-head">
               <img className="bg-leo-bot" src={(import.meta.env.BASE_URL ?? "/") + "robot.png"} alt="" />
-              <span>近 15 天流量汇总</span>
+              <span>近 {sumDays} 天流量汇总</span>
+              <span className="tf-ranges">
+                {[7, 15].map((d) => (
+                  <button key={d} className={`tf-range ${sumDays === d ? "on" : ""}`} disabled={sum.loading} onClick={() => setSumDays(d)}>{d}天</button>
+                ))}
+              </span>
               {sum.at && <em className="bg-leo-at">{new Date(sum.at).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })}</em>}
               <button className="st-auto-btn ai-cta panel-ai-btn" onClick={refreshSum} disabled={sum.loading}>
                 {sum.loading ? "分析中…" : "↻ 刷新"}
@@ -277,7 +283,7 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
             {sum.err && <div className="ai-err">⚠ {sum.err}</div>}
             {sum.text
               ? <div className="bg-leo-text"><AiText text={sum.text} /></div>
-              : <div className="bg-leo-hint">{sum.loading ? "汇总近 15 天 gas 利用率与打满情况(链上抽查未打满块的交易特征)… ~1-2min" : "暂无汇总"}</div>}
+              : <div className="bg-leo-hint">{sum.loading ? `汇总近 ${sumDays} 天 gas 利用率与打满情况(链上抽查未打满块的交易特征)… ~1-2min` : "暂无汇总"}</div>}
             <div className="bg-leo-ask">
               <input className="robot-input" placeholder="问 gas/打满相关:某块为什么没打满?"
                      value={q} onChange={(e) => setQ(e.target.value)}

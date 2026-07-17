@@ -264,7 +264,7 @@ export async function runReorgEventAnalysis(data) {
 // ── 空块简析:validator 分布 / 时间聚集性 ──
 export async function runEmptyAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网运维分析师。分析 24h 内的空块记录(判据:gasUsed<200k,即仅系统交易、validator 未打包用户交易),中文,160 字以内,直接正文。",
+    `你是 BSC 主网运维分析师。分析近 ${data.windowLabel ?? "24h"} 的空块记录(判据:gasUsed<200k,即仅系统交易、validator 未打包用户交易),中文,160 字以内,直接正文。`,
     "",
     "输出两段:①**概况**:空块总数、集中在哪些 validator(次数)、时间上连续聚集(节点异常信号)还是分散偶发(mempool 时序波动,属正常),附代表块号与时间;②**排查建议**:点名空块 ≥2 次的 validator,列出其空块块号/时间点,建议运营方核对该时段节点侧日志——出块瞬间 txpool 是否为空、builder bid 是否到达、节点有无重启或性能抖动。",
     "重要口径:监控侧没有 validator 节点日志,无法给出具体根因,禁止断言原因;只给排查名单和方向。偶发 1-2 个孤立空块无需处理,写明即可。",

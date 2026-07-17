@@ -17,7 +17,7 @@ export default function ReorgPanel({ data }) {
   const days = data?.days ?? [];
   const sum = data?.summary;
   const [obs, setObs] = useState(null);   // 本机 WS 观测(精确高度,24h)
-  const [aiDays, setAiDays] = useState(14);   // 整体解读窗口:1(24h)/ 7 / 14
+  const [aiDays, setAiDays] = useState(7);   // 整体解读窗口:1(24h)/ 7 / 15
   const [ai, setAi] = useState({ loading: false, label: null, text: null, at: null, err: null });
 
   // body: {days} 整体解读窗口 / {eventT} 单事件归因;label 用于结果区标题与按钮态
@@ -134,9 +134,9 @@ export default function ReorgPanel({ data }) {
           )}
         </span>
         <span className="reorg-head-r">
-          <span className="sub">近 {days.length || 14} 天 · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
+          <span className="sub">近 {days.length || 15} 天 · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
           <span className="tf-ranges">
-            {[[1, "24h"], [7, "7天"], [14, "14天"]].map(([d, l]) => (
+            {[[1, "24h"], [7, "7天"], [15, "15天"]].map(([d, l]) => (
               <button key={d} className={`tf-range ${aiDays === d ? "on" : ""}`} onClick={() => setAiDays(d)}>{l}</button>
             ))}
           </span>

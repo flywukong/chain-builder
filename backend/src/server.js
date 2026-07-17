@@ -363,7 +363,10 @@ app.get("/api/nodes",     async () => latest.nodeStats ?? safe(fetchNodeStats(cf
 app.get("/api/gas-used",  async () => safe(fetchGasUsed(cfg.keterConfigPath, "now-24h")));
 app.get("/api/latency",   async () => latencyStore.getView());
 app.get("/api/txpool",    async () => txpoolStore.getView());
-app.get("/api/empty-blocks", async () => emptyStore.view());
+app.get("/api/empty-blocks", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 15);
+  return { ...emptyStore.view(days * 86400e3), days };
+});
 app.get("/api/sync-errors", async () => latest.syncErrors ?? safe(fetchSyncErrors(cfg.keterConfigPath)));
 app.get("/api/slash-events", async () => slashEvents.view());
 app.get("/api/keter-health", async () => ({ ...keterHealth }));
@@ -933,15 +936,17 @@ aiRoutes("mev", "/api/ai/mev", async () => {
   });
 });
 
-// 空块简析:validator 分布 / 聚集性(24h 记录);miner 补名称与归属
-aiRoutes("empty", "/api/ai/empty", async () => {
-  const v = emptyStore.view();
-  if (!v.count) throw new Error("24h 内无空块");
+// 空块简析:validator 分布 / 聚集性(窗口 1/7/15 天);miner 补名称与归属
+aiRoutes("empty", "/api/ai/empty", async (body) => {
+  const days = Math.min(Math.max(Number(body?.days) || 1, 1), 15);
+  const label = days === 1 ? "24h" : `${days} 天`;
+  const v = emptyStore.view(days * 86400e3);
+  if (!v.count) throw new Error(`近 ${label} 无空块`);
   const blocks = v.recent.map((b) => {
     const info = validatorInfo(b.miner);
     return { ...b, validator: info.name ?? (b.miner || "").slice(0, 10), internal: info.internal };
   });
-  return runEmptyAnalysis({ count24h: v.count, blocks });
+  return runEmptyAnalysis({ windowLabel: label, count: v.count, blocks });
 });
 
 // TxPool 拥堵诊断:当前 24h 形态 + 30d 基线 + gas 利用率

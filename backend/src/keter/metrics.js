@@ -452,7 +452,7 @@ export async function refineReorgMoment(configPath, eventT) {
 // ── Reorg timeline (14d, hourly) — mirrors the Osaka/Mendel analysis口径 ─────
 // Chain-level dedup: max(increase[1h]) across nodes counts each event once;
 // hours where <2 nodes saw a reorg are local jitter and excluded.
-export async function fetchReorgTimeline(configPath, days = 14) {
+export async function fetchReorgTimeline(configPath, days = 15) {
   const jobs = DS_JOBS["dex-prod"];
   const opts = { from: `now-${days}d`, intervalMs: 3600_000, maxDataPoints: 24 * days + 12, configPath };
   const [exeRaw, dropRaw, nodesRaw] = await Promise.all([
@@ -489,14 +489,18 @@ export async function fetchReorgTimeline(configPath, days = 14) {
     events.push({ t, count: c, orphans: o, nodes });
   });
 
-  const daily = [...daysMap.values()];
+  // 窗口起点常落在某日中间,首个日历日不完整 → 丢弃,保证 spanDays == days
+  const dailyAll = [...daysMap.values()];
+  const daily = dailyAll.slice(-days);
+  const droppedDays = new Set(dailyAll.slice(0, dailyAll.length - daily.length).map((d) => d.date));
+  const kept = events.filter((e) => !droppedDays.has(dayKey(e.t)));
   const total = daily.reduce((s, d) => s + d.count, 0);
   const orphans = daily.reduce((s, d) => s + d.orphans, 0);
   const withReorg = daily.filter((d) => d.count > 0).length;
   const peak = daily.reduce((m, d) => (d.count > m.count ? d : m), { count: 0, date: null });
   return {
     days: daily,
-    events: events.slice(-10).reverse(),
+    events: kept.slice(-10).reverse(),
     summary: {
       spanDays: daily.length, total, orphans, excluded,
       avgPerDay: +(total / Math.max(daily.length, 1)).toFixed(2),

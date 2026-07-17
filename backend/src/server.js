@@ -708,7 +708,6 @@ aiRoutes("greedy", "/api/ai/greedy", async (body) => {
 // body.eventT → 单事件归因(5m 定位 + canonical miner 序列取证);body.days → 整体解读窗口
 aiRoutes("reorg", "/api/ai/reorg", async (body) => {
   const tl = latest.reorgTimeline ?? await fetchReorgTimeline(cfg.keterConfigPath).catch(() => null);
-  const obs = reorgObs.view();
   const vinfo = (addr) => {
     const v = VALIDATORS[(addr || "").toLowerCase()];
     return v ? { name: v.name, group: v.group, internal: v.group === "internal" } : { name: (addr || "").slice(0, 10), group: "unknown", internal: false };
@@ -748,31 +747,19 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
   }
 
   // ── 整体解读:窗口可选(默认 14d,支持 1/7/14)──
+  // 只喂链级数据(geth chain_reorg_executes,≥2 节点确认):本机 WS 观测走的是 LB RPC,
+  // 后端切换会被误读成 depth 2-3 的"重组"(24h 可达数百次假事件),不进 AI 输入。
   const days = Math.min(Math.max(parseInt(body?.days, 10) || 14, 1), 14);
   const cut = Date.now() - days * 86400e3;
-  const events = [];
-  for (const e of (obs.recent ?? []).slice(0, 8)) {
-    let winner = null;
-    try {
-      const h = await streamer.http.send("eth_getHeaderByNumber", ["0x" + e.to.toString(16)]);
-      winner = h?.miner ?? null;
-    } catch {}
-    events.push({
-      time: new Date(e.t).toISOString(),
-      fromBlock: e.from, toBlock: e.to, depth: e.depth,
-      displacedValidators: (e.oldMiners ?? []).map(vinfo),
-      canonicalWinner: winner ? vinfo(winner) : null,
-    });
-  }
   return runReorgAnalysis({
     baseline: "fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常",
     windowDays: days,
+    chainReorg24h: reorg24hFiltered(),         // 近 24h 链级次数(与页面卡片同源)
     keterWindow: {
       summary: tl?.summary ?? null,
       days: (tl?.days ?? []).slice(-days),     // 逐日数组,尾部 N 个即近 N 天
       events: (tl?.events ?? []).filter((e) => e.t >= cut),
     },
-    sampleEvents24h: events,   // 本机观测样例仅供判断涉及方,单视角计数不下发(避免 AI 引用误导性次数)
   });
 });
 

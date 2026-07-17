@@ -13,8 +13,6 @@
 
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
-import fs from "fs";
-import path from "path";
 import os from "os";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -39,20 +37,12 @@ function resolveBackend() {
   return API_KEY ? "claude-api" : "claude-cli";
 }
 
-// CLI 的默认模型:/model 保存默认时写入 ~/.claude/settings.json 的 model 字段
-function cliSettingsModel() {
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".claude", "settings.json"), "utf8"));
-    return j.model ? `${j.model}(读自 CLI settings.json)` : null;
-  } catch { return null; }
-}
-
 // 启动日志用:当前 AI 后端 + 模型选择的一句话描述
 export function aiInfo() {
   const backend = resolveBackend();
   switch (backend) {
     case "claude-api": return `claude-api · model=${MODEL}`;
-    case "claude-cli": return `claude-cli · model=${process.env.CLAUDE_CLI_MODEL || cliSettingsModel() || "(CLI 账号默认,settings.json 未设 model)"} · 额度回退=${CLI_FALLBACK_MODEL}`;
+    case "claude-cli": return `claude-cli · model=${process.env.CLAUDE_CLI_MODEL || "claude-opus-4-8(默认)"} · 额度回退=${CLI_FALLBACK_MODEL}`;
     case "codex-cli":  return `codex-cli · model=${CODEX_MODEL || "(codex 默认)"}`;
     case "codex-api":  return `codex-api · model=${OPENAI_MODEL}`;
     case "codex-py":   return `codex-py · model=${OPENAI_MODEL}`;
@@ -556,7 +546,9 @@ function cliOnce(prompt, timeoutMs, model = null, mcp = false) {
       const looksLikeError = text && text.length < 300 &&
         /(Failed to authenticate|API Error|Invalid API key|credit balance|rate limit|usage limit|limit reached|overloaded)/i.test(text.slice(0, 160));
       if (text && !looksLikeError && code === 0) return resolve(text);
-      let reason = looksLikeError ? text : String(err || `claude exited with code ${code}`);
+      // 失败时尽量带出真实原因:优先 stderr,其次 stdout 尾部(CLI 常把错误打到 stdout)
+      let reason = looksLikeError ? text
+        : (err.trim() || (text ? text.slice(-300) : `claude exited with code ${code}(无输出,常见于 CLI 登录过期,请在服务器执行 claude 重新登录)`));
       if (/Failed to authenticate|Invalid API key|OAuth.*expired|401/i.test(reason))
         reason = "AI 引擎未认证:服务器 claude CLI 登录已过期或 .env 未配置 ANTHROPIC_API_KEY,请联系管理员";
       console.error("[ai] claude failed code=%s model=%s\n%s", code, model ?? "(default)", reason);
@@ -569,8 +561,8 @@ function cliOnce(prompt, timeoutMs, model = null, mcp = false) {
 }
 
 async function runViaCli(prompt, timeoutMs = TIMEOUT_MS, mcp = false) {
-  // 主模型:CLAUDE_CLI_MODEL,不设则用 CLI 登录账号默认(如 Fable 5)
-  const primary = process.env.CLAUDE_CLI_MODEL || null;
+  // 主模型:默认 opus 4.8(周额度稳定);CLAUDE_CLI_MODEL 可覆盖
+  const primary = process.env.CLAUDE_CLI_MODEL || "claude-opus-4-8";
   try {
     return await cliOnce(prompt, timeoutMs, primary, mcp);
   } catch (e) {

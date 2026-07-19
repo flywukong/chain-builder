@@ -418,10 +418,13 @@ app.get("/api/sync-errors", async () => latest.syncErrors ?? safe(fetchSyncError
 app.get("/api/slash-events", async (req) => {
   const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 15);
   const v = slashEvents.view(days * 86400e3);
+  // 窗口内为空时前端展示"最近一次"(15d 全窗口),避免空面板没信息
+  const latest15d = days < 15 && !v.count ? (slashEpisodes(slashEvents.view(15 * 86400e3).items)[0] ?? null) : null;
   return {
     days, count: v.count, lastScanned: v.lastScanned,
     episodes: slashEpisodes(v.items),
     recent: v.recent.map((e) => ({ ...e, ...validatorInfo(e.validator), fillerName: e.filler ? validatorInfo(e.filler).name : null })),
+    latest15d,
   };
 });
 app.get("/api/keter-health", async () => ({ ...keterHealth }));

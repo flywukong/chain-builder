@@ -96,7 +96,13 @@ export default function SlashPanel() {
                   <span className={`hpd-end ${e.gapMsMax > 800 ? "sl-gap-hot" : ""}`}>{fmtGap(e.gapMsMax)}</span>
                 </div>
               ))}
-              {eps.length === 0 && <div className="eb-none">—</div>}
+              {eps.length === 0 && (
+                <div className="eb-none">
+                  {d?.latest15d
+                    ? <>最近一次:{d.latest15d.timeLocal} {d.latest15d.name}{d.latest15d.internal ? "·自营" : ""}{d.latest15d.blocks > 1 ? ` ×${d.latest15d.blocks}块` : ""} → {(d.latest15d.fillers ?? [])[0] ?? "?"}</>
+                    : "—"}
+                </div>
+              )}
             </div>
           </div>
         </div>

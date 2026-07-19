@@ -96,14 +96,13 @@ export default function ReorgPanel({ data }) {
   const events = data?.events ?? [];
   const sevOf = (e) => (e.orphans >= 8 ? "severe" : e.orphans >= 3 || e.count >= 2 ? "watch" : "info");
   const severe = events.filter((e) => sevOf(e) === "severe");
-  const watch = events.filter((e) => sevOf(e) === "watch");
-  const info = events.filter((e) => sevOf(e) === "info");
   // 结论句:15天内 N 天发生;有严重→需关注;有关注→轻微;否则正常
   const verdict = severe.length ? { t: "需关注", cls: "warn" }
     : (sum?.daysWithReorg ?? 0) > 0 ? { t: "轻微", cls: "mid" } : { t: "正常", cls: "ok" };
 
   const EvRow = ({ e, tone }) => (
     <div key={e.t} className={`re-row ${tone === "severe" ? "re-severe" : tone === "watch" ? "re-watch" : ""}`}>
+      <span className={`re-sev re-sev-${tone}`}>{tone === "severe" ? "严重" : tone === "watch" ? "关注" : "常规"}</span>
       <span className="re-time">{fmtHour(e.t)}</span>
       <span className="re-cnt">{e.count} 次</span>
       <span className="re-orph" title="重组时被回滚作废的区块数">回滚 {e.orphans} 块</span>
@@ -177,14 +176,10 @@ export default function ReorgPanel({ data }) {
           </div>
 
           <div className="reorg-events">
-            <div className="re-title re-t-severe">严重(单次回滚≥8块)</div>
-            {severe.length === 0 ? <div className="re-empty">✓ 无</div> : severe.map((e) => <EvRow key={e.t} e={e} tone="severe" />)}
-
-            <div className="re-title re-t-watch" style={{ marginTop: 6 }}>关注(回滚≥3块 或 ≥2次/小时)</div>
-            {watch.length === 0 ? <div className="re-empty">✓ 无</div> : watch.map((e) => <EvRow key={e.t} e={e} tone="watch" />)}
-
-            <div className="re-title" style={{ marginTop: 6 }}>参考 · 常规 micro-reorg</div>
-            {info.length === 0 ? <div className="re-empty">✓ 窗口内无</div> : info.map((e) => <EvRow key={e.t} e={e} tone="info" />)}
+            <div className="re-title">重组事件(严重 = 单次回滚≥8块 · 关注 = ≥3块或≥2次/小时 · 其余常规)</div>
+            {events.length === 0
+              ? <div className="re-empty">✓ 窗口内无重组事件</div>
+              : [...events].sort((a, b) => b.t - a.t).map((e) => <EvRow key={e.t} e={e} tone={sevOf(e)} />)}
           </div>
         </div>
       </div>

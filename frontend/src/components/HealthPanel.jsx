@@ -187,8 +187,8 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
                 <span className={`hp-row-v t-${gasLevel.tone}`}>{gasUtil}%</span>
                 <span className={`hp-row-aux hp-gas-surge ${surges ? "hot" : "ok"}`}>
                   {!utils.length ? "" : surges
-                    ? `最近 24h 大流量 ${surges} 次 · 打满 ${Math.round(peak)}% gaslimit`
-                    : `最近 24h 无大流量 · 峰值 ${Math.round(peak)}%`}
+                    ? <>最近 24h 大流量 {surges} 次<br />打满 {Math.round(peak)}%</>
+                    : <>最近 24h 无大流量<br />峰值 {Math.round(peak)}%</>}
                 </span>
               </div>
               <GasSpark gasUsed={gasUsed} gasLimit={gasLimit} />

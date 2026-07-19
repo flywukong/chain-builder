@@ -1383,7 +1383,8 @@ body::before {
   background: rgba(240,185,11,.05); border: 1px solid rgba(240,185,11,.35); border-radius: 6px; padding: 3px 10px; }
 .bg-peak-tag.hot { color: var(--gold); background: rgba(240,185,11,.1); border-color: var(--gold); }
 
-/* 首页 Gas 卡:大流量结论(≥90% 为大流量) */
+/* 首页 Gas 卡:大流量结论(≥90% 为大流量),固定两行右对齐 */
+.hp-gas-surge { line-height: 1.55; text-align: right; }
 .hp-gas-surge.hot { color: var(--gold); font-weight: 800; }
 .hp-gas-surge.ok { color: var(--green); }
 

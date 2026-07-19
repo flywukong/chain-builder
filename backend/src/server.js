@@ -308,9 +308,31 @@ async function enrichEpisodes(tl) {
   return tl;
 }
 
+// reorg 事件补区块范围:5m 精化定位 → ±5m 换算块高;失败退回小时桶(约 8000 块,标 precise=false)。
+// 事件时间不变,按 t 缓存,每事件只算一次(refineReorgMoment 1 次 keter 查询 + 2 次 blockAtTime)。
+const reorgEvBlockCache = new Map();
+async function enrichReorgEvents(tl) {
+  for (const e of tl?.events ?? []) {
+    if (reorgEvBlockCache.has(e.t)) { Object.assign(e, reorgEvBlockCache.get(e.t)); continue; }
+    try {
+      const refined = await refineReorgMoment(cfg.keterConfigPath, e.t).catch(() => null);
+      const winT = refined?.momentT ?? e.t;
+      const [startBlock, endBlock] = await Promise.all([
+        blockAtTime(refined ? winT - 300e3 : e.t - 3600e3),
+        blockAtTime(refined ? winT + 300e3 : e.t),
+      ]);
+      const v = { startBlock, endBlock, precise: !!refined };
+      reorgEvBlockCache.set(e.t, v);
+      Object.assign(e, v);
+      if (reorgEvBlockCache.size > 200) reorgEvBlockCache.delete(reorgEvBlockCache.keys().next().value);
+    } catch {}
+  }
+  return tl;
+}
+
 async function pollTimelines() {
   let ok = true;
-  try { broadcast("reorgTimeline", await fetchReorgTimeline(cfg.keterConfigPath)); }
+  try { broadcast("reorgTimeline", await enrichReorgEvents(await fetchReorgTimeline(cfg.keterConfigPath))); }
   catch (err) { ok = false; console.error("[reorg timeline poll]", err.message); keterMark("timelineOkAt", err); }
   try { broadcast("trafficTimeline", await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath))); }
   catch (err) { ok = false; console.error("[traffic timeline poll]", err.message); keterMark("timelineOkAt", err); }
@@ -483,7 +505,7 @@ app.get("/api/reorg-events", async () => ({
   keterEvents: (latest.reorgTimeline?.events ?? []).slice(0, 10),   // 链级(≥2节点),小时粒度
   observed: reorgObs.view(),                                        // 本机 WS 观测,含精确高度
 }));
-app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReorgTimeline(cfg.keterConfigPath)));
+app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReorgTimeline(cfg.keterConfigPath).then(enrichReorgEvents)));
 let blockGasWinCache = { at: 0, minutes: 0, data: null };
 // 流量高峰段:gasused > 45M 的连续区间(相邻 ≤2 个采样点的间隙合并),附区块高度区间
 const PEAK_GAS = 45e6;
@@ -765,7 +787,7 @@ aiRoutes("greedy", "/api/ai/greedy", async (body) => {
 // Reorg 解读:严重度 + 涉及方(自营/外部),无日志不做根因
 // body.eventT → 单事件归因(5m 定位 + canonical miner 序列取证);body.days → 整体解读窗口
 aiRoutes("reorg", "/api/ai/reorg", async (body) => {
-  const tl = latest.reorgTimeline ?? await fetchReorgTimeline(cfg.keterConfigPath).catch(() => null);
+  const tl = latest.reorgTimeline ?? await fetchReorgTimeline(cfg.keterConfigPath).then(enrichReorgEvents).catch(() => null);
   const vinfo = (addr) => {
     const v = VALIDATORS[(addr || "").toLowerCase()];
     return v ? { name: v.name, group: v.group, internal: v.group === "internal" } : { name: (addr || "").slice(0, 10), group: "unknown", internal: false };

@@ -1391,8 +1391,10 @@ body::before {
 .re-sev { flex-shrink: 0; font-size: 8.5px; font-weight: 800; letter-spacing: .5px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--dim); color: var(--dim); }
 .re-sev-watch { border-color: var(--orange); color: var(--orange); }
 .re-sev-severe { border-color: var(--red); color: var(--red); }
-.reorg-events .re-row { gap: 6px; font-size: 10.5px; }
+.reorg-events .re-row { gap: 6px; font-size: 10.5px; flex-wrap: wrap; row-gap: 3px; }
 .reorg-events .re-row > span { white-space: nowrap; }
+.reorg-events .re-row .tf-ep-btn { margin-left: auto; }
+.re-blocks { flex-basis: 100%; font-size: 10px; color: var(--muted); font-family: var(--mono); }
 
 /* Slash 面板:事件段行(时间 · 被slash方 → 替代者 · 间隔) */
 /* 默认(内容多/有 AI 结果)完整体量;内容少时 .sl-compact 缩小 ~40%,列表超出滚动 */

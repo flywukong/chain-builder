@@ -100,17 +100,21 @@ export default function ReorgPanel({ data }) {
   const verdict = severe.length ? { t: "需关注", cls: "warn" }
     : (sum?.daysWithReorg ?? 0) > 0 ? { t: "轻微", cls: "mid" } : { t: "正常", cls: "ok" };
 
+  const fmtBlk = (n) => (n == null ? null : "#" + n.toLocaleString());
   const EvRow = ({ e, tone }) => (
-    <div key={e.t} className={`re-row ${tone === "severe" ? "re-severe" : tone === "watch" ? "re-watch" : ""}`}>
-      <span className={`re-sev re-sev-${tone}`}>{tone === "severe" ? "严重" : tone === "watch" ? "关注" : "常规"}</span>
+    <div key={e.t} className={`re-row ${tone === "severe" ? "re-severe" : tone === "watch" ? "re-watch" : ""}`}
+         title={e.nodes != null ? `${e.nodes} 个节点观测到该重组` : undefined}>
+      <span className={`re-sev re-sev-${tone}`}>{tone === "severe" ? "严重" : tone === "watch" ? "关注" : "轻微"}</span>
       <span className="re-time">{fmtHour(e.t)}</span>
       <span className="re-cnt">{e.count} 次</span>
       <span className="re-orph" title="重组时被回滚作废的区块数">回滚 {e.orphans} 块</span>
-      <span className="re-nodes">{e.nodes != null ? `${e.nodes} 节点` : "—"}</span>
       <button className="tf-ep-btn" disabled={ai.loading} title="5m 定位 + canonical 出块序列取证"
               onClick={() => runAi({ eventT: e.t }, `事件 ${fmtHour(e.t)}`)}>
         {ai.loading && ai.label === `事件 ${fmtHour(e.t)}` ? "分析中…" : "⚡ 分析"}
       </button>
+      {e.startBlock != null && (
+        <span className="re-blocks">区块 {fmtBlk(e.startBlock)} ~ {fmtBlk(e.endBlock)}{e.precise ? "" : "(约)"}</span>
+      )}
     </div>
   );
 
@@ -176,7 +180,7 @@ export default function ReorgPanel({ data }) {
           </div>
 
           <div className="reorg-events">
-            <div className="re-title">重组事件(严重 = 单次回滚≥8块 · 关注 = ≥3块或≥2次/小时 · 其余常规)</div>
+            <div className="re-title">重组事件(严重 = 单次回滚≥8块 · 关注 = ≥3块或≥2次/小时 · 其余轻微)</div>
             {events.length === 0
               ? <div className="re-empty">✓ 窗口内无重组事件</div>
               : [...events].sort((a, b) => b.t - a.t).map((e) => <EvRow key={e.t} e={e} tone={sevOf(e)} />)}

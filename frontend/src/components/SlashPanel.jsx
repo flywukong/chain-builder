@@ -42,9 +42,11 @@ export default function SlashPanel() {
   const top3 = vRows.slice(0, 3).map(([name]) => name).join("/");
   const internalHit = eps.some((e) => e.internal);
   const fmtGap = (ms) => (ms == null ? "--" : ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`);
+  // 内容少时缩小 40%(compact);事件多 / validator 多 / 有 AI 结果时恢复完整尺寸,列表内部滚动
+  const expanded = eps.length > 8 || vRows.length > 4 || !!ai.text || ai.loading;
 
   return (
-    <div className="panel eb-panel sl-panel">
+    <div className={`panel eb-panel sl-panel ${expanded ? "" : "sl-compact"}`}>
       <div className="panel-header">
         <span>Slash 分析 · {winLabel}
           {d && (

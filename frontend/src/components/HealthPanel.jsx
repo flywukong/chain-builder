@@ -170,15 +170,31 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           )}
         </div>
 
-        {/* 第三行:Gas 利用率(采样 2 台典型 · 24h 走势) */}
-        <div className={`hp-row tone-${gasLevel.tone === "mid" ? "ok" : gasLevel.tone}`}>
-          <div className="hp-row-head">
-            <span className="hp-row-k">Gas 利用率</span>
-            <span className={`hp-row-v t-${gasLevel.tone}`}>{gasUtil}%</span>
-            <span className="hp-row-aux">最近 24 小时</span>
-          </div>
-          <GasSpark gasUsed={gasUsed} gasLimit={gasLimit} />
-        </div>
+        {/* 第三行:Gas 利用率(24h 走势 + 大流量结论:利用率 ≥90% 计一次,相邻分钟合并) */}
+        {(() => {
+          const gl = gasLimit || DEFAULT_GAS_LIMIT;
+          const utils = (gasUsed?.avg?.[0]?.values ?? []).filter((v) => typeof v === "number").map((v) => (v / gl) * 100);
+          let surges = 0, inSeg = false, gap = 0, peak = 0;
+          for (const u of utils) {
+            if (u > peak) peak = u;
+            if (u >= 90) { if (!inSeg) { surges++; inSeg = true; } gap = 0; }
+            else if (inSeg && ++gap > 2) inSeg = false;
+          }
+          return (
+            <div className={`hp-row tone-${gasLevel.tone === "mid" ? "ok" : gasLevel.tone}`}>
+              <div className="hp-row-head">
+                <span className="hp-row-k">Gas 利用率</span>
+                <span className={`hp-row-v t-${gasLevel.tone}`}>{gasUtil}%</span>
+                <span className={`hp-row-aux hp-gas-surge ${surges ? "hot" : "ok"}`}>
+                  {!utils.length ? "" : surges
+                    ? `最近 24h 大流量 ${surges} 次 · 打满 ${Math.round(peak)}% gaslimit`
+                    : `最近 24h 无大流量 · 峰值 ${Math.round(peak)}%`}
+                </span>
+              </div>
+              <GasSpark gasUsed={gasUsed} gasLimit={gasLimit} />
+            </div>
+          );
+        })()}
 
         {showSync && (
           <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowSync(false); }}>

@@ -1383,6 +1383,10 @@ body::before {
   background: rgba(240,185,11,.05); border: 1px solid rgba(240,185,11,.35); border-radius: 6px; padding: 3px 10px; }
 .bg-peak-tag.hot { color: var(--gold); background: rgba(240,185,11,.1); border-color: var(--gold); }
 
+/* 首页 Gas 卡:大流量结论(≥90% 为大流量) */
+.hp-gas-surge.hot { color: var(--gold); font-weight: 800; }
+.hp-gas-surge.ok { color: var(--green); }
+
 /* Reorg 统一事件列表:行内严重度徽标;行内各项禁换行防挤成两行 */
 .re-sev { flex-shrink: 0; font-size: 8.5px; font-weight: 800; letter-spacing: .5px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--dim); color: var(--dim); }
 .re-sev-watch { border-color: var(--orange); color: var(--orange); }

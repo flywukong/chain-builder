@@ -821,9 +821,17 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       peakDay: peak.count ? peak : null,   // 仅用于「单日 >10 次」重点提醒,不进常规输出
     },
     chainReorg24h: reorg24hFiltered(),         // 滚动 24h 链级次数(与页面卡片同源;窗口与日历日不同)
-    events: (tl?.events ?? []).filter((e) => e.t >= cut).map((e) => ({
-      ...e,
-      timeLocal: new Date(e.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+    // 事件附上小时桶对应的大致块高区间,总结里直接给块号明细,免得用户再逐个点「分析」
+    events: await Promise.all((tl?.events ?? []).filter((e) => e.t >= cut).slice(0, 8).map(async (e) => {
+      const [fromBlock, toBlock] = await Promise.all([
+        blockAtTime(e.t).catch(() => null),
+        blockAtTime(e.t + 3600e3).catch(() => null),
+      ]);
+      return {
+        ...e,
+        timeLocal: new Date(e.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+        approxBlockRange: fromBlock && toBlock ? { from: fromBlock, to: toBlock } : null,
+      };
     })),
   });
 });

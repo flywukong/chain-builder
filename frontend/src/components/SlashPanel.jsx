@@ -44,7 +44,7 @@ export default function SlashPanel() {
   const fmtGap = (ms) => (ms == null ? "--" : ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`);
 
   return (
-    <div className="panel eb-panel">
+    <div className="panel eb-panel sl-panel">
       <div className="panel-header">
         <span>Slash 分析 · {winLabel}
           {d && (

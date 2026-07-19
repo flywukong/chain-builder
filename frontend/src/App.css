@@ -1381,6 +1381,7 @@ body::before {
 .bg-peak-tag.hot { color: var(--gold); background: rgba(240,185,11,.1); border-color: var(--gold); }
 
 /* Slash 面板:事件段行(时间 · 被slash方 → 替代者 · 间隔) */
+.sl-panel .panel-body { min-height: 380px; }   /* 窗口无数据时保持与 15d 视图相同体量,不塌缩 */
 .sl-row .hpd-mid { flex: 1.2; }
 .sl-int { color: var(--gold); font-weight: 700; }
 .sl-fill { flex: 1; font-family: var(--mono); font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

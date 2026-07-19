@@ -247,17 +247,21 @@ export async function runSyncAnalysis(data) {
   return spawnClaude(prompt);
 }
 
-// ── 单次 reorg 事件归因:5m 定位 + canonical miner 序列取证 ──
+// ── 单次 reorg 事件归因:5m 定位 + canonical miner 序列取证(粗采样 + 最大 gap 邻域逐块)──
 export async function runReorgEventAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网的共识运维分析师。归因下面这一次链级 reorg 事件,中文 markdown,200 字以内,直接正文。",
+    "分析 BSC 主网这一次区块重组(reorg)事件。读者是普通用户,中文 markdown,220 字以内,直接正文,白话表达(说「回滚了 N 个块」,不要写「孤块/orphans/链级/去重」这类术语)。",
     "",
-    "数据口径:event 来自 keter 小时级聚合(count=该小时链级去重次数,orphans=被回滚作废的区块数,nodesSaw=观测到的节点数);refinedMoment 是 5m 粒度定位的发生时刻;canonicalMinerSequence 是事件区块区间内 canonical 链的出块序列采样(等步长,gapMs=与上一采样块的时间差,期望 ≈ sampleStepBlocks×450ms)。输出用「回滚了 N 个块」这类白话,不要写「孤块/orphans」。",
-    "分析方法:被重组段在 canonical 链上不可见,但会留下痕迹——gapMs 显著大于期望值的位置就是重组回退重出的时刻,该位置之后的 miner 是重组赢家;赢家之前正常出块的 validator 里可能有被重组方,但无法从 canonical 链确认,不要断言。",
-    "要求:①一句话概述(时间/规模/影响面:nodesSaw 大 = 全网可见,小 = 局部);②从 gapMs 找出异常时刻与赢家 validator(用名称,group=internal 是我方自营,明确标注);找不到明显 gap 就说明采样步长内无法分辨,不要硬凑;③严重度(单次回滚 ≥8 个块 或 单小时 ≥2 次 值得关注)与是否需要行动。",
-    "禁止编造:没有节点日志,不猜底层根因;区块区间 blockRange 在结论里报出,方便读者链上复查。",
+    "数据说明:event = 事件概况(timeLocal 已是北京时间;count 该小时发生次数;orphans 被回滚作废的块数;nodesSaw 经历该事件的节点数,多=全网性,少=局部);refinedMoment = 精确到 5 分钟的发生时刻(北京时间);blockRange = 事件所在的块高区间;canonicalMinerSequence = 区间内现存链的出块序列抽样(gapMs=与上一采样块的时间差,期望 ≈ sampleStepBlocks×450ms);fineWindow = 疑似重组点邻域的逐块序列(每块都在,gapMs 期望 450ms)。",
+    "分析方法:被回滚的块在现存链上已看不到,但会留下时间缺口——gapMs 明显大于期望的位置就是重组发生、链回退重出的时刻;fineWindow 里 gap 异常块的出块方就是重组后的赢家。赢家之前正常出块的 validator 可能是被回滚方,但无法从现存链确认,不要断言。",
+    "",
+    "输出结构(信息必须具体,不许只给结论):",
+    "1.「事件:」一行报全细节——几月几日几时几分(优先 refinedMoment.timeLocal)、回滚了几个块、块高区间(#from ~ #to)、多少台节点经历(全网性/局部)。",
+    "2.「定位:」从 fineWindow(优先)或抽样序列指出重组点:异常 gap 出现在块 #N(写出该块北京时间与 gapMs),该块由哪个 validator 出(写名称;group=internal 标注「自营」,否则「外部」)即重组赢家;fineWindow 为 null 或看不出明显 gap 就直说「无法精确到单块」,严禁硬凑。",
+    "3.「严重度:」正常/需关注(单次回滚 ≥8 块 或 单小时 ≥2 次 才值得关注)+ 是否需要处理。",
+    "禁止编造:没有节点日志,不猜底层根因;所有块号/时间/validator 名必须来自数据。",
     MCP_GUIDE,
-    "本场景取证建议:采样序列里 gapMs 异常的位置,用 bscops 的 get_block_miners 一次拉该邻域的逐块序列(step=1,返回自带 validator 名与 gapMs),把 reorg 边界精确到单块,并确认 gap 后首块的赢家 validator。",
+    "本场景取证建议:fineWindow 已给出重组点邻域逐块序列,一般无需再查链;仅当 fineWindow 为 null 且你需要验证某个可疑位置时,用 bscops 的 get_block_miners 拉该邻域(step=1)。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

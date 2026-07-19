@@ -779,24 +779,41 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       blockAtTime(refined ? winT + 300e3 : picked.t),
     ]);
     // canonical 链 miner 序列采样:重组段在 canonical 链上表现为块时间 gap,gap 后首块 miner 即赢家
-    let minerSeq = null;
-    if (fromB && toB && toB > fromB) {
-      const step = Math.max(1, Math.floor((toB - fromB) / 60));
-      const nums = []; for (let n = fromB; n <= toB; n += step) nums.push(n);
+    const fetchSeq = async (from, to, step) => {
+      const nums = []; for (let n = from; n <= to; n += step) nums.push(n);
       const headers = await Promise.all(nums.map((n) =>
         streamer.http.send("eth_getHeaderByNumber", ["0x" + n.toString(16)]).catch(() => null)));
       let prevTs = null;
-      minerSeq = headers.filter(Boolean).map((h) => {
+      return headers.filter(Boolean).map((h) => {
         const ts = Number(BigInt(h.timestamp)) * 1000 + (h.mixHash ? Number(BigInt(h.mixHash) % 1000n) : 0);
         const gapMs = prevTs != null ? ts - prevTs : null; prevTs = ts;
-        return { block: Number(BigInt(h.number)), miner: vinfo(h.miner).name, group: vinfo(h.miner).group, gapMs };
+        return { block: Number(BigInt(h.number)), timeLocal: new Date(ts).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }), miner: vinfo(h.miner).name, group: vinfo(h.miner).group, gapMs };
       });
+    };
+    let minerSeq = null, fineSeq = null;
+    const step = fromB && toB && toB > fromB ? Math.max(1, Math.floor((toB - fromB) / 60)) : null;
+    if (step) {
+      minerSeq = await fetchSeq(fromB, toB, step);
+      // 二次精化:粗采样里超出预期最多的 gap,其邻域拉 step=1 逐块序列,把重组边界与赢家 validator 钉到单块
+      if (step > 1 && minerSeq.length > 2) {
+        let best = null;
+        for (let i = 1; i < minerSeq.length; i++) {
+          const g = minerSeq[i].gapMs;
+          if (g != null && (best == null || g > minerSeq[best].gapMs)) best = i;
+        }
+        if (best != null && minerSeq[best].gapMs > step * 450 + 900) {
+          const a = minerSeq[best - 1].block;
+          fineSeq = await fetchSeq(a, Math.min(minerSeq[best].block, a + 80), 1);
+        }
+      }
     }
+    const beijing = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" });
     return runReorgEventAnalysis({
-      event: { time: new Date(picked.t).toISOString(), count: picked.count, orphans: picked.orphans, nodesSaw: picked.nodes ?? null },
-      refinedMoment: refined ? { time: new Date(winT).toISOString(), executes5m: refined.executes5m } : null,
-      blockRange: { from: fromB, to: toB, sampleStepBlocks: fromB && toB ? Math.max(1, Math.floor((toB - fromB) / 60)) : null },
+      event: { timeLocal: beijing(picked.t), count: picked.count, orphans: picked.orphans, nodesSaw: picked.nodes ?? null },
+      refinedMoment: refined ? { timeLocal: beijing(winT), executes5m: refined.executes5m } : null,
+      blockRange: { from: fromB, to: toB, sampleStepBlocks: step },
       canonicalMinerSequence: minerSeq,
+      fineWindow: fineSeq,   // 最大 gap 邻域的逐块序列(step=1);无明显 gap 时为 null
       expectedBlockGapMs: 450,
     });
   }

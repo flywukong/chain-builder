@@ -3,8 +3,6 @@ import RobotWidget from "./RobotWidget.jsx";
 import { AiText } from "./PanelAi.jsx";
 import { aiRequest } from "../lib/ai.js";
 
-const API = import.meta.env.VITE_API_BASE ?? "";
-
 const fmtHour = (t) => {
   const d = new Date(t);
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:00`;
@@ -16,7 +14,6 @@ export default function ReorgPanel({ data }) {
   const canvasRef = useRef(null);
   const days = data?.days ?? [];
   const sum = data?.summary;
-  const [obs, setObs] = useState(null);   // 本机 WS 观测(精确高度,24h)
   const [aiDays, setAiDays] = useState(7);   // 整体解读窗口:1(24h)/ 7 / 15
   const [ai, setAi] = useState({ loading: false, label: null, text: null, at: null, err: null });
 
@@ -30,11 +27,6 @@ export default function ReorgPanel({ data }) {
       else setAi({ loading: false, label, text: d.text, at: d.at, err: null });
     } catch (e) { setAi({ loading: false, label, text: null, at: null, err: String(e) }); }
   };
-
-  useEffect(() => {
-    fetch(API + "/api/reorg-events").then((r) => r.json())
-      .then((d) => setObs(d.observed)).catch(() => {});
-  }, [data]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -193,17 +185,6 @@ export default function ReorgPanel({ data }) {
 
             <div className="re-title" style={{ marginTop: 6 }}>参考 · 常规 micro-reorg</div>
             {info.length === 0 ? <div className="re-empty">✓ 窗口内无</div> : info.map((e) => <EvRow key={e.t} e={e} tone="info" />)}
-
-            <div className="re-title" style={{ marginTop: 6 }}>本机观测高度 · 24h(单视角,仅参考)</div>
-            {!obs || obs.count === 0
-              ? <div className="re-empty">✓ 24h 本机未观测到 reorg</div>
-              : obs.recent.slice(0, 6).map((r) => (
-                  <div key={r.t} className="re-row">
-                    <span className="re-time">#{r.from?.toLocaleString()}→{r.to?.toLocaleString()}</span>
-                    <span className="re-cnt">d{r.depth}</span>
-                    <span className="re-nodes">{new Date(r.t).toLocaleTimeString()}</span>
-                  </div>
-                ))}
           </div>
         </div>
       </div>

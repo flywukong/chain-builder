@@ -251,9 +251,9 @@ export async function runReorgEventAnalysis(data) {
   const prompt = [
     "你是 BSC 主网的共识运维分析师。归因下面这一次链级 reorg 事件,中文 markdown,200 字以内,直接正文。",
     "",
-    "数据口径:event 来自 keter 小时级聚合(count=该小时链级去重次数,orphans=孤块数,nodesSaw=观测到的节点数);refinedMoment 是 5m 粒度定位的发生时刻;canonicalMinerSequence 是事件区块区间内 canonical 链的出块序列采样(等步长,gapMs=与上一采样块的时间差,期望 ≈ sampleStepBlocks×450ms)。",
+    "数据口径:event 来自 keter 小时级聚合(count=该小时链级去重次数,orphans=被回滚作废的区块数,nodesSaw=观测到的节点数);refinedMoment 是 5m 粒度定位的发生时刻;canonicalMinerSequence 是事件区块区间内 canonical 链的出块序列采样(等步长,gapMs=与上一采样块的时间差,期望 ≈ sampleStepBlocks×450ms)。输出用「回滚了 N 个块」这类白话,不要写「孤块/orphans」。",
     "分析方法:被重组段在 canonical 链上不可见,但会留下痕迹——gapMs 显著大于期望值的位置就是重组回退重出的时刻,该位置之后的 miner 是重组赢家;赢家之前正常出块的 validator 里可能有被重组方,但无法从 canonical 链确认,不要断言。",
-    "要求:①一句话概述(时间/规模/影响面:nodesSaw 大 = 全网可见,小 = 局部);②从 gapMs 找出异常时刻与赢家 validator(用名称,group=internal 是我方自营,明确标注);找不到明显 gap 就说明采样步长内无法分辨,不要硬凑;③严重度(孤块≥8 或单小时≥2次 值得关注)与是否需要行动。",
+    "要求:①一句话概述(时间/规模/影响面:nodesSaw 大 = 全网可见,小 = 局部);②从 gapMs 找出异常时刻与赢家 validator(用名称,group=internal 是我方自营,明确标注);找不到明显 gap 就说明采样步长内无法分辨,不要硬凑;③严重度(单次回滚 ≥8 个块 或 单小时 ≥2 次 值得关注)与是否需要行动。",
     "禁止编造:没有节点日志,不猜底层根因;区块区间 blockRange 在结论里报出,方便读者链上复查。",
     MCP_GUIDE,
     "本场景取证建议:采样序列里 gapMs 异常的位置,用 bscops 的 get_block_miners 一次拉该邻域的逐块序列(step=1,返回自带 validator 名与 gapMs),把 reorg 边界精确到单块,并确认 gap 后首块的赢家 validator。",

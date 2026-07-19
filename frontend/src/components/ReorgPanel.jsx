@@ -95,9 +95,9 @@ export default function ReorgPanel({ data }) {
 
   const chips = sum ? [
     { v: sum.avgPerDay, l: `日均次数 · ${sum.spanDays}d`, tone: sum.avgPerDay > 5 ? "warn" : "ok" },
-    { v: `${sum.total} / ${sum.orphans}`, l: "总次数 / 孤块(去重)", tone: "ok" },
+    { v: `${sum.total} / ${sum.orphans}`, l: "总次数 / 回滚块(去重)", tone: "ok" },
     { v: `${sum.daysWithReorg}/${sum.spanDays}`, l: "发生 Reorg 天数", tone: sum.daysWithReorg > sum.spanDays * 0.5 ? "warn" : "ok" },
-    { v: sum.avgDepth, l: "平均深度 (孤块/次)", tone: sum.avgDepth > 4 ? "warn" : "ok" },
+    { v: sum.avgDepth, l: "平均深度 (回滚块/次)", tone: sum.avgDepth > 4 ? "warn" : "ok" },
   ] : [];
 
   // 事件分级:严重 = 孤块≥8;关注 = 孤块≥3 或单小时≥2次;其余(含本机观测)为参考
@@ -114,7 +114,7 @@ export default function ReorgPanel({ data }) {
     <div key={e.t} className={`re-row ${tone === "severe" ? "re-severe" : tone === "watch" ? "re-watch" : ""}`}>
       <span className="re-time">{fmtHour(e.t)}</span>
       <span className="re-cnt">{e.count} 次</span>
-      <span className="re-orph">{e.orphans} 孤块</span>
+      <span className="re-orph" title="重组时被回滚作废的区块数">回滚 {e.orphans} 块</span>
       <span className="re-nodes">{e.nodes != null ? `${e.nodes} 节点` : "—"}</span>
       <button className="tf-ep-btn" disabled={ai.loading} title="5m 定位 + canonical 出块序列取证"
               onClick={() => runAi({ eventT: e.t }, `事件 ${fmtHour(e.t)}`)}>
@@ -177,7 +177,7 @@ export default function ReorgPanel({ data }) {
           <div className="reorg-chart">
             <div className="reorg-legend">
               <span><i style={{ background: "#F0B90B" }} />链级 Reorg 次数/日</span>
-              <span><i style={{ background: "#3FB8A0" }} />重组孤块数/日</span>
+              <span><i style={{ background: "#3FB8A0" }} />被回滚区块数/日</span>
             </div>
             <canvas ref={canvasRef} className="reorg-canvas" />
             {/* 图表下方空白区:监控问答机器人(reorg/空块/出块人/时延) */}
@@ -185,10 +185,10 @@ export default function ReorgPanel({ data }) {
           </div>
 
           <div className="reorg-events">
-            <div className="re-title re-t-severe">严重(孤块≥8)</div>
+            <div className="re-title re-t-severe">严重(单次回滚≥8块)</div>
             {severe.length === 0 ? <div className="re-empty">✓ 无</div> : severe.map((e) => <EvRow key={e.t} e={e} tone="severe" />)}
 
-            <div className="re-title re-t-watch" style={{ marginTop: 6 }}>关注(孤块≥3 或 ≥2次/小时)</div>
+            <div className="re-title re-t-watch" style={{ marginTop: 6 }}>关注(回滚≥3块 或 ≥2次/小时)</div>
             {watch.length === 0 ? <div className="re-empty">✓ 无</div> : watch.map((e) => <EvRow key={e.t} e={e} tone="watch" />)}
 
             <div className="re-title" style={{ marginTop: 6 }}>参考 · 常规 micro-reorg</div>

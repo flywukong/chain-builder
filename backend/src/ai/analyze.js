@@ -216,13 +216,16 @@ export async function runGreedyMergeAnalysis(data) {
 // ── Reorg 解读:无节点日志,不做根因;判涉及方(自营/外部)+ 严重度 + 总结 ──
 export async function runReorgAnalysis(data) {
   const prompt = [
-    `你是 BSC 主网的资深运维分析师。基于下面的 reorg 监控数据解读近 ${data.windowDays ?? 14} 天窗口,中文 markdown,180 字以内,直接正文。`,
+    `你是 BSC 主网的资深运维分析师。解读近 ${data.windowDays ?? 7} 天的链级 reorg 状态,中文 markdown,200 字以内,直接正文,首行以「结论:」开头。`,
     "",
-    "数据口径:全部来自各节点 geth 的 chain_reorg_executes 计数,经链级去重(跨节点取 max、≥2 节点同小时确认才计数,单节点本地抖动已排除)——即「节点真正执行了回退重放、且多节点可见」的重组。chainReorg24h 是近 24h 链级次数;keterWindow.days/events 已按所选窗口截取,以它们为准;summary 是 14d 全窗口背景值,窗口小于 14 天时不要直接引用 summary 的次数。",
-    "重要:手头没有节点日志,禁止推测底层根因(网络分区/时钟/代码 bug 等一律不猜)。只做三件事:",
-    "1. 严重程度:对照基线(fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常),按频率给出 正常/需关注/告警;近 24h(chainReorg24h)与窗口整体分别说一句。",
-    "2. 事件盘点:逐事件给 日期时间 / 该小时次数 / 孤块数 orphans / 可见节点数 nodes(大 = 全网可见,小 = 局部);无事件就明确说「窗口内链级 0 次」。事件数据里没有出块方信息,严禁编造涉及的 validator;要归因谁被重组,提示读者在 Reorg 面板点击具体事件做单事件取证。",
-    "3. 末行一句话总结:是否需要行动。",
+    "统一口径(先读懂再写,输出中只用这一个口径):链级去重事件——每小时桶跨节点取 max(increase[1h] of chain_reorg_executes/drop),N 个节点执行的同一次重组只计 1 次;<2 节点确认的小时视为单节点本地抖动,已剔除(excludedSingleNode15d 为 15d 全窗口剔除数)。孤块数同样去重。本机单视角观测、RPC 切换造成的 micro-reorg 不在此数据内,禁止提及或混入。",
+    "",
+    "输出结构:",
+    "1. 结论:对照 postForkBaseline(Osaka/Mendel 硬分叉后 65 天实测:0.34 次/日、0.9 孤块/日、22% 天数发生、平均深度 2.59)给严重程度(正常/需关注/告警)。",
+    "2. 核心指标(windowStats,逐项给数字):链级次数/日 reorgsPerDay、去重孤块/日 orphansPerDayDedup、发生天数 daysWithReorg、平均深度 avgDepth(孤块÷事件)、单日峰值 peakDay。窗口内 0 次就写「窗口内链级 0 次」,此时不要展开指标堆砌。",
+    "3. 事件盘点:events 逐条给 timeLocal(已是北京时间)/ 次数 / 孤块 / 可见节点数;无事件跳过本段。事件数据里没有出块方信息,严禁编造 validator 名;要归因请读者在 Reorg 面板点击事件做单事件取证。",
+    "窗口口径提醒:chainReorg24h 是滚动 24h、windowStats 按日历日统计,两者窗口不同;若一个为 0 另一个非 0,那是窗口边界差异,不是矛盾,不要写成矛盾,必要时一句话说明。",
+    "手头没有节点日志,禁止推测底层根因(网络分区/时钟/代码 bug 一律不猜)。末行一句话:是否需要行动。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

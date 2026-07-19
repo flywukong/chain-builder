@@ -52,8 +52,10 @@ export default function RobotWidget({ variant = "home" }) {
     (async () => {
       setRs({ text: null, at: null, loading: true, err: null });
       try {
+        // 缓存必须与本入口同参数(bodyKey):否则会把别的窗口(如 15 天)的结果当本总结展示
+        const wantKey = JSON.stringify(summary.body ?? {});
         const g = await fetch(API + summary.url).then((r) => r.json()).catch(() => null);
-        if (alive && g?.text && g.at && Date.now() - g.at < 3600e3) { setRs({ text: g.text, at: g.at, loading: false, err: null }); return; }
+        if (alive && g?.text && g.bodyKey === wantKey && g.at && Date.now() - g.at < 3600e3) { setRs({ text: g.text, at: g.at, loading: false, err: null }); return; }
         const d = await aiRequest(summary.url, summary.body);
         if (alive) setRs({ text: d.text ?? null, at: d.at ?? null, loading: false, err: d.error ?? null });
       } catch (e) { if (alive) setRs({ text: null, at: null, loading: false, err: String(e) }); }

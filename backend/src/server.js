@@ -746,20 +746,36 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
     });
   }
 
-  // ── 整体解读:窗口可选(默认 14d,支持 1/7/14)──
+  // ── 整体解读:窗口可选(默认 7d,支持 1/7/15)──
   // 只喂链级数据(geth chain_reorg_executes,≥2 节点确认):本机 WS 观测走的是 LB RPC,
   // 后端切换会被误读成 depth 2-3 的"重组"(24h 可达数百次假事件),不进 AI 输入。
-  const days = Math.min(Math.max(parseInt(body?.days, 10) || 14, 1), 14);
+  // 指标框架对齐 osaka-mendel 报告:链级次数/日、去重孤块/日、发生天数、平均深度、单日峰值。
+  const days = Math.min(Math.max(parseInt(body?.days, 10) || 7, 1), 15);
   const cut = Date.now() - days * 86400e3;
+  const dayRows = (tl?.days ?? []).slice(-days);
+  const total = dayRows.reduce((s, d) => s + d.count, 0);
+  const orphans = dayRows.reduce((s, d) => s + d.orphans, 0);
+  const withReorg = dayRows.filter((d) => d.count > 0).length;
+  const peak = dayRows.reduce((m, d) => (d.count > m.count ? d : m), { count: 0, date: null });
   return runReorgAnalysis({
-    baseline: "fast finality 下日均 0~3 次、深度 1-2 的 micro-reorg 属正常",
     windowDays: days,
-    chainReorg24h: reorg24hFiltered(),         // 近 24h 链级次数(与页面卡片同源)
-    keterWindow: {
-      summary: tl?.summary ?? null,
-      days: (tl?.days ?? []).slice(-days),     // 逐日数组,尾部 N 个即近 N 天
-      events: (tl?.events ?? []).filter((e) => e.t >= cut),
+    windowStats: {
+      reorgsPerDay: +(total / Math.max(days, 1)).toFixed(2),
+      orphansPerDayDedup: +(orphans / Math.max(days, 1)).toFixed(2),
+      totalReorgs: total,
+      totalOrphansDedup: orphans,
+      daysWithReorg: `${withReorg}/${dayRows.length || days}`,
+      avgDepth: total ? +(orphans / total).toFixed(2) : null,
+      peakDay: peak.count ? peak : null,
+      excludedSingleNode15d: tl?.summary?.excluded ?? null,   // 15d 全窗口被剔除的单节点抖动数
     },
+    // Osaka/Mendel 硬分叉后 65 天(2026-04-28~07-01)实测基线,作为"正常水位"参照
+    postForkBaseline: { reorgsPerDay: 0.34, orphansPerDayDedup: 0.9, daysWithReorgPct: 22, avgDepth: 2.59 },
+    chainReorg24h: reorg24hFiltered(),         // 滚动 24h 链级次数(与页面卡片同源;窗口与日历日不同)
+    events: (tl?.events ?? []).filter((e) => e.t >= cut).map((e) => ({
+      ...e,
+      timeLocal: new Date(e.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+    })),
   });
 });
 

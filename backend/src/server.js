@@ -824,8 +824,6 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       peakDay: peak.count ? peak : null,
       excludedSingleNode15d: tl?.summary?.excluded ?? null,   // 15d 全窗口被剔除的单节点抖动数
     },
-    // Osaka/Mendel 硬分叉后 65 天(2026-04-28~07-01)实测基线,作为"正常水位"参照
-    postForkBaseline: { reorgsPerDay: 0.34, orphansPerDayDedup: 0.9, daysWithReorgPct: 22, avgDepth: 2.59 },
     chainReorg24h: reorg24hFiltered(),         // 滚动 24h 链级次数(与页面卡片同源;窗口与日历日不同)
     events: (tl?.events ?? []).filter((e) => e.t >= cut).map((e) => ({
       ...e,

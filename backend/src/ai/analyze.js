@@ -221,7 +221,7 @@ export async function runReorgAnalysis(data) {
     "统一口径(先读懂再写,输出中只用这一个口径):链级去重事件——每小时桶跨节点取 max(increase[1h] of chain_reorg_executes/drop),N 个节点执行的同一次重组只计 1 次;<2 节点确认的小时视为单节点本地抖动,已剔除(excludedSingleNode15d 为 15d 全窗口剔除数)。孤块数同样去重。本机单视角观测、RPC 切换造成的 micro-reorg 不在此数据内,禁止提及或混入。",
     "",
     "输出结构:",
-    "1. 结论:对照 postForkBaseline(Osaka/Mendel 硬分叉后 65 天实测:0.34 次/日、0.9 孤块/日、22% 天数发生、平均深度 2.59)给严重程度(正常/需关注/告警)。",
+    "1. 结论:给严重程度(正常/需关注/告警)。参照:fast finality 常态下链级 reorg 日均 ≲1 次、平均深度 2~3 属正常;日均 >3 次、单日 ≥6 次或深度 ≥8 才升级关注。",
     "2. 核心指标(windowStats,逐项给数字):链级次数/日 reorgsPerDay、去重孤块/日 orphansPerDayDedup、发生天数 daysWithReorg、平均深度 avgDepth(孤块÷事件)、单日峰值 peakDay。窗口内 0 次就写「窗口内链级 0 次」,此时不要展开指标堆砌。",
     "3. 事件盘点:events 逐条给 timeLocal(已是北京时间)/ 次数 / 孤块 / 可见节点数;无事件跳过本段。事件数据里没有出块方信息,严禁编造 validator 名;要归因请读者在 Reorg 面板点击事件做单事件取证。",
     "窗口口径提醒:chainReorg24h 是滚动 24h、windowStats 按日历日统计,两者窗口不同;若一个为 0 另一个非 0,那是窗口边界差异,不是矛盾,不要写成矛盾,必要时一句话说明。",

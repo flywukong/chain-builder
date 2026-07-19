@@ -265,6 +265,25 @@ export async function runReorgEventAnalysis(data) {
 }
 
 // ── 空块简析:validator 分布 / 时间聚集性 ──
+// ── Slash 解读:被 slash 方 / 连续性 / 替代者 / 出块间隔 / 自营归属 ──
+export async function runSlashAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网运维分析师。解读近 ${data.windowLabel ?? "24h"} 的 validator slash 情况,中文,180 字以内,直接正文,首行以「结论:」开头。`,
+    "",
+    "背景与口径:slash = validator 该轮未出块(missed turn),SlashIndicator 系统合约按被跳过的块逐块记录;事件登记在替代者出的块里。episodes 已按「同一 validator 连续块」聚合:blocks 为连续被 slash 的块数,fillers 是替代出块的 validator,gapMsMax 是该段最大出块间隔(正常 ~450ms,miss 一轮约翻倍),internal=true 为我方自营节点,timeLocal 已是北京时间。totalSlashBlocks 是窗口内 slash 块总数。",
+    "",
+    "输出结构:",
+    "1. 结论:严重程度。判据——偶发单块(blocks=1)的 slash 属主网常见抖动(出块超时/网络毛刺);同一 validator 连续多块(blocks≥3)或短期内反复出现 = 节点持续故障信号;internal 的问题要重点点名。",
+    "2. 逐段盘点(episodes,每段一行):timeLocal / validator(标注自营或外部)/ 连续 N 块(块号区间)/ 替代者 fillers / 间隔 gapMsMax。",
+    "3. 排查建议:internal 有 slash 时,建议核对该时段节点侧——出块超时、与 sentry/网络连通、是否落后追块;外部 validator 仅陈述事实,不必给建议。手头没有节点日志,禁止断言根因。",
+    "全窗口无自营 slash 且均为偶发单块时,一句话说明属正常水位即可,不要制造风险。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
 export async function runEmptyAnalysis(data) {
   const prompt = [
     `你是 BSC 主网运维分析师。分析近 ${data.windowLabel ?? "24h"} 的空块记录(判据:gasUsed<200k,即仅系统交易、validator 未打包用户交易),中文,160 字以内,直接正文。`,

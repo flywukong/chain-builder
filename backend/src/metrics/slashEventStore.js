@@ -1,17 +1,18 @@
 /**
- * SlashEventStore — 24h rolling record of validatorSlashed events scanned from
+ * SlashEventStore — rolling record of validatorSlashed events scanned from
  * SlashIndicator (0x…1001) logs. Persists items + last scanned block so the
  * incremental scanner survives restarts.
+ * Store keeps `windowMs` (15d); view() slices a sub-window (default 24h).
  */
 
 import fs from "fs";
 import path from "path";
 
 export class SlashEventStore {
-  constructor(file, windowMs = 24 * 3600e3) {
+  constructor(file, windowMs = 15 * 86400e3) {
     this.file = file;
     this.windowMs = windowMs;
-    this.items = [];         // {t, block, validator, tx}
+    this.items = [];         // {t, block, validator, tx, filler?, gapMs?}
     this.lastScanned = 0;
     try {
       if (fs.existsSync(file)) {
@@ -23,7 +24,10 @@ export class SlashEventStore {
   }
 
   addBatch(events, lastScanned) {
-    if (events.length) this.items.push(...events);
+    // 幂等:同一 (block, validator) 只记一次,防重叠扫描重复计入
+    const seen = new Set(this.items.map((x) => x.block + "-" + x.validator));
+    const fresh = events.filter((e) => !seen.has(e.block + "-" + e.validator));
+    if (fresh.length) this.items.push(...fresh);
     this.lastScanned = Math.max(this.lastScanned, lastScanned);
     this._prune();
     try {
@@ -37,8 +41,11 @@ export class SlashEventStore {
     if (this.items[0]?.t < cut) this.items = this.items.filter((x) => x.t >= cut);
   }
 
-  view(now = Date.now()) {
+  // 子窗口视图(默认 24h);store 总窗口 15d,历史自上线起积累
+  view(subWindowMs = 24 * 3600e3, now = Date.now()) {
     this._prune(now);
-    return { count: this.items.length, lastScanned: this.lastScanned, recent: this.items.slice(-20).reverse() };
+    const cut = now - Math.min(subWindowMs, this.windowMs);
+    const items = this.items.filter((x) => x.t >= cut);
+    return { count: items.length, lastScanned: this.lastScanned, recent: items.slice(-60).reverse(), items };
   }
 }

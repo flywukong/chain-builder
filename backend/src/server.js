@@ -22,7 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -48,7 +48,7 @@ const latencyStore = new LatencyStore(path.join(dataDir, "latency-24h-v2.json"))
 const txpoolStore  = new TxpoolStore(path.join(dataDir, "txpool-24h.json"));
 const emptyStore   = new EmptyBlockStore(path.join(dataDir, "empty-24h.json"));
 const reorgObs     = new ReorgObsStore(path.join(dataDir, "reorg-obs-24h.json"));
-const slashEvents  = new SlashEventStore(path.join(dataDir, "slash-events-24h.json"));
+const slashEvents  = new SlashEventStore(path.join(dataDir, "slash-events-15d-v2.json"));   // v2:15d 窗口 + filler/gapMs enrich,换文件触发全量回填
 // 交易分析子系统:1min/块 采样 → 规则分类 → AI 归类未知热门合约(标签库滚雪球)
 const labelBook  = new LabelBook(path.join(dataDir, "contract-labels.json"));
 const txnStore   = new TxnStore(path.join(dataDir, "txn-7d.json"));
@@ -57,13 +57,18 @@ const txnSampler = new TxnSampler({ provider, store: txnStore, labelBook });
 // validatorSlashed(address) 事件扫描(SlashIndicator 0x…1001)
 const SLASH_ADDR  = "0x0000000000000000000000000000000000001001";
 const SLASH_TOPIC = "0xddb6012116e51abf5436d956a4f0ebd927e92c576ff96d7918290c8782291e3e";
+const hdrMs = (h) => Number(BigInt(h.timestamp)) * 1000 + (h.mixHash ? Number(BigInt(h.mixHash) % 1000n) : 0);
+const getHeader = (n) => streamer.http.send("eth_getHeaderByNumber", ["0x" + n.toString(16)]).catch(() => null);
+let slashScanBusy = false;   // 首次 15d 回填可超过 60s 定时间隔,防止并发重复扫描
 async function scanSlashEvents() {
+  if (slashScanBusy) return;
+  slashScanBusy = true;
   try {
     const tip = streamer.lastNumber ?? await provider.getBlockNumber();
     if (!tip) return;
-    const dayBlocks = Math.floor((24 * 3600e3) / 450);   // ~192k 块
+    const winBlocks = Math.floor(slashEvents.windowMs / 450);   // 15d ≈ 2.88M 块,仅首次回填
     let from = slashEvents.lastScanned + 1;
-    if (!slashEvents.lastScanned || tip - from > dayBlocks) from = tip - dayBlocks;
+    if (!slashEvents.lastScanned || tip - from > winBlocks) from = tip - winBlocks;
     if (from > tip) return;
     const now = Date.now();
     const CHUNK = 45_000;
@@ -73,18 +78,60 @@ async function scanSlashEvents() {
       const logs = await provider.getLogs({ address: SLASH_ADDR, topics: [SLASH_TOPIC], fromBlock: a, toBlock: b });
       for (const l of logs) {
         found.push({
-          t: now - (tip - l.blockNumber) * 450,   // 0.45s/块 估算时间,展示足够
+          t: now - (tip - l.blockNumber) * 450,   // 兜底估算;下面用 header 真实毫秒时间覆盖
           block: l.blockNumber,
           validator: "0x" + l.topics[1].slice(26),
           tx: l.transactionHash,
         });
       }
     }
+    // enrich:slash 记录在替代者出的块里 —— header(block) 给真实时间与替代出块者,
+    // 与前块的毫秒差即被 slash 轮次的出块间隔(正常 ~450ms,miss 一轮明显拉大)
+    for (let i = 0; i < found.length; i += 30) {
+      await Promise.all(found.slice(i, i + 30).map(async (e) => {
+        const [h, hp] = await Promise.all([getHeader(e.block), getHeader(e.block - 1)]);
+        if (h) {
+          e.t = hdrMs(h);
+          e.filler = (h.miner || "").toLowerCase();
+          if (hp) e.gapMs = Math.round(hdrMs(h) - hdrMs(hp));
+        }
+      }));
+    }
     slashEvents.addBatch(found, tip);
     broadcast("slashEvents", slashEvents.view());
   } catch (err) {
     console.error("[slash events scan]", err.message);
+  } finally {
+    slashScanBusy = false;
   }
+}
+
+// 连续 slash 段聚合:同一 validator、块号相邻(≤3)合并 —— 连续多块 = 节点持续故障信号
+function slashEpisodes(items) {
+  const byV = new Map();
+  for (const e of items) { const a = byV.get(e.validator) ?? []; a.push(e); byV.set(e.validator, a); }
+  const eps = [];
+  for (const [v, arr] of byV) {
+    arr.sort((a, b) => a.block - b.block);
+    let cur = null;
+    for (const e of arr) {
+      if (cur && e.block - cur.endBlock <= 3) {
+        cur.endBlock = e.block; cur.blocks++;
+        if (e.gapMs != null) cur.gapMsMax = Math.max(cur.gapMsMax ?? 0, e.gapMs);
+        if (e.filler) cur.fillerSet.add(e.filler);
+      } else {
+        if (cur) eps.push(cur);
+        cur = { validator: v, startBlock: e.block, endBlock: e.block, blocks: 1, t: e.t,
+                gapMsMax: e.gapMs ?? null, fillerSet: new Set(e.filler ? [e.filler] : []) };
+      }
+    }
+    if (cur) eps.push(cur);
+  }
+  return eps.sort((a, b) => b.t - a.t).map(({ fillerSet, ...x }) => ({
+    ...x, ...validatorInfo(x.validator),
+    fillers: [...fillerSet].map((f) => validatorInfo(f).name),
+    timeLocal: new Date(x.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+  }));
 }
 
 // 链级 reorg 24h 计数:来自 14d 时间线(已按 ≥2 节点过滤,单节点本地事件不计)
@@ -368,7 +415,15 @@ app.get("/api/empty-blocks", async (req) => {
   return { ...emptyStore.view(days * 86400e3), days };
 });
 app.get("/api/sync-errors", async () => latest.syncErrors ?? safe(fetchSyncErrors(cfg.keterConfigPath)));
-app.get("/api/slash-events", async () => slashEvents.view());
+app.get("/api/slash-events", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 15);
+  const v = slashEvents.view(days * 86400e3);
+  return {
+    days, count: v.count, lastScanned: v.lastScanned,
+    episodes: slashEpisodes(v.items),
+    recent: v.recent.map((e) => ({ ...e, ...validatorInfo(e.validator), fillerName: e.filler ? validatorInfo(e.filler).name : null })),
+  };
+});
 app.get("/api/keter-health", async () => ({ ...keterHealth }));
 let syncDetailCache = { at: 0, days: 0, data: null };
 app.get("/api/sync-detail", async (req) => {
@@ -936,6 +991,19 @@ aiRoutes("mev", "/api/ai/mev", async () => {
     concentration: m.concentration,
     familiesDay: m.famsDay,
     instances: (m.instances ?? []).slice(0, 12),
+  });
+});
+
+// Slash 解读:谁被 slash / 连续性 / 替代者 / 出块间隔 / 自营还是外部(窗口 1/7/15 天)
+aiRoutes("slash", "/api/ai/slash", async (body) => {
+  const days = Math.min(Math.max(Number(body?.days) || 1, 1), 15);
+  const label = days === 1 ? "24h" : `${days} 天`;
+  const v = slashEvents.view(days * 86400e3);
+  if (!v.count) throw new Error(`近 ${label} 无 slash 事件`);
+  return runSlashAnalysis({
+    windowLabel: label,
+    totalSlashBlocks: v.count,
+    episodes: slashEpisodes(v.items).slice(0, 20),
   });
 });
 

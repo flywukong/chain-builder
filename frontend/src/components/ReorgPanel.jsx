@@ -180,10 +180,13 @@ export default function ReorgPanel({ data }) {
           </div>
 
           <div className="reorg-events">
-            <div className="re-title">重组事件(严重 = 单次回滚≥8块 · 关注 = ≥3块或≥2次/小时 · 其余轻微)</div>
-            {events.length === 0
-              ? <div className="re-empty">✓ 窗口内无重组事件</div>
-              : [...events].sort((a, b) => b.t - a.t).map((e) => <EvRow key={e.t} e={e} tone={sevOf(e)} />)}
+            <div className="re-title">重组事件(严重 = 单次回滚≥8块 · 关注 = ≥3块或≥2次/小时;轻微不列出)</div>
+            {(() => {
+              const notable = events.filter((e) => sevOf(e) !== "info").sort((a, b) => b.t - a.t);
+              return notable.length === 0
+                ? <div className="re-empty">✓ 窗口内无严重/关注级重组</div>
+                : notable.map((e) => <EvRow key={e.t} e={e} tone={sevOf(e)} />);
+            })()}
           </div>
         </div>
       </div>

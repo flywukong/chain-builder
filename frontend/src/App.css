@@ -277,6 +277,9 @@ body::before {
 /* Reorg 面板内嵌问答机器人(图表列右下空白) */
 .reorg-chart { position: relative; }
 .reorg-robot-anchor { position: absolute; right: 14px; bottom: 4px; z-index: 5; }
+/* 弹窗不被面板 overflow:hidden 裁头:Reorg 面板放行溢出;弹窗自身限高 + 内滚兜底 */
+.reorg-panel, .reorg-panel .panel-body { overflow: visible; }
+.reorg-robot-anchor .robot-pop { max-height: min(72vh, 540px); overflow: auto; }
 .reorg-robot-anchor .robot-widget { position: relative; right: auto; bottom: auto; }
 .reorg-robot-anchor .robot-brief-float { right: 118px; top: 40px; }
 .rv-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }

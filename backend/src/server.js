@@ -931,6 +931,24 @@ aiRoutes("traffic", "/api/ai/traffic", async (body) => {
     const seq = (focus === "gas" ? h.gasPct : h.pending).slice(-hours).filter((v) => typeof v === "number");
     const over = focus === "gas" ? (v) => v >= (tl.hotPct ?? 90) : (v) => v > (tl.threshold ?? 4000);
     const cut = Date.now() - days * 86400e3;
+    // gas 口径补分钟级:episodes 是小时均值,短时打满(1-2 分钟 90%+)会被摊平漏掉;
+    // 近 24h 的瞬时高峰(>45M,与 Block Gas 图表黄框同源)单独喂给 AI
+    let peaks24h;
+    if (focus === "gas") {
+      try {
+        const bg = (blockGasWinCache.minutes === 1440 && blockGasWinCache.data && Date.now() - blockGasWinCache.at < 60_000)
+          ? blockGasWinCache.data : await fetchBlockGas(cfg.keterConfigPath, 1440);
+        const p = await gasPeaks(bg.gasused);
+        peaks24h = {
+          thresholdM: PEAK_GAS / 1e6, total: p.total,
+          segments: p.peaks.map((s) => ({
+            ...s,
+            timeLocal: new Date(s.startT).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+            peakPct: +(s.peakM / liveGasLimitM() * 100).toFixed(0),
+          })),
+        };
+      } catch {}
+    }
     return runTrafficTrendAnalysis({
       focus,
       windowLabel: days === 1 ? "24h" : `${days} 天`,
@@ -944,6 +962,7 @@ aiRoutes("traffic", "/api/ai/traffic", async (body) => {
         hoursOver: seq.filter(over).length, hoursTotal: seq.length,
       } : null,
       episodes: (tl.episodes ?? []).filter((e) => e.start >= cut && e.trigger?.includes(focus)),
+      minutePeaks24h: peaks24h,   // 近 24h 分钟级瞬时高峰(小时均值口径看不见的部分)
       baseline30d: tl.summary,
       currentPending: focus === "pending" ? tx?.current ?? null : undefined,
       gasUtilPctNow: focus === "gas" ? win.avgGasUtilPct ?? null : undefined,

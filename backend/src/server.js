@@ -308,8 +308,9 @@ async function enrichEpisodes(tl) {
   return tl;
 }
 
-// reorg 事件补区块范围:5m 精化定位 → ±5m 换算块高;失败退回小时桶(约 8000 块,标 precise=false)。
-// 事件时间不变,按 t 缓存,每事件只算一次(refineReorgMoment 1 次 keter 查询 + 2 次 blockAtTime)。
+// reorg 事件补区块范围 + 接管方:5m 精化定位 → ±5m 换算块高;canonical 序列粗采样找最大
+// 出块 gap,gap 后首块的出块方即重组赢家(被回滚一方在 canonical 链上已不可见)。
+// 事件时间不变,按 t 缓存,每事件只算一次(1 次 keter 查询 + 2 次 blockAtTime + ~50 header)。
 const reorgEvBlockCache = new Map();
 async function enrichReorgEvents(tl) {
   for (const e of tl?.events ?? []) {
@@ -322,6 +323,21 @@ async function enrichReorgEvents(tl) {
         blockAtTime(refined ? winT + 300e3 : e.t),
       ]);
       const v = { startBlock, endBlock, precise: !!refined };
+      if (startBlock && endBlock && endBlock > startBlock) {
+        const step = Math.max(1, Math.floor((endBlock - startBlock) / 50));
+        const nums = []; for (let n = startBlock; n <= endBlock; n += step) nums.push(n);
+        const headers = await Promise.all(nums.map(getHeader));
+        let prev = null, best = null;
+        const rows = headers.filter(Boolean).map((h) => {
+          const ts = hdrMs(h); const gapMs = prev != null ? ts - prev : null; prev = ts;
+          return { block: Number(BigInt(h.number)), miner: (h.miner || "").toLowerCase(), gapMs };
+        });
+        for (let i = 1; i < rows.length; i++) if (rows[i].gapMs != null && (best == null || rows[i].gapMs > rows[best].gapMs)) best = i;
+        if (best != null && rows[best].gapMs > step * 450 + 900) {
+          const w = validatorInfo(rows[best].miner);
+          Object.assign(v, { winner: w.name, winnerInternal: w.internal, boundaryBlock: rows[best - 1].block });
+        }
+      }
       reorgEvBlockCache.set(e.t, v);
       Object.assign(e, v);
       if (reorgEvBlockCache.size > 200) reorgEvBlockCache.delete(reorgEvBlockCache.keys().next().value);
@@ -619,7 +635,7 @@ async function buildAiData(days = 7) {
   // N 天窗口聚合;reorg 缓存 14d、traffic 缓存 30d,超出按需拉取
   const cut = Date.now() - days * 86400e3;
   let reorgTl = latest.reorgTimeline;
-  if (days > 14) reorgTl = await fetchReorgTimeline(cfg.keterConfigPath, Math.min(days, 30)).catch(() => reorgTl);
+  if (days > 14) reorgTl = await fetchReorgTimeline(cfg.keterConfigPath, Math.min(days, 30)).then(enrichReorgEvents).catch(() => reorgTl);
   const reorgEv = (reorgTl?.events ?? []).filter((e) => e.t >= cut);
   const trafficEp = (latest.trafficTimeline?.episodes ?? []).filter((e) => e.start >= cut);
   return {
@@ -863,16 +879,20 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       peakDay: peak.count ? peak : null,   // 仅用于「单日 >10 次」重点提醒,不进常规输出
     },
     chainReorg24h: reorg24hFiltered(),         // 滚动 24h 链级次数(与页面卡片同源;窗口与日历日不同)
-    // 事件附上小时桶对应的大致块高区间,总结里直接给块号明细,免得用户再逐个点「分析」
+    // 事件附块高区间与接管方:优先 enrichReorgEvents 的 5m 精化值(startBlock/endBlock/winner),
+    // 缺失时退回小时桶粗算,总结里直接给明细,免得用户再逐个点「分析」
     events: await Promise.all((tl?.events ?? []).filter((e) => e.t >= cut).slice(0, 8).map(async (e) => {
-      const [fromBlock, toBlock] = await Promise.all([
-        blockAtTime(e.t).catch(() => null),
-        blockAtTime(e.t + 3600e3).catch(() => null),
-      ]);
+      let from = e.startBlock ?? null, to = e.endBlock ?? null;
+      if (from == null || to == null) {
+        [from, to] = await Promise.all([
+          blockAtTime(e.t).catch(() => null),
+          blockAtTime(e.t + 3600e3).catch(() => null),
+        ]);
+      }
       return {
         ...e,
         timeLocal: new Date(e.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
-        approxBlockRange: fromBlock && toBlock ? { from: fromBlock, to: toBlock } : null,
+        approxBlockRange: from && to ? { from, to } : null,
       };
     })),
   });
@@ -982,7 +1002,7 @@ app.post("/api/ai/ask", async (req, reply) => {
       const wantDays = dm ? Math.min(parseInt(dm[1], 10), 90) : null;
       if (wantDays && wantDays > 14) {
         const [r, t] = await Promise.all([
-          fetchReorgTimeline(cfg.keterConfigPath, wantDays).catch(() => null),
+          fetchReorgTimeline(cfg.keterConfigPath, wantDays).then(enrichReorgEvents).catch(() => null),
           fetchTrafficTimeline(cfg.keterConfigPath, wantDays).catch(() => null),
         ]);
         if (r) reorgTl = r;

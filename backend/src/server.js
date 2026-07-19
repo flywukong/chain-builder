@@ -810,7 +810,6 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
   const dayRows = (tl?.days ?? []).slice(-days);
   const total = dayRows.reduce((s, d) => s + d.count, 0);
   const orphans = dayRows.reduce((s, d) => s + d.orphans, 0);
-  const withReorg = dayRows.filter((d) => d.count > 0).length;
   const peak = dayRows.reduce((m, d) => (d.count > m.count ? d : m), { count: 0, date: null });
   return runReorgAnalysis({
     windowDays: days,
@@ -819,10 +818,7 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       orphansPerDayDedup: +(orphans / Math.max(days, 1)).toFixed(2),
       totalReorgs: total,
       totalOrphansDedup: orphans,
-      daysWithReorg: `${withReorg}/${dayRows.length || days}`,
-      avgDepth: total ? +(orphans / total).toFixed(2) : null,
-      peakDay: peak.count ? peak : null,
-      excludedSingleNode15d: tl?.summary?.excluded ?? null,   // 15d 全窗口被剔除的单节点抖动数
+      peakDay: peak.count ? peak : null,   // 仅用于「单日 >10 次」重点提醒,不进常规输出
     },
     chainReorg24h: reorg24hFiltered(),         // 滚动 24h 链级次数(与页面卡片同源;窗口与日历日不同)
     events: (tl?.events ?? []).filter((e) => e.t >= cut).map((e) => ({

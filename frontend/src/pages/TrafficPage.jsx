@@ -225,7 +225,10 @@ function TopGasPanel() {
           {rows.map((r, i) => (
             <div key={r.addr} className="tg-row" title={r.addr}>
               <span className="tg-rank">{i + 1}</span>
-              <span className="tg-name">{r.name ?? r.addr.slice(0, 10) + "…"}</span>
+              <a className="tg-name" href={`https://bscscan.com/address/${r.addr}`} target="_blank" rel="noreferrer"
+                 title={`${r.addr} · 点击在 BscScan 查看`}>
+                {r.name ?? r.addr.slice(0, 12) + "…"}<span className="tg-ext">↗</span>
+              </a>
               <span className={`tg-cat tgc-${r.cat}`}>{CAT_NAMES[r.cat] ?? r.cat}</span>
               <span className="tg-bar"><i style={{ width: `${(r.gas / maxGas) * 100}%` }} /></span>
               <span className="tg-share">{r.sharePct != null ? `${r.sharePct}%` : "--"}</span>

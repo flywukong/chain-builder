@@ -1395,7 +1395,9 @@ body::before {
   background: #14161a; border: 1px solid #21252c; border-radius: 6px; padding: 5px 10px; }
 .tg-rank { width: 18px; text-align: right; color: var(--dim); font-weight: 700; flex-shrink: 0; }
 .tg-row:nth-child(-n+3) .tg-rank { color: var(--gold); }
-.tg-name { flex: 0 0 200px; color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-name { flex: 0 0 200px; color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
+.tg-name:hover { color: var(--gold); text-decoration: underline; }
+.tg-ext { font-size: 9px; color: var(--dim); margin-left: 4px; }
 .tg-cat { flex-shrink: 0; font-size: 9px; font-weight: 800; padding: 1px 7px; border-radius: 5px; border: 1px solid var(--dim); color: var(--muted); }
 .tgc-defi { border-color: #3FB8A0; color: #3FB8A0; }
 .tgc-bot { border-color: var(--orange); color: var(--orange); }

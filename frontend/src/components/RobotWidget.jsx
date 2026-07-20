@@ -36,6 +36,7 @@ const QA_PRESET = {
     placeholder: "例:今天 meme 占比多少?0x278d85… 是什么合约?",
     bubbleHead: "LEO · 交易问答",
     bubbleLine: "交易结构 / 热门合约身份 / 分类趋势…都可以问",
+    summary: { title: "近 7 天交易结构", url: "/api/ai/txn", body: null },
   },
 };
 

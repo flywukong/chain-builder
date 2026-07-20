@@ -1268,10 +1268,11 @@ app.get("/api/txn", async (req) => {
   }
   return v;
 });
-aiRoutes("txn", "/api/ai/txn", async () => {
-  const v = txnStore.view(labelBook);
+aiRoutes("txn", "/api/ai/txn", async (body) => {
+  const days = Math.min(Math.max(Number(body?.days) || 7, 1), 7);   // 默认 7 天(机器人默认总结同口径)
+  const v = txnStore.view(labelBook, days);
   if (!v.total24) throw new Error("采样数据积累中(每分钟 1 块),请稍后再试");
-  return runTxnFeatureAnalysis(v);
+  return runTxnFeatureAnalysis({ ...v, windowLabel: days === 1 ? "24h" : `${days} 天` });
 });
 
 app.get("/health",        async () => ({ ok: true, block: streamer.lastNumber, wsConnected: streamer.connected }));

@@ -335,7 +335,7 @@ export async function runContractLabeling(candidates) {
 // ── 链上流量特征总结(7 天交易分类数据)──
 export async function runTxnFeatureAnalysis(data) {
   const prompt = [
-    "你是 BSC 主网链上流量分析师。基于全量区块覆盖(每分钟抓取过去一分钟全部区块)的 7 天交易分类数据,输出中文流量特征总结,markdown,300 字以内,直接正文。",
+    `你是 BSC 主网链上流量分析师。基于全量区块覆盖(每分钟抓取过去一分钟全部区块)的近 ${data.windowLabel ?? "7 天"} 交易分类数据,输出中文流量特征总结,markdown,300 字以内,直接正文。`,
     "",
     "分类含义:meme=meme币/发射台交易, defi=DEX/借贷, predict=预测市场(predict.fun 等), bot=单块内同发送方≥3笔的高频合约调用+已识别机器人合约, stable=稳定币转账, bnb=纯BNB转账, token=普通代币转账, cex=交易所充提, system=系统交易, other=未识别合约调用。",
     "",

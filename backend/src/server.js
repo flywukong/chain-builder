@@ -576,6 +576,15 @@ app.get("/api/traffic/top-gas", async (req) => {
   const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
   return txnStore.topGasContracts(labelBook, days);
 });
+// Gas price 水位(块级中位 gasPrice 的小时 p50/p90,gwei)与 交易类型 gas 份额趋势
+app.get("/api/traffic/gas-price", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
+  return { days, ...txnStore.gasPriceTrend(days) };
+});
+app.get("/api/traffic/cat-trend", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
+  return { days, ...txnStore.catTrend(days) };
+});
 app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath).then(enrichEpisodes)));
 app.get("/api/disk",      async (req) => {
   // threshold=0 返回全部节点水位(topk 100),存储页磁盘总览用;默认 80 供告警

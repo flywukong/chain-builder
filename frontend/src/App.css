@@ -1408,6 +1408,13 @@ body::before {
 .tg-share { width: 52px; text-align: right; color: var(--gold); font-weight: 700; flex-shrink: 0; }
 .tg-txs { width: 84px; text-align: right; color: var(--muted); flex-shrink: 0; }
 
+/* 价格与结构:双图并排 + 类型图例 */
+.ps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-height: 0; }
+@media (max-width: 1000px) { .ps-grid { grid-template-columns: 1fr; } }
+.ps-right { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ps-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 9.5px; color: var(--muted); padding: 0 4px; }
+.ps-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
 /* Reorg 统一事件列表:行内严重度徽标;行内各项禁换行防挤成两行 */
 .re-sev { flex-shrink: 0; font-size: 8.5px; font-weight: 800; letter-spacing: .5px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--dim); color: var(--dim); }
 .re-sev-watch { border-color: var(--orange); color: var(--orange); }

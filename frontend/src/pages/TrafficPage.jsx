@@ -8,7 +8,7 @@ const fmtDay = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.get
 
 // ── 通用小时级面积图:渐变填充 + 网格 + Y刻度 + 阈值线 + 超阈高亮 + hover 十字 ──
 // maxValues:分钟级峰值包络(小时内 max_over_time),细虚线叠加 —— 瞬时打满在均值线上看不见
-function HourlyChart({ times, values, maxValues = null, threshold, color, hotColor = "#ef6a3a", unit = "", label, fmtV = (v) => v?.toLocaleString?.() ?? v }) {
+function HourlyChart({ times, values, maxValues = null, threshold, color, hotColor = "#ef6a3a", unit = "", label, fmtV = (v) => Math.round(v)?.toLocaleString?.() ?? v }) {
   const ref = useRef(null);
   const [hover, setHover] = useState(null);   // {i, x}
 
@@ -30,7 +30,7 @@ function HourlyChart({ times, values, maxValues = null, threshold, color, hotCol
       const iw = W - padL - padR, ih = H - padT - padB;
       const vs = values.filter((v) => typeof v === "number");
       const mvs = (maxValues ?? []).filter((v) => typeof v === "number");
-      const maxV = Math.max(threshold * 1.15, ...vs, ...mvs) * 1.05;
+      const maxV = Math.max(threshold != null ? threshold * 1.15 : 0, ...vs, ...mvs) * 1.05 || 1;
       const X = (i) => padL + (i / Math.max(n - 1, 1)) * iw;
       const Y = (v) => padT + ih - (v / maxV) * ih;
 
@@ -39,7 +39,7 @@ function HourlyChart({ times, values, maxValues = null, threshold, color, hotCol
       for (let k = 0; k <= 4; k++) {
         const v = (maxV / 4) * k, y = Y(v);
         ctx.strokeStyle = "#191712"; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
-        ctx.fillStyle = "#5d594e"; ctx.fillText(fmtV(Math.round(v)), padL - 6, y);
+        ctx.fillStyle = "#5d594e"; ctx.fillText(fmtV(v), padL - 6, y);
       }
       // x labels(按天,自适应密度)
       ctx.textAlign = "center"; ctx.textBaseline = "top";
@@ -58,7 +58,7 @@ function HourlyChart({ times, values, maxValues = null, threshold, color, hotCol
       });
 
       // 超阈值区段:红色渐变背景
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; threshold != null && i < n; i++) {
         const v = values[i];
         if (typeof v === "number" && v > threshold) {
           const x0 = i > 0 ? (X(i - 1) + X(i)) / 2 : X(i);
@@ -78,10 +78,13 @@ function HourlyChart({ times, values, maxValues = null, threshold, color, hotCol
       ctx.fillStyle = area; ctx.fill();
 
       ctx.lineWidth = 1.7; ctx.lineJoin = "round";
+      if (n === 1 && typeof values[0] === "number") {   // 单点(数据刚开始积累):画点代替线
+        ctx.beginPath(); ctx.arc(X(0), Y(values[0]), 3, 0, 7); ctx.fillStyle = color; ctx.fill();
+      }
       for (let i = 1; i < n; i++) {
         const v0 = values[i - 1], v1 = values[i];
         if (typeof v0 !== "number" || typeof v1 !== "number") continue;
-        const hot = v0 > threshold || v1 > threshold;
+        const hot = threshold != null && (v0 > threshold || v1 > threshold);
         ctx.strokeStyle = hot ? hotColor : color;
         if (hot) { ctx.shadowColor = hotColor; ctx.shadowBlur = 6; }
         ctx.beginPath(); ctx.moveTo(X(i - 1), Y(v0)); ctx.lineTo(X(i), Y(v1)); ctx.stroke();
@@ -94,18 +97,20 @@ function HourlyChart({ times, values, maxValues = null, threshold, color, hotCol
         for (let i = 1; i < n; i++) {
           const a = maxValues[i - 1], b = maxValues[i];
           if (typeof a !== "number" || typeof b !== "number") continue;
-          const hot = a > threshold || b > threshold;
+          const hot = threshold != null && (a > threshold || b > threshold);
           ctx.strokeStyle = hot ? "#ffd34d" : color + "66";
           ctx.beginPath(); ctx.moveTo(X(i - 1), Y(a)); ctx.lineTo(X(i), Y(b)); ctx.stroke();
         }
         ctx.setLineDash([]);
       }
 
-      // 阈值线
-      ctx.setLineDash([5, 4]); ctx.strokeStyle = "#ef4444aa"; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(padL, Y(threshold)); ctx.lineTo(W - padR, Y(threshold)); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = "#ef8f8f"; ctx.font = "8.5px monospace"; ctx.textAlign = "left";
-      ctx.fillText(`阈值 ${fmtV(threshold)}`, padL + 4, Y(threshold) - 6);
+      // 阈值线(threshold=null 时不画,纯走势图模式)
+      if (threshold != null) {
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = "#ef4444aa"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padL, Y(threshold)); ctx.lineTo(W - padR, Y(threshold)); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = "#ef8f8f"; ctx.font = "8.5px monospace"; ctx.textAlign = "left";
+        ctx.fillText(`阈值 ${fmtV(threshold)}`, padL + 4, Y(threshold) - 6);
+      }
 
       // hover 十字 + 读数
       if (hover != null && hover.i >= 0 && hover.i < n) {
@@ -121,7 +126,7 @@ function HourlyChart({ times, values, maxValues = null, threshold, color, hotCol
           let bx = X(i) + 8; if (bx + tw > W - 4) bx = X(i) - tw - 8;
           ctx.fillStyle = "rgba(12,11,8,.94)"; ctx.strokeStyle = "#3a2d00";
           ctx.beginPath(); ctx.roundRect(bx, padT + 2, tw, 18, 5); ctx.fill(); ctx.stroke();
-          ctx.fillStyle = v > threshold ? "#ffb08a" : "#e8dcb8"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillStyle = threshold != null && v > threshold ? "#ffb08a" : "#e8dcb8"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
           ctx.fillText(txt, bx + 7, padT + 11);
         }
       }
@@ -242,6 +247,137 @@ function TopGasPanel() {
   );
 }
 
+// ── 多线趋势图(交易类型 gas 份额):网格 + 每类一条线 + hover 全量读数 ──
+const CAT_COLORS = { defi: "#3FB8A0", bot: "#E58A55", meme: "#8B7CF6", token: "#F0B90B", bnb: "#6B7A8F", infra: "#5B8FF9", predict: "#D46FA8", cex: "#9AA5B1", bridge: "#7ED0E0", system: "#555C66", other: "#69727D", rest: "#4A5058" };
+function MultiLineChart({ times, series, label }) {
+  const ref = useRef(null);
+  const [hover, setHover] = useState(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    function draw() {
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.offsetWidth, H = canvas.offsetHeight;
+      if (!W || !H) return;
+      canvas.width = W * dpr; canvas.height = H * dpr;
+      const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      const n = times?.length ?? 0;
+      if (!n) { ctx.fillStyle = "#4a463c"; ctx.font = "10px monospace"; ctx.textAlign = "center"; ctx.fillText("采样积累中…", W / 2, H / 2); return; }
+      const padL = 36, padR = 10, padT = 8, padB = 18;
+      const iw = W - padL - padR, ih = H - padT - padB;
+      const X = (i) => padL + (i / Math.max(n - 1, 1)) * iw;
+      const Y = (v) => padT + ih - (Math.min(v, 100) / 100) * ih;
+      ctx.font = "8.5px monospace"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      for (let k = 0; k <= 4; k++) {
+        const v = 25 * k, y = Y(v);
+        ctx.strokeStyle = "#191712"; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+        ctx.fillStyle = "#5d594e"; ctx.fillText(`${v}%`, padL - 5, y);
+      }
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      let lastDay = "";
+      times.forEach((t, i) => {
+        const dk = fmtDay(t);
+        if (dk !== lastDay) { lastDay = dk; ctx.fillStyle = "#5d594e"; ctx.fillText(dk, X(i), H - padB + 6); }
+      });
+      ctx.lineWidth = 1.5; ctx.lineJoin = "round";
+      for (const [cat, vals] of Object.entries(series ?? {})) {
+        ctx.strokeStyle = CAT_COLORS[cat] ?? "#888";
+        ctx.beginPath();
+        let started = false;
+        vals.forEach((v, i) => {
+          if (typeof v !== "number") return;
+          if (!started) { ctx.moveTo(X(i), Y(v)); started = true; } else ctx.lineTo(X(i), Y(v));
+        });
+        ctx.stroke();
+      }
+      if (hover != null && hover.i >= 0 && hover.i < n) {
+        const i = hover.i;
+        ctx.strokeStyle = "#F0B90B66"; ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(X(i), padT); ctx.lineTo(X(i), padT + ih); ctx.stroke(); ctx.setLineDash([]);
+        const lines = [fmtT(times[i]), ...Object.entries(series ?? {}).map(([c, vals]) => `${c}: ${vals[i] ?? "--"}%`)];
+        ctx.font = "9.5px monospace";
+        const tw = Math.max(...lines.map((s) => ctx.measureText(s).width)) + 14;
+        const th = lines.length * 13 + 8;
+        let bx = X(i) + 8; if (bx + tw > W - 4) bx = X(i) - tw - 8;
+        ctx.fillStyle = "rgba(12,11,8,.94)"; ctx.strokeStyle = "#3a2d00";
+        ctx.beginPath(); ctx.roundRect(bx, padT + 2, tw, th, 5); ctx.fill(); ctx.stroke();
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        lines.forEach((s, k) => {
+          ctx.fillStyle = k === 0 ? "#e8dcb8" : (CAT_COLORS[s.split(":")[0]] ?? "#aaa");
+          ctx.fillText(s, bx + 7, padT + 12 + k * 13);
+        });
+      }
+    }
+    draw();
+    const ro = new ResizeObserver(draw); ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [times, series, hover]);
+  const onMove = (e) => {
+    const canvas = ref.current;
+    if (!canvas || !times?.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = rect.width / (canvas.offsetWidth || rect.width) || 1;
+    const x = (e.clientX - rect.left) / sx;
+    const i = Math.round(((x - 36) / Math.max(canvas.offsetWidth - 46, 1)) * (times.length - 1));
+    setHover({ i: Math.min(Math.max(i, 0), times.length - 1) });
+  };
+  return (
+    <div className="hc-wrap">
+      <div className="hc-label">{label}</div>
+      <canvas ref={ref} className="hc-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+    </div>
+  );
+}
+
+// ── 价格与结构:Gas Price 水位(p50/p90)+ 类型 gas 份额趋势 ──
+function PriceStructPanel() {
+  const [days, setDays] = useState(1);
+  const [gp, setGp] = useState(null);
+  const [ct, setCt] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => {
+      fetch(API + `/api/traffic/gas-price?days=${days}`).then((r) => r.json()).then((j) => { if (alive) setGp(j); }).catch(() => {});
+      fetch(API + `/api/traffic/cat-trend?days=${days}`).then((r) => r.json()).then((j) => { if (alive) setCt(j); }).catch(() => {});
+    };
+    pull();
+    const t = setInterval(pull, 120_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [days]);
+  const legend = Object.keys(ct?.series ?? {});
+  return (
+    <div className="panel tf-panel">
+      <div className="panel-header">
+        <span>价格与结构</span>
+        <span className="bm-ctls">
+          <span className="sub">左:块级中位 gas price 的小时 p50(实线)/ p90(虚线) · 右:各类交易 gas 份额</span>
+          <span className="tf-ranges">
+            {[[1, "24h"], [3, "3天"], [7, "7天"]].map(([v, l]) => (
+              <button key={v} className={`tf-range ${days === v ? "on" : ""}`} onClick={() => setDays(v)}>{l}</button>
+            ))}
+          </span>
+        </span>
+      </div>
+      <div className="panel-body tf-body">
+        <div className="ps-grid">
+          <HourlyChart times={gp?.times ?? []} values={gp?.p50 ?? []} maxValues={gp?.p90 ?? []} threshold={null}
+            color="#F0B90B" unit=" gwei" label="Gas Price 水位(gwei)· 实线 p50 · 虚线 p90"
+            fmtV={(v) => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : (+v).toFixed(2))} />
+          <div className="ps-right">
+            <MultiLineChart times={ct?.times ?? []} series={ct?.series ?? {}} label="交易类型 gas 份额(%)" />
+            <div className="ps-legend">
+              {legend.map((c) => (
+                <span key={c} className="ps-leg"><i style={{ background: CAT_COLORS[c] ?? "#888" }} />{CAT_NAMES[c] ?? c}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrafficHistoryPanel({ tl, blockGas }) {
   const [rangeDays, setRangeDays] = useState(7);   // Pending 面板窗口
   const [gasDays, setGasDays] = useState(7);       // Gas 面板窗口(独立,不与上方联动)
@@ -347,7 +483,7 @@ function TrafficHistoryPanel({ tl, blockGas }) {
           </div>
           <div className="tf-main">
             <HourlyChart times={gasTimes} values={gasPct} maxValues={gasPctMax} threshold={hotPct} color="#3FB8A0" unit="%"
-              label={`实线 = 小时均值 · 虚线 = 小时内分钟峰值 · 阈值 ${hotPct}%`} fmtV={(v) => `${v}`} />
+              label={`实线 = 小时均值 · 虚线 = 小时内分钟峰值 · 阈值 ${hotPct}%`} fmtV={(v) => `${Math.round(v)}`} />
             <div className="reorg-events tf-events">
               <EventList
                 title={`Gas 高占用事件(≥${hotPct}%)· 近 ${gasLabel}`}
@@ -365,7 +501,10 @@ function TrafficHistoryPanel({ tl, blockGas }) {
       {/* 面板二:Top Gas 消耗合约(谁在烧 gas) */}
       <TopGasPanel />
 
-      {/* 面板三:TxPool Pending 历史 */}
+      {/* 面板三:价格与结构(gas price 水位 + 类型份额趋势) */}
+      <PriceStructPanel />
+
+      {/* 面板四:TxPool Pending 历史 */}
       <div className="panel tf-panel">
         <div className="panel-header">
           <span>TxPool Pending 历史</span>

@@ -50,9 +50,12 @@ export class TxnSampler {
               this.provider.send("eth_getBlockReceipts", [hex]).catch(() => null),
             ]);
             if (block?.transactions?.length) {
+              // 块级 gas price 中位数(gwei):p50/p90 水位线数据源
+              const gps = block.transactions.map((tx) => Number(BigInt(tx.gasPrice ?? 0)) / 1e9).filter((v) => v > 0).sort((a, b) => a - b);
               results.push({
                 t: parseInt(block.timestamp, 16) * 1000,
                 classified: classifyBlock(block.transactions, receipts, this.labelBook),
+                blockGp: gps.length ? +gps[Math.floor(gps.length / 2)].toFixed(3) : null,
               });
             }
           } catch { failed++; }
@@ -60,7 +63,7 @@ export class TxnSampler {
       };
       await Promise.all(Array.from({ length: this.concurrency }, worker));
 
-      for (const r of results) this.store.addBlock(r.t, r.classified);
+      for (const r of results) this.store.addBlock(r.t, r.classified, r.blockGp);
       this.store.flush();
       this.lastBlock = tip;
       if (failed) console.warn(`[txn sampler] ${failed}/${heights.length} blocks failed this tick`);

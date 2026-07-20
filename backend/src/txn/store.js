@@ -54,9 +54,15 @@ export class TxnStore {
     return b;
   }
 
-  addBlock(now, classified) {
+  addBlock(now, classified, blockGp = null) {
     const b = this._bucket(now);
     b.blocks++;
+    // 块级 gas price 中位数(gwei)蓄水池抽样:每桶最多 300 个,满了随机替换,view 时算 p50/p90
+    if (typeof blockGp === "number") {
+      (b.gp ??= []);
+      if (b.gp.length < 300) b.gp.push(blockGp);
+      else b.gp[Math.floor(Math.random() * 300)] = blockGp;
+    }
     this.allTime.blocks++;
     for (const c of classified) {
       b.txs++;
@@ -94,6 +100,7 @@ export class TxnStore {
         contracts: Object.fromEntries(
           Object.entries(b.contracts).sort((a, x) => x[1].n - a[1].n).slice(0, 80)
         ),
+        ...(b.gp?.length > 120 ? { gp: b.gp.slice(-120) } : {}),
       }));
       fs.writeFileSync(this.file, JSON.stringify({ buckets: slim, allTime: this.allTime }));
     } catch { /* non-fatal */ }
@@ -148,6 +155,42 @@ export class TxnStore {
       };
     });
     return { days: Math.min(Math.max(Number(days) || 1, 1), 7), totalGas, rows };
+  }
+
+  // Gas price 水位线:每小时桶的块级中位 gas price 样本 → p50/p90(gwei)
+  gasPriceTrend(days = 1) {
+    const cutoff = Date.now() - Math.min(Math.max(Number(days) || 1, 1), 7) * 24 * HOUR;
+    const times = [], p50 = [], p90 = [];
+    for (const b of this.buckets) {
+      if (b.t < cutoff || !b.gp?.length) continue;
+      const s = [...b.gp].sort((x, y) => x - y);
+      times.push(b.t);
+      p50.push(+s[Math.floor(s.length * 0.5)].toFixed(3));
+      p90.push(+s[Math.min(Math.floor(s.length * 0.9), s.length - 1)].toFixed(3));
+    }
+    return { times, p50, p90 };
+  }
+
+  // 交易类型 gas 份额趋势:每小时各类 gas 占比 %(分母为该小时总 gas)
+  catTrend(days = 1) {
+    const cutoff = Date.now() - Math.min(Math.max(Number(days) || 1, 1), 7) * 24 * HOUR;
+    const rows = this.buckets.filter((b) => b.t >= cutoff && b.txs > 0);
+    // 按窗口内 gas 总量选 top 5 类,其余合并为 other
+    const totals = {};
+    for (const b of rows) for (const [c, v] of Object.entries(b.cats ?? {})) totals[c] = (totals[c] || 0) + (v.gas || 0);
+    const topCats = Object.entries(totals).sort((a, x) => x[1] - a[1]).slice(0, 5).map(([c]) => c);
+    const times = [], series = Object.fromEntries([...topCats, "rest"].map((c) => [c, []]));
+    for (const b of rows) {
+      const total = Object.values(b.cats ?? {}).reduce((s, v) => s + (v.gas || 0), 0) || 1;
+      times.push(b.t);
+      let covered = 0;
+      for (const c of topCats) {
+        const pct = +(((b.cats?.[c]?.gas || 0) / total) * 100).toFixed(1);
+        series[c].push(pct); covered += pct;
+      }
+      series.rest.push(+Math.max(0, 100 - covered).toFixed(1));
+    }
+    return { times, cats: topCats, series };
   }
 
   // windowDays:分类分布统计窗口(1/3/7 天);趋势图与热门合约固定 24h

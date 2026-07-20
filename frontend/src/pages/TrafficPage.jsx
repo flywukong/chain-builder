@@ -91,17 +91,14 @@ function HourlyChart({ times, values, maxValues = null, threshold, color, hotCol
         ctx.shadowBlur = 0;
       }
 
-      // 分钟级峰值包络(细虚线):超阈段亮金色,其余同主色淡化
-      if (maxValues?.length) {
-        ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
-        for (let i = 1; i < n; i++) {
-          const a = maxValues[i - 1], b = maxValues[i];
-          if (typeof a !== "number" || typeof b !== "number") continue;
-          const hot = threshold != null && (a > threshold || b > threshold);
-          ctx.strokeStyle = hot ? "#ffd34d" : color + "66";
-          ctx.beginPath(); ctx.moveTo(X(i - 1), Y(a)); ctx.lineTo(X(i), Y(b)); ctx.stroke();
+      // 分钟级峰值:只把「超阈的小时」标成散点(说明该小时内有瞬时打满),不全程连线
+      if (maxValues?.length && threshold != null) {
+        for (let i = 0; i < n; i++) {
+          const mv = maxValues[i];
+          if (typeof mv !== "number" || mv <= threshold) continue;
+          ctx.beginPath(); ctx.arc(X(i), Y(mv), 2.6, 0, 7);
+          ctx.fillStyle = "#ef6a3a"; ctx.shadowColor = "#ef6a3a"; ctx.shadowBlur = 5; ctx.fill(); ctx.shadowBlur = 0;
         }
-        ctx.setLineDash([]);
       }
 
       // 阈值线(threshold=null 时不画,纯走势图模式)
@@ -523,12 +520,8 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             <div className={`reorg-chip ${(sum?.maxGasPct ?? 0) >= hotPct ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{sum?.maxGasPct ?? "--"}%</span><span className="rc-l">30d 峰值利用率(分钟级)</span></div>
           </div>
           <div className="tf-main">
-            <div className="tf-charts2">
-              <HourlyChart times={gasTimes} values={gasPctMax} threshold={hotPct} color="#ffd34d" hotColor="#ef6a3a" unit="%"
-                label={`① 分钟峰值(小时内最高) · 打满看这条 · 阈值 ${hotPct}%`} fmtV={(v) => `${Math.round(v)}`} />
-              <HourlyChart times={gasTimes} values={gasPct} threshold={hotPct} color="#3FB8A0" unit="%"
-                label={`② 小时均值(持续水位) · 阈值 ${hotPct}%`} fmtV={(v) => `${Math.round(v)}`} />
-            </div>
+            <HourlyChart times={gasTimes} values={gasPct} maxValues={gasPctMax} threshold={hotPct} color="#3FB8A0" unit="%"
+              label={`小时均值(绿线)· 橙点 = 该小时曾瞬时打满(≥${hotPct}%) · 阈值 ${hotPct}%`} fmtV={(v) => `${Math.round(v)}`} />
             <div className="reorg-events tf-events">
               <EventList
                 title={`Gas 高占用事件(≥${hotPct}%)· 近 ${gasLabel}`}
@@ -584,12 +577,8 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             <div className={`reorg-chip ${dPend > 50 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{dPend != null ? (dPend >= 0 ? "+" : "") + dPend : "--"}</span><span className="rc-l">pending 净变化 / 1h</span></div>
           </div>
           <div className="tf-main">
-            <div className="tf-charts2">
-              <HourlyChart times={times} values={pendingMax} threshold={thr} color="#ffd34d" hotColor="#ef6a3a"
-                label={`① 分钟峰值(小时内最高) · 阈值 ${thr.toLocaleString()}`} />
-              <HourlyChart times={times} values={pending} threshold={thr} color="#F0B90B"
-                label={`② dataseed 小时均值(持续水位) · 阈值 ${thr.toLocaleString()}`} />
-            </div>
+            <HourlyChart times={times} values={pending} maxValues={pendingMax} threshold={thr} color="#F0B90B"
+              label={`dataseed 小时均值(黄线)· 橙点 = 该小时曾瞬时超阈 · 阈值 ${thr.toLocaleString()}`} />
             <div className="reorg-events tf-events">
               <EventList
                 title={`Pending 拥堵事件 · 近 ${rangeLabel}`}

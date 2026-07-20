@@ -380,17 +380,13 @@ function EpisodeContractsPanel({ title = "最近大流量 · 涉及合约", trig
   );
 }
 
-// ── 价格与结构:Gas Price 水位(p50/p90)+ 类型 gas 份额趋势 ──
+// ── 交易类型 gas 份额趋势:各类交易占总 gas 消耗的比例随时间 ──
 function PriceStructPanel() {
   const [days, setDays] = useState(1);
-  const [gp, setGp] = useState(null);
   const [ct, setCt] = useState(null);
   useEffect(() => {
     let alive = true;
-    const pull = () => {
-      fetch(API + `/api/traffic/gas-price?days=${days}`).then((r) => r.json()).then((j) => { if (alive) setGp(j); }).catch(() => {});
-      fetch(API + `/api/traffic/cat-trend?days=${days}`).then((r) => r.json()).then((j) => { if (alive) setCt(j); }).catch(() => {});
-    };
+    const pull = () => fetch(API + `/api/traffic/cat-trend?days=${days}`).then((r) => r.json()).then((j) => { if (alive) setCt(j); }).catch(() => {});
     pull();
     const t = setInterval(pull, 120_000);
     return () => { alive = false; clearInterval(t); };
@@ -399,9 +395,9 @@ function PriceStructPanel() {
   return (
     <div className="panel tf-panel">
       <div className="panel-header">
-        <span>价格与结构</span>
+        <span>交易类型 gas 份额趋势</span>
         <span className="bm-ctls">
-          <span className="sub">左:块级中位 gas price 的小时 p50(实线)/ p90(虚线) · 右:各类交易 gas 份额</span>
+          <span className="sub">各类交易占总 gas 消耗的比例 · 每小时 · 某类突然抬升即流量结构异动</span>
           <span className="tf-ranges">
             {[[1, "24h"], [3, "3天"], [7, "7天"]].map(([v, l]) => (
               <button key={v} className={`tf-range ${days === v ? "on" : ""}`} onClick={() => setDays(v)}>{l}</button>
@@ -410,17 +406,12 @@ function PriceStructPanel() {
         </span>
       </div>
       <div className="panel-body tf-body">
-        <div className="ps-grid">
-          <HourlyChart times={gp?.times ?? []} values={gp?.p50 ?? []} maxValues={gp?.p90 ?? []} threshold={null}
-            color="#F0B90B" unit=" gwei" label="Gas Price 水位(gwei)· 实线 = 常规价(块中位) · 虚线 = 高价单水位(块 p90,拥堵/抢跑时抬升)"
-            fmtV={(v) => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : (+v).toFixed(2))} />
-          <div className="ps-right">
-            <MultiLineChart times={ct?.times ?? []} series={ct?.series ?? {}} label="交易类型 gas 份额(%)" />
-            <div className="ps-legend">
-              {legend.map((c) => (
-                <span key={c} className="ps-leg"><i style={{ background: CAT_COLORS[c] ?? "#888" }} />{CAT_NAMES[c] ?? c}</span>
-              ))}
-            </div>
+        <div className="ps-right">
+          <MultiLineChart times={ct?.times ?? []} series={ct?.series ?? {}} label="gas 份额(%)" />
+          <div className="ps-legend">
+            {legend.map((c) => (
+              <span key={c} className="ps-leg"><i style={{ background: CAT_COLORS[c] ?? "#888" }} />{CAT_NAMES[c] ?? c}</span>
+            ))}
           </div>
         </div>
       </div>
@@ -554,7 +545,7 @@ function TrafficHistoryPanel({ tl, blockGas }) {
       {/* 面板三:最近大流量涉及合约 */}
       <EpisodeContractsPanel />
 
-      {/* 面板四:价格与结构(gas price 水位 + 类型份额趋势) */}
+      {/* 面板四:交易类型 gas 份额趋势 */}
       <PriceStructPanel />
 
       {/* 面板五:TxPool Pending 历史 */}

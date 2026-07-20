@@ -1383,6 +1383,9 @@ body::before {
   background: rgba(240,185,11,.05); border: 1px solid rgba(240,185,11,.35); border-radius: 6px; padding: 3px 10px; }
 .bg-peak-tag.hot { color: var(--gold); background: rgba(240,185,11,.1); border-color: var(--gold); }
 
+/* 侧栏 logo:LEO 机器人头像 */
+.nav-logo-bot { width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 0 7px rgba(240,185,11,.5)); }
+
 /* 首页 Gas 卡:大流量结论(≥90% 为大流量),固定两行右对齐 */
 .hp-gas-surge { line-height: 1.55; text-align: right; }
 .hp-gas-surge.hot { color: var(--gold); font-weight: 800; }

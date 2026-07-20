@@ -576,6 +576,43 @@ app.get("/api/traffic/top-gas", async (req) => {
   const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
   return txnStore.topGasContracts(labelBook, days);
 });
+// 最近 3 次大流量事件 · 涉及合约:7d 内走 TXN 采样桶聚合(真实 gasUsed),更早的链上采样兜底
+const epContractsCache = new Map();   // episodeStart -> contracts
+app.get("/api/traffic/episode-contracts", async () => {
+  const tl = latest.trafficTimeline;
+  const eps = (tl?.episodes ?? []).slice(-3).reverse();
+  const out = [];
+  for (const e of eps) {
+    let contracts = epContractsCache.get(e.start) ?? null;
+    if (!contracts) {
+      contracts = txnStore.contractsInRange(labelBook, e.start, (e.end ?? e.start) + 3600e3, 6);
+      if (!contracts?.rows?.length) {
+        const sampleFrom = e.refined?.precise ? e.refined.peakT - 300e3 : e.peakT - 3600e3;
+        const ev = await sampleBlockContracts(provider, sampleFrom, { samples: 8, labelBook }).catch(() => null);
+        if (ev?.topContracts?.length) {
+          contracts = {
+            source: "chain",
+            rows: ev.topContracts.slice(0, 6).map((c) => ({ addr: c.to, name: c.name ?? null, cat: c.cat ?? "other", txs: c.txCount, sharePct: c.gasSharePct })),
+          };
+        }
+      }
+      if (contracts?.rows?.length) epContractsCache.set(e.start, contracts);
+      if (epContractsCache.size > 60) epContractsCache.delete(epContractsCache.keys().next().value);
+    }
+    const r = e.refined;
+    out.push({
+      start: e.start,
+      timeLocal: new Date(r?.precise ? r.startT : e.start).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+      trigger: e.trigger, kind: e.kind ?? "sustained",
+      peakPending: e.peakPending, peakGasPct: e.peakGasPct,
+      durationMin: r?.precise && r.endT ? Math.max(Math.round((r.endT - r.startT) / 60e3), 5) : (e.hours ?? 1) * 60,
+      startBlock: r?.startBlock ?? null, endBlock: r?.endBlock ?? null,
+      contracts: contracts ?? null,
+    });
+  }
+  return { episodes: out };
+});
+
 // Gas price 水位(块级中位 gasPrice 的小时 p50/p90,gwei)与 交易类型 gas 份额趋势
 app.get("/api/traffic/gas-price", async (req) => {
   const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);

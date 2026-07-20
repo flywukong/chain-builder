@@ -157,6 +157,27 @@ export class TxnStore {
     return { days: Math.min(Math.max(Number(days) || 1, 1), 7), totalGas, rows };
   }
 
+  // 指定时间范围内的合约 gas 聚合(大流量事件归因):范围覆盖的小时桶合并,top N
+  contractsInRange(labelBook, fromMs, toMs, top = 6) {
+    const agg = {}; let totalGas = 0, buckets = 0;
+    for (const b of this.buckets) {
+      if (b.t < fromMs - HOUR || b.t >= toMs) continue;   // 事件起点所在小时也算入
+      buckets++;
+      for (const c of Object.values(b.cats ?? {})) totalGas += c.gas || 0;
+      for (const [addr, c] of Object.entries(b.contracts ?? {})) {
+        const a = (agg[addr] ??= { addr, n: 0, gas: 0, cat: c.cat });
+        a.n += c.n; a.gas += c.gas || 0;
+        if (c.cat && c.cat !== "other") a.cat = c.cat;
+      }
+    }
+    if (!buckets) return null;   // 范围超出 7d 桶窗口
+    const rows = Object.values(agg).sort((a, b) => b.gas - a.gas).slice(0, top).map((a) => {
+      const l = labelBook?.get?.(a.addr);
+      return { addr: a.addr, name: l?.name ?? null, cat: l?.cat ?? a.cat ?? "other", txs: a.n, sharePct: totalGas ? +((a.gas / totalGas) * 100).toFixed(1) : null };
+    });
+    return { rows, source: "store" };
+  }
+
   // Gas price 水位线:每小时桶的块级中位 gas price 样本 → p50/p90(gwei)
   gasPriceTrend(days = 1) {
     const cutoff = Date.now() - Math.min(Math.max(Number(days) || 1, 1), 7) * 24 * HOUR;

@@ -330,6 +330,55 @@ function MultiLineChart({ times, series, label }) {
   );
 }
 
+// ── 最近 3 次大流量 · 涉及合约:每个事件一组,7d 内走 TXN 采样桶(真实 gasUsed) ──
+function EpisodeContractsPanel() {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + "/api/traffic/episode-contracts").then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 300_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  const eps = d?.episodes ?? [];
+  return (
+    <div className="panel tf-panel">
+      <div className="panel-header">
+        <span>最近大流量 · 涉及合约</span>
+        <span className="bm-ctls"><span className="sub">最近 3 次事件 · 事件时段按合约 gas 消耗排名 · 点击查合约</span></span>
+      </div>
+      <div className="panel-body tf-body">
+        {eps.length === 0 ? <div className="re-empty">✓ 30d 内无大流量事件</div> : (
+          <div className="ec-grid">
+            {eps.map((e) => (
+              <div key={e.start} className="ec-card">
+                <div className="ec-head">
+                  <span className={`re-sev ${e.kind === "burst" ? "re-sev-burst" : "re-sev-watch"}`}>{e.kind === "burst" ? "瞬时" : "持续"}</span>
+                  <b>{e.timeLocal}</b>
+                  <em>{e.trigger?.includes("pending") ? `pending 峰 ${e.peakPending?.toLocaleString()}` : ""}{e.trigger === "pending+gas" || e.trigger === "gas+pending" ? " · " : ""}{e.trigger?.includes("gas") ? `gas 峰 ${e.peakGasPct}%` : ""} · 持续{e.durationMin >= 60 ? `${+(e.durationMin / 60).toFixed(1)}h` : `${e.durationMin}m`}</em>
+                </div>
+                {e.startBlock != null && <div className="ec-blocks">区块 {fmtBlk(e.startBlock)} ~ {fmtBlk(e.endBlock)}</div>}
+                <div className="ec-list">
+                  {(e.contracts?.rows ?? []).map((r) => (
+                    <div key={r.addr} className="ec-row" title={r.addr}>
+                      <a className="tg-name ec-name" href={`https://bscscan.com/address/${r.addr}`} target="_blank" rel="noreferrer" title={`${r.addr} · 点击在 BscScan 查看`}>
+                        {r.name ?? r.addr.slice(0, 12) + "…"}<span className="tg-ext">↗</span>
+                      </a>
+                      <span className={`tg-cat tgc-${r.cat}`}>{CAT_NAMES[r.cat] ?? r.cat}</span>
+                      <span className="ec-share">{r.sharePct != null ? `${r.sharePct}%` : "--"}</span>
+                    </div>
+                  ))}
+                  {!(e.contracts?.rows?.length) && <div className="eb-none">事件时段超出采样窗口,暂无合约明细</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── 价格与结构:Gas Price 水位(p50/p90)+ 类型 gas 份额趋势 ──
 function PriceStructPanel() {
   const [days, setDays] = useState(1);
@@ -501,10 +550,13 @@ function TrafficHistoryPanel({ tl, blockGas }) {
       {/* 面板二:Top Gas 消耗合约(谁在烧 gas) */}
       <TopGasPanel />
 
-      {/* 面板三:价格与结构(gas price 水位 + 类型份额趋势) */}
+      {/* 面板三:最近大流量涉及合约 */}
+      <EpisodeContractsPanel />
+
+      {/* 面板四:价格与结构(gas price 水位 + 类型份额趋势) */}
       <PriceStructPanel />
 
-      {/* 面板四:TxPool Pending 历史 */}
+      {/* 面板五:TxPool Pending 历史 */}
       <div className="panel tf-panel">
         <div className="panel-header">
           <span>TxPool Pending 历史</span>

@@ -523,8 +523,12 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             <div className={`reorg-chip ${(sum?.maxGasPct ?? 0) >= hotPct ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{sum?.maxGasPct ?? "--"}%</span><span className="rc-l">30d 峰值利用率(分钟级)</span></div>
           </div>
           <div className="tf-main">
-            <HourlyChart times={gasTimes} values={gasPct} maxValues={gasPctMax} threshold={hotPct} color="#3FB8A0" unit="%"
-              label={`实线 = 小时均值 · 虚线 = 小时内分钟峰值 · 阈值 ${hotPct}%`} fmtV={(v) => `${Math.round(v)}`} />
+            <div className="tf-charts2">
+              <HourlyChart times={gasTimes} values={gasPctMax} threshold={hotPct} color="#ffd34d" hotColor="#ef6a3a" unit="%"
+                label={`① 分钟峰值(小时内最高) · 打满看这条 · 阈值 ${hotPct}%`} fmtV={(v) => `${Math.round(v)}`} />
+              <HourlyChart times={gasTimes} values={gasPct} threshold={hotPct} color="#3FB8A0" unit="%"
+                label={`② 小时均值(持续水位) · 阈值 ${hotPct}%`} fmtV={(v) => `${Math.round(v)}`} />
+            </div>
             <div className="reorg-events tf-events">
               <EventList
                 title={`Gas 高占用事件(≥${hotPct}%)· 近 ${gasLabel}`}
@@ -580,8 +584,12 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             <div className={`reorg-chip ${dPend > 50 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{dPend != null ? (dPend >= 0 ? "+" : "") + dPend : "--"}</span><span className="rc-l">pending 净变化 / 1h</span></div>
           </div>
           <div className="tf-main">
-            <HourlyChart times={times} values={pending} maxValues={pendingMax} threshold={thr} color="#F0B90B"
-              label={`实线 = dataseed 小时均值 · 虚线 = 分钟峰值 · 阈值 ${thr.toLocaleString()}`} />
+            <div className="tf-charts2">
+              <HourlyChart times={times} values={pendingMax} threshold={thr} color="#ffd34d" hotColor="#ef6a3a"
+                label={`① 分钟峰值(小时内最高) · 阈值 ${thr.toLocaleString()}`} />
+              <HourlyChart times={times} values={pending} threshold={thr} color="#F0B90B"
+                label={`② dataseed 小时均值(持续水位) · 阈值 ${thr.toLocaleString()}`} />
+            </div>
             <div className="reorg-events tf-events">
               <EventList
                 title={`Pending 拥堵事件 · 近 ${rangeLabel}`}

@@ -686,6 +686,47 @@ function aiRoutes(key, path, buildAndRun) {
   app.get(path, async () => aiJobs[key]);
 }
 
+// jobId 池:同一端点可并发多次分析(不同目标各自独立结果通道),并发上限 max;
+// 相同 bodyKey 复用进行中的 job;结果按 bodyKey 缓存 TTL。解决单槽下多目标互相 409 的痛点。
+// 兼容旧前端:裸 GET 返回最近一次完成结果(供「先查缓存」优化);GET ?job=<id> 返回指定 job。
+function aiJobPool(path, buildAndRun, { max = 2 } = {}) {
+  const jobs = new Map();          // jobId -> { running, bodyKey, text, at, error }
+  const cache = new Map();         // bodyKey -> { text, at }
+  let lastDone = { text: null, at: null, bodyKey: null, running: false };
+  let active = 0;
+  app.post(path, async (req, reply) => {
+    const bodyKey = JSON.stringify(req.body ?? {});
+    const c = cache.get(bodyKey);
+    if (c && Date.now() - c.at < AI_TTL_MS) return { text: c.text, at: c.at, bodyKey, running: false, cached: true };
+    for (const [id, j] of jobs) if (j.running && j.bodyKey === bodyKey) return { jobId: id, running: true, at: j.at };
+    if (active >= max) { reply.code(429); return { error: "分析通道繁忙(已有分析进行中),请稍候再试", running: true }; }
+    if (!ipAllowed(req.ip)) { reply.code(429); return { error: RATE_MSG }; }
+    const jobId = Math.random().toString(36).slice(2, 10);
+    const job = { running: true, bodyKey, text: null, at: null, error: null };
+    jobs.set(jobId, job);
+    active++;
+    setTimeout(() => jobs.delete(jobId), 15 * 60_000);
+    const body = req.body ?? {};
+    (async () => {
+      try {
+        const text = await buildAndRun(body);
+        job.text = text; job.at = Date.now(); job.running = false;
+        cache.set(bodyKey, { text, at: job.at });
+        if (cache.size > 40) cache.delete(cache.keys().next().value);
+        lastDone = { text, at: job.at, bodyKey, running: false };
+      } catch (err) {
+        job.error = err.message; job.running = false;
+      } finally { active = Math.max(0, active - 1); }
+    })();
+    return { jobId, running: true, at: null };
+  });
+  app.get(path, async (req) => {
+    const id = req.query?.job;
+    if (id) { const j = jobs.get(id); return j ? { running: j.running, text: j.text, at: j.at, error: j.error } : { running: false, error: "分析任务不存在或已过期" }; }
+    return lastDone;   // 裸 GET:最近一次完成结果(前端按 bodyKey 校验后决定是否复用)
+  });
+}
+
 async function buildAiData(days = 7) {
   const [reorg, slash] = await Promise.all([
     Promise.resolve(latest.reorgTimeline ? { reorg24h: reorg24hFiltered() } : null).then(v => v ?? fetchReorgStats(cfg.keterConfigPath)).catch(() => ({ reorg24h: null })),
@@ -980,7 +1021,8 @@ aiRoutes("sync", "/api/ai/sync", async (body) => {
 
 // 大流量分析:最近一次大流量事件 + 峰值时段链上采样(合约归因)
 // body.days+focus → 窗口形态解读(pending / gas 单维度);body.episodeStart → 单事件归因
-aiRoutes("traffic", "/api/ai/traffic", async (body) => {
+// 流量分析走 jobId 池:多个事件归因 / 汇总可并发(不同目标各自独立通道),避免单槽互相 409
+aiJobPool("/api/ai/traffic", async (body) => {
   const tl = latest.trafficTimeline ?? await fetchTrafficTimeline(cfg.keterConfigPath);
   const tx = txpoolStore.getView();
   const win = streamer.getWindowStats() || {};

@@ -93,7 +93,7 @@ export async function runTrafficAnalysis(data) {
     "",
     "要求:",
     "1. 概述事件:时间、持续、峰值 pending 与基线的倍数、区块 gas 是否被打满。",
-    "2. 归因:根据 topContracts 判断流量由什么合约/交易类型引起。你认识的知名 BSC 合约(如 PancakeSwap Router、四字节铭文类、known token)直接标注;不认识的地址优先用链上工具识别,识别不出再写「未知合约 0x…前8位」,禁止编造名字。",
+    "2. 归因:根据 topContracts 判断流量由什么合约/交易类型引起。你认识的知名 BSC 合约(如 PancakeSwap Router、四字节铭文类、known token)直接标注;不认识的地址优先用链上工具识别,识别不出就写「未验证合约」+ 完整地址(0x 开头全 42 字符,用反引号包裹,读者要复制去 BscScan 查)——严禁截断或省略地址,严禁编造名字;完整地址不计入字数限制。",
     "3. 影响与结论:pending 消化情况、是否需要关注。",
     "4. 若无链上采样数据,基于时间线分析并说明归因需 tx 级数据。",
     "",

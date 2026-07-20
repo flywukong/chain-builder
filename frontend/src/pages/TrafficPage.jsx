@@ -411,7 +411,7 @@ function PriceStructPanel() {
       <div className="panel-body tf-body">
         <div className="ps-grid">
           <HourlyChart times={gp?.times ?? []} values={gp?.p50 ?? []} maxValues={gp?.p90 ?? []} threshold={null}
-            color="#F0B90B" unit=" gwei" label="Gas Price 水位(gwei)· 实线 p50 · 虚线 p90"
+            color="#F0B90B" unit=" gwei" label="Gas Price 水位(gwei)· 实线 = 常规价(块中位) · 虚线 = 高价单水位(块 p90,拥堵/抢跑时抬升)"
             fmtV={(v) => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : (+v).toFixed(2))} />
           <div className="ps-right">
             <MultiLineChart times={ct?.times ?? []} series={ct?.series ?? {}} label="交易类型 gas 份额(%)" />

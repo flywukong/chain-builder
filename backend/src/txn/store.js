@@ -54,14 +54,19 @@ export class TxnStore {
     return b;
   }
 
-  addBlock(now, classified, blockGp = null) {
+  addBlock(now, classified, blockGp = null, blockGp90 = null) {
     const b = this._bucket(now);
     b.blocks++;
-    // 块级 gas price 中位数(gwei)蓄水池抽样:每桶最多 300 个,满了随机替换,view 时算 p50/p90
+    // 块级 gas price 分位(gwei)蓄水池抽样:gp=块中位(常规价),gp90=块 p90(高价单水位)
     if (typeof blockGp === "number") {
       (b.gp ??= []);
       if (b.gp.length < 300) b.gp.push(blockGp);
       else b.gp[Math.floor(Math.random() * 300)] = blockGp;
+    }
+    if (typeof blockGp90 === "number") {
+      (b.gp90 ??= []);
+      if (b.gp90.length < 300) b.gp90.push(blockGp90);
+      else b.gp90[Math.floor(Math.random() * 300)] = blockGp90;
     }
     this.allTime.blocks++;
     for (const c of classified) {
@@ -101,6 +106,7 @@ export class TxnStore {
           Object.entries(b.contracts).sort((a, x) => x[1].n - a[1].n).slice(0, 80)
         ),
         ...(b.gp?.length > 120 ? { gp: b.gp.slice(-120) } : {}),
+        ...(b.gp90?.length > 120 ? { gp90: b.gp90.slice(-120) } : {}),
       }));
       fs.writeFileSync(this.file, JSON.stringify({ buckets: slim, allTime: this.allTime }));
     } catch { /* non-fatal */ }
@@ -178,7 +184,8 @@ export class TxnStore {
     return { rows, source: "store" };
   }
 
-  // Gas price 水位线:每小时桶的块级中位 gas price 样本 → p50/p90(gwei)
+  // Gas price 水位线:实线 p50 = 块中位价的小时中位(常规价,天然平稳);
+  // 虚线 p90 = 块内 p90 高价单的小时 p90(MEV 抢跑/拥堵时先动的信号)
   gasPriceTrend(days = 1) {
     const cutoff = Date.now() - Math.min(Math.max(Number(days) || 1, 1), 7) * 24 * HOUR;
     const times = [], p50 = [], p90 = [];
@@ -187,7 +194,12 @@ export class TxnStore {
       const s = [...b.gp].sort((x, y) => x - y);
       times.push(b.t);
       p50.push(+s[Math.floor(s.length * 0.5)].toFixed(3));
-      p90.push(+s[Math.min(Math.floor(s.length * 0.9), s.length - 1)].toFixed(3));
+      if (b.gp90?.length) {
+        const s9 = [...b.gp90].sort((x, y) => x - y);
+        p90.push(+s9[Math.min(Math.floor(s9.length * 0.9), s9.length - 1)].toFixed(3));
+      } else {
+        p90.push(+s[Math.min(Math.floor(s.length * 0.9), s.length - 1)].toFixed(3));
+      }
     }
     return { times, p50, p90 };
   }

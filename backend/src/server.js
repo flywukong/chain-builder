@@ -357,6 +357,29 @@ async function pollTimelines() {
 pollTimelines();
 setInterval(pollTimelines, 600_000);
 
+// ── BNB Chain 官方公告(docs.bnbchain.org/announce)──────────────────────────
+// 半小时抓一次,解析最新 3 条(标题/描述/日期/链接),首页横幅展示。失败保留上次结果。
+const ANNOUNCE_URL = "https://docs.bnbchain.org/announce/";
+let announceCache = { at: 0, items: [] };
+async function pollAnnounce() {
+  try {
+    const r = await fetch(ANNOUNCE_URL, { signal: AbortSignal.timeout(15_000), headers: { "user-agent": "bnbchain-ops-monitor" } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const html = await r.text();
+    const items = [];
+    const re = /<div class="doc-announce">\s*<a href="([^"]+)">[\s\S]*?<div class="announce-title">([\s\S]*?)<\/div>\s*<div class="announce-desc">([\s\S]*?)<\/div>[\s\S]*?<span class="announce-date">([\s\S]*?)<\/span>/g;
+    let m;
+    while ((m = re.exec(html)) && items.length < 3) {
+      const href = m[1].startsWith("http") ? m[1] : new URL(m[1], ANNOUNCE_URL).href;
+      const clean = (s) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      items.push({ title: clean(m[2]), desc: clean(m[3]), date: clean(m[4]), url: href });
+    }
+    if (items.length) { announceCache = { at: Date.now(), items }; broadcast("announce", announceCache); }
+  } catch (err) { console.error("[announce poll]", err.message); }
+}
+pollAnnounce();
+setInterval(pollAnnounce, 1800_000);
+
 // ── Periodic slash polling (every 60s) ─────────────────────────────────────
 async function pollSlash() {
   try {
@@ -625,6 +648,7 @@ app.get("/api/traffic/cat-trend", async (req) => {
   return { days, ...txnStore.catTrend(days) };
 });
 app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath).then(enrichEpisodes)));
+app.get("/api/announce", async () => announceCache);
 app.get("/api/disk",      async (req) => {
   // threshold=0 返回全部节点水位(topk 100),存储页磁盘总览用;默认 80 供告警
   const t = req.query?.threshold != null ? Math.max(Number(req.query.threshold) || 0, 0) : 80;

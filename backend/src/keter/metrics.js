@@ -340,21 +340,33 @@ export const liveGasLimitM = () => Math.round(LIVE_GAS_LIMIT / 1e6);
 export async function fetchTrafficTimeline(configPath, days = 30, hotPct = 90, threshold = 4000) {
   const GAS_LIMIT = LIVE_GAS_LIMIT;
   const opts = { from: `now-${days}d`, intervalMs: 3600_000, maxDataPoints: 24 * days + 12, configPath };
-  const [pendRaw, gasRaw] = await Promise.all([
+  // avg = 小时均值(持续负载);smooth-max = 1m 平滑后的小时峰值(事件检测:须持续 ≥1 分钟);
+  // raw-max = 不平滑的小时峰值(仅视觉包络:单块打满也显形,但不算事件——BSC 每小时都有单块打满)
+  const [pendRaw, gasRaw, pendMaxRaw, gasMaxRaw, gasRawMaxRaw] = await Promise.all([
     rangeQuery(DATASOURCES["dex-prod"], `avg(txpool_pending{job=~"${DATASEED_JOBS}"})`, opts),
     rangeQuery(DATASOURCES["dex-prod"], `avg(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"})`, opts),
+    // 跨节点 max 会被卡死节点(恒 25k pending)污染,一律每节点先算再跨节点平均
+    rangeQuery(DATASOURCES["dex-prod"], `avg(max_over_time(avg_over_time(txpool_pending{job=~"${DATASEED_JOBS}"}[1m])[1h:1m]))`, opts).catch(() => null),
+    rangeQuery(DATASOURCES["dex-prod"], `avg(max_over_time(avg_over_time(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"}[1m])[1h:1m]))`, opts).catch(() => null),
+    rangeQuery(DATASOURCES["dex-prod"], `avg(max_over_time(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"}[1h]))`, opts).catch(() => null),
   ]);
   const pend = extractSeries(pendRaw)[0] ?? { times: [], values: [] };
   const gas  = extractSeries(gasRaw)[0]  ?? { times: [], values: [] };
+  const pendMax = extractSeries(pendMaxRaw)?.[0] ?? { times: [], values: [] };
+  const gasMax  = extractSeries(gasMaxRaw)?.[0]  ?? { times: [], values: [] };
+  const gasRawMax = extractSeries(gasRawMaxRaw)?.[0] ?? { times: [], values: [] };
   const gasAt = new Map(gas.times.map((t, i) => [t, gas.values[i]]));
+  const pendMaxAt = new Map(pendMax.times.map((t, i) => [t, pendMax.values[i]]));
+  const gasMaxAt = new Map(gasMax.times.map((t, i) => [t, gasMax.values[i]]));
+  const gasRawMaxAt = new Map(gasRawMax.times.map((t, i) => [t, gasRawMax.values[i]]));
   const hotGas = GAS_LIMIT * (hotPct / 100);
 
   const vals = pend.values.filter((v) => typeof v === "number");
   const sorted = [...vals].sort((a, b) => a - b);
   const pct = (p) => Math.round(sorted[Math.floor(p * (sorted.length - 1))] ?? 0);
 
-  // hourly 序列(以 pending 时间轴为基准,gas 按 ts 对齐)
-  const hourly = { times: [], pending: [], gasPct: [] };
+  // hourly 序列(以 pending 时间轴为基准,gas/max 按 ts 对齐);*Max 为分钟级峰值包络
+  const hourly = { times: [], pending: [], gasPct: [], pendingMax: [], gasPctMax: [] };
   const episodes = [];
   let cur = null;
   let maxGas = 0, hotHours = 0;
@@ -362,28 +374,40 @@ export async function fetchTrafficTimeline(configPath, days = 30, hotPct = 90, t
     const p = pend.values[i];
     if (typeof p !== "number") return;
     const g = gasAt.get(t);
+    const pM = pendMaxAt.get(t), gM = gasMaxAt.get(t);
+    const gRM = gasRawMaxAt.get(t);   // 视觉包络:不平滑,单块打满也显形
     const gp = typeof g === "number" ? +((g / GAS_LIMIT) * 100).toFixed(1) : null;
     hourly.times.push(t); hourly.pending.push(Math.round(p)); hourly.gasPct.push(gp);
-    if (typeof g === "number") maxGas = Math.max(maxGas, g);
+    hourly.pendingMax.push(typeof pM === "number" ? Math.round(pM) : null);
+    hourly.gasPctMax.push(typeof gRM === "number" ? +((gRM / GAS_LIMIT) * 100).toFixed(1)
+      : typeof gM === "number" ? +((gM / GAS_LIMIT) * 100).toFixed(1) : null);
+    if (typeof gM === "number") maxGas = Math.max(maxGas, gM);
+    else if (typeof g === "number") maxGas = Math.max(maxGas, g);
 
+    // 两级检测:均值超阈 = 持续高负载(sustained);仅分钟级峰值超阈 = 瞬时冲高(burst)
     const hotP = p > threshold, hotG = typeof g === "number" && g >= hotGas;
-    if (hotP || hotG) {
+    const burstP = typeof pM === "number" && pM > threshold;
+    const burstG = typeof gM === "number" && gM >= hotGas;
+    if (hotP || hotG || burstP || burstG) {
       hotHours++;
-      if (!cur) cur = { start: t, end: t, peakPending: 0, peakGasM: 0, peakGasPct: 0, peakT: t, hours: 0, trigger: new Set() };
+      if (!cur) cur = { start: t, end: t, peakPending: 0, peakGasM: 0, peakGasPct: 0, peakT: t, hours: 0, trigger: new Set(), sustained: false };
       cur.end = t; cur.hours++;
-      if (hotP) cur.trigger.add("pending");
-      if (hotG) cur.trigger.add("gas");
-      if (Math.round(p) > cur.peakPending) { cur.peakPending = Math.round(p); cur.peakT = t; }
-      if (typeof g === "number" && g / 1e6 > cur.peakGasM) { cur.peakGasM = +(g / 1e6).toFixed(1); cur.peakGasPct = Math.round((g / GAS_LIMIT) * 100); }
-    } else if (cur) { cur.trigger = [...cur.trigger].join("+"); episodes.push(cur); cur = null; }
+      if (hotP || burstP) cur.trigger.add("pending");
+      if (hotG || burstG) cur.trigger.add("gas");
+      if (hotP || hotG) cur.sustained = true;
+      const pPeak = typeof pM === "number" ? pM : p;
+      if (Math.round(pPeak) > cur.peakPending) { cur.peakPending = Math.round(pPeak); cur.peakT = t; }
+      const gPeak = typeof gM === "number" ? gM : g;
+      if (typeof gPeak === "number" && gPeak / 1e6 > cur.peakGasM) { cur.peakGasM = +(gPeak / 1e6).toFixed(1); cur.peakGasPct = Math.round((gPeak / GAS_LIMIT) * 100); }
+    } else if (cur) { cur.trigger = [...cur.trigger].join("+"); cur.kind = cur.sustained ? "sustained" : "burst"; episodes.push(cur); cur = null; }
   });
-  if (cur) { cur.trigger = [...cur.trigger].join("+"); episodes.push(cur); }
+  if (cur) { cur.trigger = [...cur.trigger].join("+"); cur.kind = cur.sustained ? "sustained" : "burst"; episodes.push(cur); }
 
   return {
     hotPct,
     threshold,
     gasLimitM: Math.round(GAS_LIMIT / 1e6),   // 折算口径,供前端标签与后端 AI 提示对齐
-    hourly,                       // 30d 小时级序列,前端切片 5/7/10/30d
+    hourly,                       // 30d 小时级序列(含分钟级峰值包络),前端切片 5/7/10/30d
     episodes,
     lastEpisode: episodes.at(-1) ?? null,
     summary: {
@@ -404,34 +428,40 @@ export async function refineEpisode(configPath, ep, { hotPct = 90, threshold = 4
   const hotGas = LIVE_GAS_LIMIT * (hotPct / 100);
   const from = ep.start - 3600_000;                                   // 1h 桶覆盖前一小时
   const to = Math.min((ep.end ?? ep.start) + 3600_000, Date.now());
-  const opts = { from: String(from), to: String(to), intervalMs: 300_000, maxDataPoints: 500, configPath };
-  const [pendRaw, gasRaw] = await Promise.all([
-    rangeQuery(DATASOURCES["dex-prod"], `avg(txpool_pending{job=~"${DATASEED_JOBS}"})`, opts),
-    rangeQuery(DATASOURCES["dex-prod"], `avg(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"})`, opts),
-  ]);
-  const pend = extractSeries(pendRaw)[0] ?? { times: [], values: [] };
-  const gas = extractSeries(gasRaw)[0] ?? { times: [], values: [] };
-  const gasAt = new Map(gas.times.map((t, i) => [t, gas.values[i]]));
 
-  let startT = null, recoverT = null, pendPeakT = null, gasPeakT = null, peakPending = 0, peakGasM = 0;
-  pend.times.forEach((t, i) => {
-    const p = pend.values[i];
-    if (typeof p !== "number") return;
-    const g = gasAt.get(t);
-    const hot = p > threshold || (typeof g === "number" && g >= hotGas);
-    if (hot) {
-      if (startT == null) startT = t;
-      recoverT = null;                                                // 多段越限取最后恢复点
-      if (p > peakPending) { peakPending = Math.round(p); pendPeakT = t; }
-      if (typeof g === "number" && g / 1e6 > peakGasM) { peakGasM = +(g / 1e6).toFixed(1); gasPeakT = t; }
-    } else if (startT != null && recoverT == null) {
-      recoverT = t;
-    }
-  });
-  if (startT == null) return null;
-  // 峰值时刻按触发方选:pending 触发看 pending 峰,纯 gas 事件看 gas 峰
-  const peakT = peakPending > threshold ? pendPeakT : (gasPeakT ?? pendPeakT ?? startT);
-  return { startT, peakT, recoverT, peakPending, peakGasM, stepMs: 300_000 };
+  const attempt = async (stepMs) => {
+    const opts = { from: String(from), to: String(to), intervalMs: stepMs, maxDataPoints: Math.ceil((to - from) / stepMs) + 12, configPath };
+    const [pendRaw, gasRaw] = await Promise.all([
+      rangeQuery(DATASOURCES["dex-prod"], `avg(txpool_pending{job=~"${DATASEED_JOBS}"})`, opts),
+      rangeQuery(DATASOURCES["dex-prod"], `avg(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"})`, opts),
+    ]);
+    const pend = extractSeries(pendRaw)[0] ?? { times: [], values: [] };
+    const gas = extractSeries(gasRaw)[0] ?? { times: [], values: [] };
+    const gasAt = new Map(gas.times.map((t, i) => [t, gas.values[i]]));
+
+    let startT = null, recoverT = null, pendPeakT = null, gasPeakT = null, peakPending = 0, peakGasM = 0;
+    pend.times.forEach((t, i) => {
+      const p = pend.values[i];
+      if (typeof p !== "number") return;
+      const g = gasAt.get(t);
+      const hot = p > threshold || (typeof g === "number" && g >= hotGas);
+      if (hot) {
+        if (startT == null) startT = t;
+        recoverT = null;                                              // 多段越限取最后恢复点
+        if (p > peakPending) { peakPending = Math.round(p); pendPeakT = t; }
+        if (typeof g === "number" && g / 1e6 > peakGasM) { peakGasM = +(g / 1e6).toFixed(1); gasPeakT = t; }
+      } else if (startT != null && recoverT == null) {
+        recoverT = t;
+      }
+    });
+    if (startT == null) return null;
+    // 峰值时刻按触发方选:pending 触发看 pending 峰,纯 gas 事件看 gas 峰
+    const peakT = peakPending > threshold ? pendPeakT : (gasPeakT ?? pendPeakT ?? startT);
+    return { startT, peakT, recoverT, peakPending, peakGasM, stepMs };
+  };
+
+  // 5m 均值先试;瞬时冲高(1-2 分钟)在 5m 里也会被摊平,复现失败再用 1m 粒度
+  return (await attempt(300_000)) ?? (await attempt(60_000));
 }
 
 // ── Reorg 事件精化:小时级事件 → 5m 峰值时刻 ────────────────────────────────

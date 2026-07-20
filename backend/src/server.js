@@ -539,11 +539,20 @@ async function gasPeaks(gasused) {
   }
   if (cur) segs.push(cur);
   const recent = segs.slice(-3);
+  // 打满段(≥90% 上限):与首页大流量卡同一口径,供流量页打满率卡对齐
+  const fullGas = liveGasLimitM() * 1e6 * 0.9;
+  const fullSegs = segs.filter((s) => s.peak >= fullGas);
+  const lastFullSeg = fullSegs.at(-1) ?? null;
+  const lastFull = lastFullSeg ? {
+    startT: lastFullSeg.startT, peakM: +(lastFullSeg.peak / 1e6).toFixed(1),
+    peakPct: Math.round((lastFullSeg.peak / (liveGasLimitM() * 1e6)) * 100),
+    block: await blockAtTime(lastFullSeg.startT).catch(() => null),
+  } : null;
   return Promise.all(recent.map(async (s) => ({
     startT: s.startT, endT: s.endT, peakM: +(s.peak / 1e6).toFixed(1),
     startBlock: await blockAtTime(s.startT).catch(() => null),
     endBlock: await blockAtTime(s.endT).catch(() => null),
-  }))).then((peaks) => ({ peaks, total: segs.length }));
+  }))).then((peaks) => ({ peaks, total: segs.length, fullCount: fullSegs.length, lastFull }));
 }
 app.get("/api/block-gas", async (req) => {
   const minutes = Math.min(Math.max(parseInt(req.query?.minutes, 10) || 30, 30), 1440);
@@ -551,16 +560,21 @@ app.get("/api/block-gas", async (req) => {
     const data = latest.blockGas ?? await safe(fetchBlockGas(cfg.keterConfigPath));
     if (!data) return data;
     const p = await gasPeaks(data.gasused).catch(() => null);
-    return { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6 };
+    return { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6, fullCount: p?.fullCount ?? 0, lastFull: p?.lastFull ?? null };
   }
   if (blockGasWinCache.data && blockGasWinCache.minutes === minutes && Date.now() - blockGasWinCache.at < 60_000) return blockGasWinCache.data;
   let data = await safe(fetchBlockGas(cfg.keterConfigPath, minutes));
   if (data) {
     const p = await gasPeaks(data.gasused).catch(() => null);
-    data = { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6 };
+    data = { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6, fullCount: p?.fullCount ?? 0, lastFull: p?.lastFull ?? null };
     blockGasWinCache = { at: Date.now(), minutes, data };
   }
   return data;
+});
+// Top gas 消耗合约榜(流量子系统):TXN 采样 receipts 的真实 gasUsed 聚合
+app.get("/api/traffic/top-gas", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
+  return txnStore.topGasContracts(labelBook, days);
 });
 app.get("/api/traffic-timeline", async () => latest.trafficTimeline ?? safe(fetchTrafficTimeline(cfg.keterConfigPath).then(enrichEpisodes)));
 app.get("/api/disk",      async (req) => {

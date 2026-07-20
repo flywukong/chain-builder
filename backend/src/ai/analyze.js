@@ -115,8 +115,8 @@ export async function runTrafficTrendAnalysis(data) {
     `你是 BSC 主网的资深运维分析师。解读近 ${data.windowLabel} 的 ${dim} 形态,中文 markdown,220 字以内,直接正文。`,
     "",
     data.focus === "gas"
-      ? `数据口径:windowStats 是所选窗口的小时均值统计(单位 %,按当前链上上限 ${data.gasLimitM ?? 55}M 折算);hoursOver = 利用率≥${data.hotPct ?? 90}% 的小时数;episodes 是窗口内「持续一小时以上」的高占用事件(含 5m 精化时间与区块区间);minutePeaks24h 是近 24 小时的分钟级瞬时高峰(>${45}M,timeLocal 已是北京时间,peakPct 为峰值利用率)——短时打满在小时均值里会被摊平,episodes 里没有不代表没发生,两类都要讲。`
-      : `数据口径:windowStats 是所选窗口的小时均值统计(单位 笔);hoursOver = pending>${data.threshold ?? 4000} 的小时数;episodes 是窗口内的拥堵事件(含 5m 精化时间与区块区间);baseline30d 是 30 天基线。`,
+      ? `数据口径:windowStats 是所选窗口的小时均值统计(单位 %,按当前链上上限 ${data.gasLimitM ?? 55}M 折算);hoursOver = 利用率≥${data.hotPct ?? 90}% 的小时数;episodes 是窗口内的高占用事件,kind=sustained 为持续高负载(小时均值超阈)、kind=burst 为瞬时冲高(仅分钟级峰值超阈,几分钟内回落);minutePeaks24h 是近 24 小时的分钟级瞬时高峰(>${45}M,timeLocal 已是北京时间,peakPct 为峰值利用率)——短时打满在小时均值里会被摊平,两类都要讲。`
+      : `数据口径:windowStats 是所选窗口的小时均值统计(单位 笔);hoursOver = pending>${data.threshold ?? 4000} 的小时数;episodes 是窗口内的拥堵事件,kind=sustained 为持续拥堵(小时均值超阈)、kind=burst 为瞬时冲高(仅分钟级峰值超阈,很快回落);baseline30d 是 30 天基线。`,
     ...gasDeep,
     "输出结构:①首行结论(正常/需关注 + 窗口水位一句话);②事件/打满情况:先说近 24 小时——minutePeaks24h 有段就逐段一行(北京时间 timeLocal/峰值 M 与 peakPct/块高区间 startBlock~endBlock),没有就一句「近 24 小时无明显高峰」;再列窗口内的持续高负载事件(episodes,日期时间/峰值/块区间/已回落);gas focus 时给出打满结论(打满 vs 未打满的块占比与未打满归因);③建议一句。时间一律北京时间,不写 UTC;用值班口语,不用「脉冲/突刺」。",
     "",

@@ -1388,6 +1388,24 @@ body::before {
 .hp-gas-surge.hot { color: var(--gold); font-weight: 800; }
 .hp-gas-surge.ok { color: var(--green); }
 
+/* 流量页:瞬时冲高徽标(金)+ Top Gas 合约榜 */
+.re-sev-burst { border-color: var(--gold); color: var(--gold); }
+.tg-list { display: flex; flex-direction: column; gap: 4px; }
+.tg-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px;
+  background: #14161a; border: 1px solid #21252c; border-radius: 6px; padding: 5px 10px; }
+.tg-rank { width: 18px; text-align: right; color: var(--dim); font-weight: 700; flex-shrink: 0; }
+.tg-row:nth-child(-n+3) .tg-rank { color: var(--gold); }
+.tg-name { flex: 0 0 200px; color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-cat { flex-shrink: 0; font-size: 9px; font-weight: 800; padding: 1px 7px; border-radius: 5px; border: 1px solid var(--dim); color: var(--muted); }
+.tgc-defi { border-color: #3FB8A0; color: #3FB8A0; }
+.tgc-bot { border-color: var(--orange); color: var(--orange); }
+.tgc-meme { border-color: #8B7CF6; color: #8B7CF6; }
+.tgc-infra, .tgc-system { border-color: var(--dim); color: var(--dim); }
+.tg-bar { flex: 1; height: 8px; background: #1b1e24; border-radius: 4px; overflow: hidden; }
+.tg-bar i { display: block; height: 100%; background: linear-gradient(90deg, #E58A55, #F0B90B); border-radius: 4px; }
+.tg-share { width: 52px; text-align: right; color: var(--gold); font-weight: 700; flex-shrink: 0; }
+.tg-txs { width: 84px; text-align: right; color: var(--muted); flex-shrink: 0; }
+
 /* Reorg 统一事件列表:行内严重度徽标;行内各项禁换行防挤成两行 */
 .re-sev { flex-shrink: 0; font-size: 8.5px; font-weight: 800; letter-spacing: .5px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--dim); color: var(--dim); }
 .re-sev-watch { border-color: var(--orange); color: var(--orange); }

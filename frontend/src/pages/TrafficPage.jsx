@@ -7,7 +7,8 @@ const fmtT = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDa
 const fmtDay = (t) => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()}`; };
 
 // ── 通用小时级面积图:渐变填充 + 网格 + Y刻度 + 阈值线 + 超阈高亮 + hover 十字 ──
-function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", unit = "", label, fmtV = (v) => v?.toLocaleString?.() ?? v }) {
+// maxValues:分钟级峰值包络(小时内 max_over_time),细虚线叠加 —— 瞬时打满在均值线上看不见
+function HourlyChart({ times, values, maxValues = null, threshold, color, hotColor = "#ef6a3a", unit = "", label, fmtV = (v) => v?.toLocaleString?.() ?? v }) {
   const ref = useRef(null);
   const [hover, setHover] = useState(null);   // {i, x}
 
@@ -28,7 +29,8 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
       const padL = 44, padR = 10, padT = 8, padB = 18;
       const iw = W - padL - padR, ih = H - padT - padB;
       const vs = values.filter((v) => typeof v === "number");
-      const maxV = Math.max(threshold * 1.15, ...vs) * 1.05;
+      const mvs = (maxValues ?? []).filter((v) => typeof v === "number");
+      const maxV = Math.max(threshold * 1.15, ...vs, ...mvs) * 1.05;
       const X = (i) => padL + (i / Math.max(n - 1, 1)) * iw;
       const Y = (v) => padT + ih - (v / maxV) * ih;
 
@@ -86,6 +88,19 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
         ctx.shadowBlur = 0;
       }
 
+      // 分钟级峰值包络(细虚线):超阈段亮金色,其余同主色淡化
+      if (maxValues?.length) {
+        ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
+        for (let i = 1; i < n; i++) {
+          const a = maxValues[i - 1], b = maxValues[i];
+          if (typeof a !== "number" || typeof b !== "number") continue;
+          const hot = a > threshold || b > threshold;
+          ctx.strokeStyle = hot ? "#ffd34d" : color + "66";
+          ctx.beginPath(); ctx.moveTo(X(i - 1), Y(a)); ctx.lineTo(X(i), Y(b)); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
+
       // 阈值线
       ctx.setLineDash([5, 4]); ctx.strokeStyle = "#ef4444aa"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(padL, Y(threshold)); ctx.lineTo(W - padR, Y(threshold)); ctx.stroke(); ctx.setLineDash([]);
@@ -99,7 +114,8 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
         ctx.beginPath(); ctx.moveTo(X(i), padT); ctx.lineTo(X(i), padT + ih); ctx.stroke(); ctx.setLineDash([]);
         if (typeof v === "number") {
           ctx.beginPath(); ctx.arc(X(i), Y(v), 3.2, 0, 7); ctx.fillStyle = "#FFF6D8"; ctx.fill();
-          const txt = `${fmtT(times[i])} · ${fmtV(v)}${unit}`;
+          const mv = maxValues?.[i];
+          const txt = `${fmtT(times[i])} · ${fmtV(v)}${unit}${typeof mv === "number" ? ` · 峰 ${fmtV(mv)}${unit}` : ""}`;
           ctx.font = "700 9.5px monospace";
           const tw = ctx.measureText(txt).width + 14;
           let bx = X(i) + 8; if (bx + tw > W - 4) bx = X(i) - tw - 8;
@@ -113,7 +129,7 @@ function HourlyChart({ times, values, threshold, color, hotColor = "#ef6a3a", un
     draw();
     const ro = new ResizeObserver(draw); ro.observe(canvas);
     return () => ro.disconnect();
-  }, [times, values, threshold, color, hover]);
+  }, [times, values, maxValues, threshold, color, hover]);
 
   const onMove = (e) => {
     const canvas = ref.current;
@@ -157,8 +173,10 @@ function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, bus
             const tip = r?.precise
               ? `开始 ${fmtT(r.startT)} · 峰值 ${fmtT(r.peakT)}(5m 均值 ${r.peakPending?.toLocaleString?.() ?? "--"})· 恢复 ${fmtT(r.endT)} · 区块 ${fmtBlk(r.startBlock)} ~ ${fmtBlk(r.endBlock)}`
               : `小时桶口径(±1h):开始 ${fmtT(e.start)} · 峰值 ${fmtT(e.peakT)} · 恢复 ${fmtT((e.end ?? e.start) + 3600e3)}${r ? ` · 区块 ${fmtBlk(r.startBlock)} ~ ${fmtBlk(r.endBlock)}` : ""}`;
+            const burst = e.kind === "burst";
             return (
               <div key={e.start} className="re-row" title={tip}>
+                <span className={`re-sev ${burst ? "re-sev-burst" : "re-sev-watch"}`}>{burst ? "瞬时" : "持续"}</span>
                 <span className="re-time">{fmtT(startT)}{r?.precise ? "" : "±"}</span>
                 <span className="re-cnt">{metric(e)}</span>
                 <span className="re-dur">持续{dur}</span>
@@ -171,6 +189,52 @@ function EventList({ title, episodes, metric, emptyText, onAnalyze, loading, bus
               </div>
             );
           })}
+    </div>
+  );
+}
+
+// ── Top Gas 消耗合约榜:TXN 采样 receipts 真实 gasUsed 聚合,谁在烧 gas 一目了然 ──
+const CAT_NAMES = { defi: "DeFi", bot: "Bot", meme: "Meme", token: "Token", infra: "Infra", predict: "预测", bnb: "转账", cex: "CEX", bridge: "跨链", other: "未识别", system: "系统" };
+function TopGasPanel() {
+  const [days, setDays] = useState(1);
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + `/api/traffic/top-gas?days=${days}`).then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 120_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [days]);
+  const rows = d?.rows ?? [];
+  const maxGas = rows[0]?.gas || 1;
+  return (
+    <div className="panel tf-panel">
+      <div className="panel-header">
+        <span>Top Gas 消耗合约</span>
+        <span className="bm-ctls">
+          <span className="sub">真实 gasUsed(receipts)· 占比以窗口总消耗为分母</span>
+          <span className="tf-ranges">
+            {[[1, "24h"], [3, "3天"], [7, "7天"]].map(([v, l]) => (
+              <button key={v} className={`tf-range ${days === v ? "on" : ""}`} onClick={() => setDays(v)}>{l}</button>
+            ))}
+          </span>
+        </span>
+      </div>
+      <div className="panel-body tf-body">
+        <div className="tg-list">
+          {rows.map((r, i) => (
+            <div key={r.addr} className="tg-row" title={r.addr}>
+              <span className="tg-rank">{i + 1}</span>
+              <span className="tg-name">{r.name ?? r.addr.slice(0, 10) + "…"}</span>
+              <span className={`tg-cat tgc-${r.cat}`}>{CAT_NAMES[r.cat] ?? r.cat}</span>
+              <span className="tg-bar"><i style={{ width: `${(r.gas / maxGas) * 100}%` }} /></span>
+              <span className="tg-share">{r.sharePct != null ? `${r.sharePct}%` : "--"}</span>
+              <span className="tg-txs">{r.txs.toLocaleString()} 笔</span>
+            </div>
+          ))}
+          {rows.length === 0 && <div className="re-empty">采样积累中…(数据自部署起累计,最长 7 天)</div>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -214,12 +278,28 @@ function TrafficHistoryPanel({ tl, blockGas }) {
   const thr = tl?.threshold ?? 4000;
   const hotPct = tl?.hotPct ?? 90;
 
-  // 从 30d hourly 序列切出各自面板所选范围
-  const h = tl?.hourly ?? { times: [], pending: [], gasPct: [] };
+  // 24h 瞬时打满卡(≥90% 上限,分钟级口径,与首页大流量卡同源)
+  const [fullStat, setFullStat] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + "/api/block-gas?minutes=1440").then((r) => r.json())
+      .then((j) => { if (alive) setFullStat({ count: j?.fullCount ?? 0, last: j?.lastFull ?? null }); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 120_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  // 从 30d hourly 序列切出各自面板所选范围(*Max 为分钟级峰值包络)
+  const h = tl?.hourly ?? { times: [], pending: [], gasPct: [], pendingMax: [], gasPctMax: [] };
   const cut = Math.max(h.times.length - rangeDays * 24, 0);
   const times = h.times.slice(cut), pending = h.pending.slice(cut);
+  const pendingMax = (h.pendingMax ?? []).slice(cut);
   const gasCut = Math.max(h.times.length - gasDays * 24, 0);
   const gasTimes = h.times.slice(gasCut), gasPct = h.gasPct.slice(gasCut);
+  const gasPctMax = (h.gasPctMax ?? []).slice(gasCut);
+  // pending 24h 瞬时峰值(分钟级包络近 24 个小时桶)
+  const pm24 = (h.pendingMax ?? []).slice(-24).filter((v) => typeof v === "number");
+  const pmPeak = pm24.length ? Math.max(...pm24) : null;
   const now = Date.now();
   const inWindow = (e) => now - e.start <= rangeDays * 86400000;
   const inGasWindow = (e) => now - e.start <= gasDays * 86400000;
@@ -237,51 +317,7 @@ function TrafficHistoryPanel({ tl, blockGas }) {
 
   return (
     <>
-      {/* 面板一:TxPool Pending 历史(天数切换在此,Gas 面板跟随) */}
-      <div className="panel tf-panel">
-        <div className="panel-header">
-          <span>TxPool Pending 历史</span>
-          <span className="bm-ctls">
-            <span className="tf-ranges">
-              {RANGES.map(([d, l]) => (
-                <button key={d} className={`tf-range ${rangeDays === d ? "on" : ""}`} onClick={() => setRangeDays(d)}>{l}</button>
-              ))}
-            </span>
-          </span>
-        </div>
-        <div className="panel-body tf-body">
-          <div className="reorg-chips tf-chips3">
-            <div className="reorg-chip tone-ok"><span className="rc-v">{sum?.baseline?.toLocaleString() ?? "--"}</span><span className="rc-l">pending 30d 基线</span></div>
-            <div className={`reorg-chip ${epsInRange.length ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{epsInRange.length} 次</span><span className="rc-l">{rangeLabel} 内大流量</span></div>
-            <div className={`reorg-chip ${last ? "tone-warn" : "tone-ok"}`}>
-              <span className="rc-v">{last ? last.peakPending.toLocaleString() : "无"}</span>
-              <span className="rc-l">{last ? `最近一次 ${fmtT(last.refined?.precise ? last.refined.peakT : last.peakT)} · ${last.trigger}` : "30d 内无大流量"}</span>
-            </div>
-          </div>
-          {/* 流入/打包/净增长:判断拥堵是否自行消退的关键 */}
-          <div className="reorg-chips tf-chips3">
-            <div className="reorg-chip tone-ok"><span className="rc-v">{inflow ?? "--"} tx/s</span><span className="rc-l">Tx 流入(推导)</span></div>
-            <div className="reorg-chip tone-ok"><span className="rc-v">{packRate ?? "--"} tx/s</span><span className="rc-l">链上打包(30m 均块)</span></div>
-            <div className={`reorg-chip ${dPend > 50 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{dPend != null ? (dPend >= 0 ? "+" : "") + dPend : "--"}</span><span className="rc-l">pending 净变化 / 1h</span></div>
-          </div>
-          <div className="tf-main">
-            <HourlyChart times={times} values={pending} threshold={thr} color="#F0B90B"
-              label={`dataseed 小时均值 · 阈值 ${thr.toLocaleString()}`} />
-            <div className="reorg-events tf-events">
-              <EventList
-                title={`Pending 拥堵事件 · 近 ${rangeLabel}`}
-                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending")).filter(inWindow)}
-                metric={(e) => e.peakPending.toLocaleString()}
-                emptyText={`近 ${rangeLabel} 无 pending 拥堵`}
-                onAnalyze={(e) => runAi({ episodeStart: e.start }, `事件归因 ${fmtT(e.start)}`, "pending")}
-                loading={ep.loading} busyLabel={ep.label} />
-            </div>
-          </div>
-          {epResult("pending")}
-        </div>
-      </div>
-
-      {/* 面板二:Gas 利用率历史 */}
+      {/* 面板一:Gas 利用率历史(均值 + 分钟级峰值包络,瞬时/持续两级事件) */}
       <div className="panel tf-panel">
         <div className="panel-header">
           <span>Gas 利用率历史</span>
@@ -296,12 +332,19 @@ function TrafficHistoryPanel({ tl, blockGas }) {
         </div>
         <div className="panel-body tf-body">
           <div className="reorg-chips tf-chips3">
-            <div className={`reorg-chip ${(sum?.maxGasPct ?? 0) >= hotPct ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{sum?.maxGasPct ?? "--"}%</span><span className="rc-l">30d gas 峰值利用率</span></div>
-            <div className="reorg-chip tone-ok"><span className="rc-v">{hotPct}%</span><span className="rc-l">高占用阈值</span></div>
+            <div className={`reorg-chip ${fullStat?.count ? "tone-warn" : "tone-ok"}`}>
+              <span className="rc-v">{fullStat ? `${fullStat.count} 次` : "--"}</span>
+              <span className="rc-l">24h 瞬时打满(≥90%,分钟级)</span>
+            </div>
+            <div className={`reorg-chip ${fullStat?.last ? "tone-warn" : "tone-ok"}`}>
+              <span className="rc-v">{fullStat?.last ? `${fullStat.last.peakPct}%` : "无"}</span>
+              <span className="rc-l">{fullStat?.last ? `最近打满 ${fmtT(fullStat.last.startT)} · ${fmtBlk(fullStat.last.block)}` : "24h 内无打满"}</span>
+            </div>
+            <div className={`reorg-chip ${(sum?.maxGasPct ?? 0) >= hotPct ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{sum?.maxGasPct ?? "--"}%</span><span className="rc-l">30d 峰值利用率(分钟级)</span></div>
           </div>
           <div className="tf-main">
-            <HourlyChart times={gasTimes} values={gasPct} threshold={hotPct} color="#3FB8A0" unit="%"
-              label={`小时均值 · 阈值 ${hotPct}%`} fmtV={(v) => `${v}`} />
+            <HourlyChart times={gasTimes} values={gasPct} maxValues={gasPctMax} threshold={hotPct} color="#3FB8A0" unit="%"
+              label={`实线 = 小时均值 · 虚线 = 小时内分钟峰值 · 阈值 ${hotPct}%`} fmtV={(v) => `${v}`} />
             <div className="reorg-events tf-events">
               <EventList
                 title={`Gas 高占用事件(≥${hotPct}%)· 近 ${gasLabel}`}
@@ -313,6 +356,57 @@ function TrafficHistoryPanel({ tl, blockGas }) {
             </div>
           </div>
           {epResult("gas")}
+        </div>
+      </div>
+
+      {/* 面板二:Top Gas 消耗合约(谁在烧 gas) */}
+      <TopGasPanel />
+
+      {/* 面板三:TxPool Pending 历史 */}
+      <div className="panel tf-panel">
+        <div className="panel-header">
+          <span>TxPool Pending 历史</span>
+          <span className="bm-ctls">
+            <span className="tf-ranges">
+              {RANGES.map(([d, l]) => (
+                <button key={d} className={`tf-range ${rangeDays === d ? "on" : ""}`} onClick={() => setRangeDays(d)}>{l}</button>
+              ))}
+            </span>
+          </span>
+        </div>
+        <div className="panel-body tf-body">
+          <div className="reorg-chips tf-chips3">
+            <div className="reorg-chip tone-ok"><span className="rc-v">{sum?.baseline?.toLocaleString() ?? "--"}</span><span className="rc-l">pending 30d 基线</span></div>
+            <div className={`reorg-chip ${pmPeak != null && pmPeak > thr ? "tone-warn" : "tone-ok"}`}>
+              <span className="rc-v">{pmPeak != null ? pmPeak.toLocaleString() : "--"}</span>
+              <span className="rc-l">24h 瞬时峰值(分钟级)</span>
+            </div>
+            <div className={`reorg-chip ${epsInRange.length ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{epsInRange.length} 次</span><span className="rc-l">{rangeLabel} 内大流量</span></div>
+            <div className={`reorg-chip ${last ? "tone-warn" : "tone-ok"}`}>
+              <span className="rc-v">{last ? last.peakPending.toLocaleString() : "无"}</span>
+              <span className="rc-l">{last ? `最近一次 ${fmtT(last.refined?.precise ? last.refined.peakT : last.peakT)} · ${last.trigger}` : "30d 内无大流量"}</span>
+            </div>
+          </div>
+          {/* 流入/打包/净增长:判断拥堵是否自行消退的关键 */}
+          <div className="reorg-chips tf-chips3">
+            <div className="reorg-chip tone-ok"><span className="rc-v">{inflow ?? "--"} tx/s</span><span className="rc-l">Tx 流入(推导)</span></div>
+            <div className="reorg-chip tone-ok"><span className="rc-v">{packRate ?? "--"} tx/s</span><span className="rc-l">链上打包(30m 均块)</span></div>
+            <div className={`reorg-chip ${dPend > 50 ? "tone-warn" : "tone-ok"}`}><span className="rc-v">{dPend != null ? (dPend >= 0 ? "+" : "") + dPend : "--"}</span><span className="rc-l">pending 净变化 / 1h</span></div>
+          </div>
+          <div className="tf-main">
+            <HourlyChart times={times} values={pending} maxValues={pendingMax} threshold={thr} color="#F0B90B"
+              label={`实线 = dataseed 小时均值 · 虚线 = 分钟峰值 · 阈值 ${thr.toLocaleString()}`} />
+            <div className="reorg-events tf-events">
+              <EventList
+                title={`Pending 拥堵事件 · 近 ${rangeLabel}`}
+                episodes={(tl?.episodes ?? []).filter((e) => e.trigger?.includes("pending")).filter(inWindow)}
+                metric={(e) => e.peakPending.toLocaleString()}
+                emptyText={`近 ${rangeLabel} 无 pending 拥堵`}
+                onAnalyze={(e) => runAi({ episodeStart: e.start }, `事件归因 ${fmtT(e.start)}`, "pending")}
+                loading={ep.loading} busyLabel={ep.label} />
+            </div>
+          </div>
+          {epResult("pending")}
         </div>
       </div>
     </>

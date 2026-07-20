@@ -122,6 +122,34 @@ export class TxnStore {
       }));
   }
 
+  // Top gas 消耗合约(流量子系统):窗口内按 gasUsed 聚合排名,share 以窗口总 gas 为分母。
+  // gas 为 receipts 的真实 gasUsed;桶 7d 滚动,数据自部署起积累。
+  topGasContracts(labelBook, days = 1, top = 12) {
+    const cutoff = Date.now() - Math.min(Math.max(Number(days) || 1, 1), 7) * 24 * HOUR;
+    const agg = {}; let totalGas = 0;
+    for (const b of this.buckets) {
+      if (b.t < cutoff) continue;
+      for (const c of Object.values(b.cats ?? {})) totalGas += c.gas || 0;
+      for (const [addr, c] of Object.entries(b.contracts ?? {})) {
+        const a = (agg[addr] ??= { addr, n: 0, gas: 0, cat: c.cat });
+        a.n += c.n; a.gas += c.gas || 0;
+        if (c.cat && c.cat !== "other") a.cat = c.cat;
+      }
+    }
+    const rows = Object.values(agg).sort((a, b) => b.gas - a.gas).slice(0, top).map((a) => {
+      const l = labelBook?.get?.(a.addr);
+      return {
+        addr: a.addr,
+        name: l?.name ?? null,
+        cat: l?.cat ?? a.cat ?? "other",
+        txs: a.n,
+        gas: a.gas,
+        sharePct: totalGas ? +((a.gas / totalGas) * 100).toFixed(1) : null,
+      };
+    });
+    return { days: Math.min(Math.max(Number(days) || 1, 1), 7), totalGas, rows };
+  }
+
   // windowDays:分类分布统计窗口(1/3/7 天);趋势图与热门合约固定 24h
   view(labelBook, windowDays = 1) {
     const now = Date.now();

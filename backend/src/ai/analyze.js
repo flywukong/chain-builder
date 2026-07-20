@@ -119,6 +119,7 @@ export async function runTrafficTrendAnalysis(data) {
       : `数据口径:windowStats 是所选窗口的小时均值统计(单位 笔);hoursOver = pending>${data.threshold ?? 4000} 的小时数;episodes 是窗口内的拥堵事件,kind=sustained 为持续拥堵(小时均值超阈)、kind=burst 为瞬时冲高(仅分钟级峰值超阈,很快回落);baseline30d 是 30 天基线。`,
     ...gasDeep,
     "输出结构:①首行结论(正常/需关注 + 窗口水位一句话);②事件/打满情况:先说近 24 小时——minutePeaks24h 有段就逐段一行(北京时间 timeLocal/峰值 M 与 peakPct/块高区间 startBlock~endBlock),没有就一句「近 24 小时无明显高峰」;再列窗口内的持续高负载事件(episodes,日期时间/峰值/块区间/已回落);gas focus 时给出打满结论(打满 vs 未打满的块占比与未打满归因);③建议一句。时间一律北京时间,不写 UTC;用值班口语,不用「脉冲/突刺」。",
+    "硬性要求:①每一条事件都必须给出块区间,取该事件的 blockRange.from~blockRange.to(写成「块 #A~#B」);blockRange 为 null 才可省略,严禁只给部分事件区间。②凡提到具体合约/热点代币/发送方地址,一律写完整 42 位地址(0x 开头全长),严禁用「0x1266…5f20」这类缩写——读者要复制去 BscScan;完整地址不计入字数限制。",
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",

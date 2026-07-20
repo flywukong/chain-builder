@@ -1023,7 +1023,8 @@ aiRoutes("sync", "/api/ai/sync", async (body) => {
 // body.days+focus → 窗口形态解读(pending / gas 单维度);body.episodeStart → 单事件归因
 // 流量分析走 jobId 池:多个事件归因 / 汇总可并发(不同目标各自独立通道),避免单槽互相 409
 aiJobPool("/api/ai/traffic", async (body) => {
-  const tl = latest.trafficTimeline ?? await fetchTrafficTimeline(cfg.keterConfigPath);
+  // 冷启动 latest 尚空时兜底也要 enrich,保证 episodes 带 refined.startBlock(否则块区间缺失)
+  const tl = latest.trafficTimeline ?? await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath));
   const tx = txpoolStore.getView();
   const win = streamer.getWindowStats() || {};
 
@@ -1065,7 +1066,18 @@ aiJobPool("/api/ai/traffic", async (body) => {
         max: Math.max(...seq), min: Math.min(...seq),
         hoursOver: seq.filter(over).length, hoursTotal: seq.length,
       } : null,
-      episodes: (tl.episodes ?? []).filter((e) => e.start >= cut && e.trigger?.includes(focus)),
+      // 每个事件都补齐块区间:优先 5m 精化值,缺失用小时桶起止时间换算,保证 AI 每条都能给区间
+      episodes: await Promise.all((tl.episodes ?? []).filter((e) => e.start >= cut && e.trigger?.includes(focus)).map(async (e) => {
+        const r = e.refined;
+        let from = r?.startBlock ?? null, to = r?.endBlock ?? null;
+        if (from == null || to == null) {
+          [from, to] = await Promise.all([
+            blockAtTime(r?.precise ? r.startT : e.start).catch(() => null),
+            blockAtTime((r?.precise ? r.endT : (e.end ?? e.start) + 3600e3)).catch(() => null),
+          ]);
+        }
+        return { ...e, blockRange: from && to ? { from, to } : null };
+      })),
       minutePeaks24h: peaks24h,   // 近 24h 分钟级瞬时高峰(小时均值口径看不见的部分)
       baseline30d: tl.summary,
       currentPending: focus === "pending" ? tx?.current ?? null : undefined,

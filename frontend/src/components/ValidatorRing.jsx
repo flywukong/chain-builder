@@ -132,7 +132,6 @@ function RingStats({ windowStats, blockGas }) {
           </div>
         </div>
       ))}
-      <AnnounceCell />
     </div>
   );
 }

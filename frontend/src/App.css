@@ -316,28 +316,27 @@ body::before {
   flex: 1; display: grid; grid-template-rows: 1fr;
   gap: 7px; padding: 7px; min-height: 0; overflow: hidden;
 }
-.home:has(.announce-banner) { grid-template-rows: auto 1fr; }
 .home-hero { display: grid; grid-template-columns: minmax(0, 1fr) clamp(320px, 19vw, 390px); gap: 7px; min-height: 0; }
 
-/* BNB Chain 官方公告横幅 */
-.announce-banner {
-  display: flex; align-items: center; gap: 14px; text-decoration: none;
-  padding: 9px 16px; border-radius: 10px;
-  background: linear-gradient(90deg, rgba(240,185,11,.12), rgba(240,185,11,.03));
-  border: 1px solid rgba(240,185,11,.4); box-shadow: 0 0 16px rgba(240,185,11,.08);
-  transition: border-color .15s, box-shadow .15s;
-}
-.announce-banner:hover { border-color: var(--gold); box-shadow: 0 0 22px rgba(240,185,11,.18); }
-.ann-badge { flex-shrink: 0; font-size: 12px; font-weight: 800; color: var(--gold); letter-spacing: .5px;
-  background: rgba(240,185,11,.14); border: 1px solid rgba(240,185,11,.45); border-radius: 7px; padding: 4px 10px; }
-.ann-body { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; overflow: hidden; }
-.ann-title { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ann-desc { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
-.ann-date { flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--dim); }
-.ann-dots { flex-shrink: 0; display: flex; gap: 4px; }
-.ann-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); opacity: .5; }
-.ann-dots i.on { background: var(--gold); opacity: 1; }
-.ann-arrow { flex-shrink: 0; color: var(--gold); font-size: 13px; font-weight: 700; }
+/* BNB Chain 公告卡(与 TPS 同行,点击展开列表) */
+.rs-announce { cursor: pointer; position: relative; transition: border-color .15s; }
+.rs-announce:hover { border-color: rgba(240,185,11,.55); }
+.rs-ann-title { font-size: 13px !important; }
+.rs-ann-title i { font-size: 10px; color: var(--gold); font-style: normal; margin-left: 4px; }
+.ann-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; width: 340px; max-width: 78vw;
+  background: linear-gradient(180deg, rgba(24,22,15,.99), rgba(14,13,10,.99));
+  border: 1px solid rgba(240,185,11,.4); border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.6);
+  padding: 8px; display: flex; flex-direction: column; gap: 4px; cursor: default; animation: st-notice-in .16s ease; }
+.ann-pop-head { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 800; color: var(--gold); padding: 2px 6px 6px; border-bottom: 1px solid #262015; }
+.ann-pop-x { background: none; border: none; color: var(--muted); font-size: 15px; cursor: pointer; line-height: 1; }
+.ann-pop-item { display: block; text-decoration: none; padding: 7px 8px; border-radius: 7px; }
+.ann-pop-item:hover { background: rgba(240,185,11,.07); }
+.ann-pop-t { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.4; }
+.ann-pop-ext { font-size: 9px; color: var(--gold); margin-left: 4px; }
+.ann-pop-d { font-size: 10.5px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+.ann-pop-date { font-family: var(--mono); font-size: 9.5px; color: var(--dim); margin-top: 3px; }
+.ann-pop-more { text-align: right; padding: 5px 8px 2px; border-top: 1px solid #262015; margin-top: 2px; }
+.ann-pop-more a { font-size: 10.5px; color: var(--gold); text-decoration: none; }
 /* 末行 1fr:安全事件卡拉伸填满,右栏不留底部空白 */
 .home-right { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 7px; min-height: 0; }
 .se-card { display: flex; flex-direction: column; min-height: 0; }

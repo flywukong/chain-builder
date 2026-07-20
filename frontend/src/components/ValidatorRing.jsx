@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { GROUPS, ACTIVE_SET, lookupValidator } from "../data/validators.js";
 import RobotWidget from "./RobotWidget.jsx";
 
+const API = import.meta.env.VITE_API_BASE ?? "";
+
 const cmpVer = (a, b) => { const pa = a.split(".").map(Number), pb = b.split(".").map(Number); for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); return 0; };
 
 // 全网 geth 版本分布(按 validator 去重,来自出块 extraData;最新版绿、落后橙)
@@ -74,7 +76,43 @@ const HOP  = 104;
 
 const last = (s) => { const v = s?.values ?? []; for (let i = v.length - 1; i >= 0; i--) if (typeof v[i] === "number") return v[i]; return null; };
 
-// header metric strip — all real: active set / TPS
+// BNB Chain 官方公告卡:与 TPS 同行,点击展开最新公告列表(点条目跳原文)
+function AnnounceCell() {
+  const [items, setItems] = useState([]);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + "/api/announce").then((r) => r.json()).then((j) => { if (alive) setItems(j?.items ?? []); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 600_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!items.length) return null;
+  return (
+    <div className="rs-cell rs-announce" onClick={() => setOpen((v) => !v)} role="button" title="BNB Chain 官方公告">
+      <span className="rs-ico">📢</span>
+      <div className="rs-body">
+        <span className="rs-val rs-ann-title">公告<i>▾</i></span>
+        <span className="rs-lbl">BNB Chain · {items[0].date}</span>
+      </div>
+      {open && (
+        <div className="ann-pop" onClick={(e) => e.stopPropagation()}>
+          <div className="ann-pop-head">BNB Chain 官方公告<button className="ann-pop-x" onClick={() => setOpen(false)}>×</button></div>
+          {items.map((a) => (
+            <a key={a.url} className="ann-pop-item" href={a.url} target="_blank" rel="noreferrer">
+              <div className="ann-pop-t">{a.title}<span className="ann-pop-ext">↗</span></div>
+              {a.desc && <div className="ann-pop-d">{a.desc}</div>}
+              <div className="ann-pop-date">{a.date}</div>
+            </a>
+          ))}
+          <div className="ann-pop-more"><a href="https://docs.bnbchain.org/announce/" target="_blank" rel="noreferrer">全部公告 →</a></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// header metric strip — all real: active set / TPS / announcement
 function RingStats({ windowStats, blockGas }) {
   const btMs = windowStats?.avgBlockTimeMs;
   const tx = last(blockGas?.txsize);
@@ -94,6 +132,7 @@ function RingStats({ windowStats, blockGas }) {
           </div>
         </div>
       ))}
+      <AnnounceCell />
     </div>
   );
 }

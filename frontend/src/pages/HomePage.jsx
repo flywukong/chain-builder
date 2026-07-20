@@ -1,45 +1,9 @@
-import { useEffect, useState } from "react";
 import ValidatorRing from "../components/ValidatorRing.jsx";
 import HealthPanel from "../components/HealthPanel.jsx";
 import { lookupValidator } from "../data/validators.js";
 
-const API = import.meta.env.VITE_API_BASE ?? "";
 const DAY = 86400000;
 const fmtDay = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}`; };
-
-// BNB Chain 官方公告横幅:最新一条为主,其余在同条内横向轮显;点击跳原文
-function AnnounceBanner() {
-  const [items, setItems] = useState([]);
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    let alive = true;
-    const pull = () => fetch(API + "/api/announce").then((r) => r.json()).then((j) => { if (alive) setItems(j?.items ?? []); }).catch(() => {});
-    pull();
-    const t = setInterval(pull, 600_000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
-  useEffect(() => {
-    if (items.length < 2) return;
-    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 6000);
-    return () => clearInterval(t);
-  }, [items.length]);
-  if (!items.length) return null;
-  const a = items[idx % items.length];
-  return (
-    <a className="announce-banner" href={a.url} target="_blank" rel="noreferrer" title={a.desc || a.title}>
-      <span className="ann-badge">📢 BNB Chain 公告</span>
-      <span className="ann-body">
-        <b className="ann-title">{a.title}</b>
-        {a.desc && <span className="ann-desc">{a.desc}</span>}
-      </span>
-      <span className="ann-date">{a.date}</span>
-      {items.length > 1 && (
-        <span className="ann-dots">{items.map((_, i) => <i key={i} className={i === idx % items.length ? "on" : ""} />)}</span>
-      )}
-      <span className="ann-arrow">↗</span>
-    </a>
-  );
-}
 
 // 安全 & 近期事件 — 合并原 Slash / 流量两卡:slash + 近7d reorg + 近7d 大流量,点击跳子系统
 // 大流量口径:区块 gas 利用率 ≥ hotPct(90%);pending 仅积压参考
@@ -113,7 +77,6 @@ export default function HomePage({ state, onNav }) {
 
   return (
     <div className="home">
-      <AnnounceBanner />
       <div className="home-hero">
         <ValidatorRing
           latestBlock={state.latestBlock}

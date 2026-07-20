@@ -577,10 +577,12 @@ app.get("/api/traffic/top-gas", async (req) => {
   return txnStore.topGasContracts(labelBook, days);
 });
 // 最近 3 次大流量事件 · 涉及合约:7d 内走 TXN 采样桶聚合(真实 gasUsed),更早的链上采样兜底
+// ?trigger=pending|gas 筛触发类型(Pending 面板专属视图);不足 3 次按实际数量返回
 const epContractsCache = new Map();   // episodeStart -> contracts
-app.get("/api/traffic/episode-contracts", async () => {
+app.get("/api/traffic/episode-contracts", async (req) => {
+  const trigger = ["pending", "gas"].includes(req.query?.trigger) ? req.query.trigger : null;
   const tl = latest.trafficTimeline;
-  const eps = (tl?.episodes ?? []).slice(-3).reverse();
+  const eps = (tl?.episodes ?? []).filter((e) => !trigger || e.trigger?.includes(trigger)).slice(-3).reverse();
   const out = [];
   for (const e of eps) {
     let contracts = epContractsCache.get(e.start) ?? null;

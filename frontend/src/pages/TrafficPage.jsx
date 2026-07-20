@@ -331,24 +331,25 @@ function MultiLineChart({ times, series, label }) {
 }
 
 // ── 最近 3 次大流量 · 涉及合约:每个事件一组,7d 内走 TXN 采样桶(真实 gasUsed) ──
-function EpisodeContractsPanel() {
+// trigger 可选 pending/gas:Pending 面板下的专属视图;不足 3 次按实际数量展示
+function EpisodeContractsPanel({ title = "最近大流量 · 涉及合约", trigger = null }) {
   const [d, setD] = useState(null);
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + "/api/traffic/episode-contracts").then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
+    const pull = () => fetch(API + `/api/traffic/episode-contracts${trigger ? `?trigger=${trigger}` : ""}`).then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
     pull();
     const t = setInterval(pull, 300_000);
     return () => { alive = false; clearInterval(t); };
-  }, []);
+  }, [trigger]);
   const eps = d?.episodes ?? [];
   return (
     <div className="panel tf-panel">
       <div className="panel-header">
-        <span>最近大流量 · 涉及合约</span>
-        <span className="bm-ctls"><span className="sub">最近 3 次事件 · 事件时段按合约 gas 消耗排名 · 点击查合约</span></span>
+        <span>{title}</span>
+        <span className="bm-ctls"><span className="sub">30d 内最近 3 次(不足按实际)· 事件时段按合约 gas 消耗排名 · 点击查合约</span></span>
       </div>
       <div className="panel-body tf-body">
-        {eps.length === 0 ? <div className="re-empty">✓ 30d 内无大流量事件</div> : (
+        {eps.length === 0 ? <div className="re-empty">✓ 30d 内无{trigger === "pending" ? " pending 拥堵" : "大流量"}事件</div> : (
           <div className="ec-grid">
             {eps.map((e) => (
               <div key={e.start} className="ec-card">
@@ -603,6 +604,9 @@ function TrafficHistoryPanel({ tl, blockGas }) {
           {epResult("pending")}
         </div>
       </div>
+
+      {/* 面板六:Pending 拥堵 · 涉及合约(pending 触发的最近 ≤3 次) */}
+      <EpisodeContractsPanel title="Pending 拥堵 · 涉及合约" trigger="pending" />
     </>
   );
 }

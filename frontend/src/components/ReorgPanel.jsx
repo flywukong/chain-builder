@@ -12,7 +12,7 @@ const fmtHour = (t) => {
 // 链级去重口径 max(increase[1h])、剔除单节点本地抖动、日聚合 + 孤块数 + 平均深度
 export default function ReorgPanel({ data }) {
   const canvasRef = useRef(null);
-  const [aiDays, setAiDays] = useState(7);   // 面板窗口:1(24h)/ 7 / 15 —— 图表/统计/事件/AI 全部跟随
+  const [aiDays, setAiDays] = useState(15);   // 面板窗口:1(24h)/ 7 / 15,默认 15 —— 图表/统计/事件/AI 全部跟随
   // 窗口化:统计卡与事件列表按所选窗口切片,和首页安全卡口径一致(否则首页 7 天 0 次、这里却见 15 天前的事件)
   const allDays = data?.days ?? [];
   const days = allDays.slice(-aiDays);

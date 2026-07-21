@@ -1474,10 +1474,8 @@ body::before {
 /* 默认(内容多/有 AI 结果)完整体量;内容少时 .sl-compact 缩小 ~40%,列表超出滚动 */
 .sl-panel .panel-body { min-height: 456px; }
 .sl-panel .eb-listcol .eb-list { max-height: 380px; }
-.sl-panel.sl-compact { max-width: 60%; }
 .sl-panel.sl-compact .panel-body { min-height: 274px; }
 .sl-panel.sl-compact .eb-listcol .eb-list { max-height: 190px; }
-@media (max-width: 1000px) { .sl-panel.sl-compact { max-width: none; } }
 .sl-row .hpd-mid { flex: 1.2; }
 .sl-int { color: var(--gold); font-weight: 700; }
 .sl-fill { flex: 1; font-family: var(--mono); font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

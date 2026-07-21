@@ -360,7 +360,7 @@ body::before {
 .se-val { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--green); white-space: nowrap; flex-shrink: 0; }
 .se-row.tone-warn .se-val { color: var(--orange); text-shadow: 0 0 9px rgba(249,115,22,.35); }
 .se-row.tone-warn .se-ico { filter: drop-shadow(0 0 5px rgba(249,115,22,.5)); }
-.se-arrow { font-size: 12px; color: #4a463c; flex-shrink: 0; transition: color .15s, transform .15s; }
+.se-arrow { font-size: 14px; font-weight: 800; color: var(--text); flex-shrink: 0; transition: color .15s, transform .15s; }
 
 /* status bar — 4 极简状态 */
 .status-bar { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }

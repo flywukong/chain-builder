@@ -45,7 +45,7 @@ function SafetyEventsCard({ slashStatus, slashEvents, reorgTimeline, trafficTime
   };
   const rows = [
     {
-      icon: "🛡", label: `Slash · ${winLabel(slashDays)}`, nav: "alerts",
+      icon: "🛡", label: `Slash · ${winLabel(slashDays)}`, nav: "monitor",   // Slash 分析面板在监控页
       val: `${sw?.count ?? 0} 笔`, tone: (sw?.count ?? 0) > 0 || slashed.length ? "warn" : "ok",
       sub: (sw?.count ?? 0) > 0
         ? <>最近 {vName(sw.recent[0].validator)} · #{sw.recent[0].block?.toLocaleString()}</>

@@ -30,7 +30,14 @@ export default function NavRail({ current, onNav, connected }) {
         </div>
       )}
       <div className="nav-logo">
-        <img className="nav-logo-bot" src={(import.meta.env.BASE_URL ?? "/") + "robot.png"} alt="LEO" />
+        {/* official BNB mark: top/bottom chevrons + left/center/right diamonds */}
+        <svg width="28" height="28" viewBox="4 4 24 24" fill="#F0B90B">
+          <path d="M12.116 14.404L16 10.52l3.886 3.886 2.26-2.26L16 6l-6.144 6.144 2.26 2.26z" />
+          <path d="M6 16l2.26-2.26L10.52 16l-2.26 2.26L6 16z" />
+          <path d="M16 13.706L18.294 16 16 18.294 13.706 16 16 13.706z" />
+          <path d="M21.48 16l2.26-2.26L26 16l-2.26 2.26L21.48 16z" />
+          <path d="M12.116 17.596L16 21.48l3.886-3.886 2.26 2.26L16 26l-6.144-6.144 2.26-2.26z" />
+        </svg>
       </div>
 
       {/* 列头:说明下方是可切换的子系统入口(替代原浮动红色提示) */}

@@ -1411,7 +1411,6 @@ body::before {
 .bg-peak-tag.hot { color: var(--gold); background: rgba(240,185,11,.1); border-color: var(--gold); }
 
 /* 侧栏 logo:LEO 机器人头像 */
-.nav-logo-bot { width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 0 7px rgba(240,185,11,.5)); }
 
 /* 安全事件卡:窗口选择 chips */
 .se-win { display: flex; gap: 4px; }

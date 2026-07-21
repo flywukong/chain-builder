@@ -1471,11 +1471,11 @@ body::before {
 
 /* Slash 面板:事件段行(时间 · 被slash方 → 替代者 · 间隔) */
 /* 默认(内容多/有 AI 结果)完整体量;内容少时 .sl-compact 缩小 ~40%,列表超出滚动 */
-.sl-panel .panel-body { min-height: 380px; }
-.sl-panel .eb-listcol .eb-list { max-height: 300px; }
+.sl-panel .panel-body { min-height: 456px; }
+.sl-panel .eb-listcol .eb-list { max-height: 380px; }
 .sl-panel.sl-compact { max-width: 60%; }
-.sl-panel.sl-compact .panel-body { min-height: 228px; }
-.sl-panel.sl-compact .eb-listcol .eb-list { max-height: 150px; }
+.sl-panel.sl-compact .panel-body { min-height: 274px; }
+.sl-panel.sl-compact .eb-listcol .eb-list { max-height: 190px; }
 @media (max-width: 1000px) { .sl-panel.sl-compact { max-width: none; } }
 .sl-row .hpd-mid { flex: 1.2; }
 .sl-int { color: var(--gold); font-weight: 700; }

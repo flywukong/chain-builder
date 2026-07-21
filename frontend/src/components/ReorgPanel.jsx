@@ -12,9 +12,24 @@ const fmtHour = (t) => {
 // 链级去重口径 max(increase[1h])、剔除单节点本地抖动、日聚合 + 孤块数 + 平均深度
 export default function ReorgPanel({ data }) {
   const canvasRef = useRef(null);
-  const days = data?.days ?? [];
-  const sum = data?.summary;
-  const [aiDays, setAiDays] = useState(7);   // 整体解读窗口:1(24h)/ 7 / 15
+  const [aiDays, setAiDays] = useState(7);   // 面板窗口:1(24h)/ 7 / 15 —— 图表/统计/事件/AI 全部跟随
+  // 窗口化:统计卡与事件列表按所选窗口切片,和首页安全卡口径一致(否则首页 7 天 0 次、这里却见 15 天前的事件)
+  const allDays = data?.days ?? [];
+  const days = allDays.slice(-aiDays);
+  const winCut = Date.now() - aiDays * 86400e3;
+  const sum = days.length ? (() => {
+    const total = days.reduce((s, d) => s + (d.count || 0), 0);
+    const orphans = days.reduce((s, d) => s + (d.orphans || 0), 0);
+    const peak = days.reduce((m, d) => (d.count > m.count ? d : m), { count: 0, date: null });
+    return {
+      spanDays: days.length, total, orphans,
+      avgPerDay: +(total / days.length).toFixed(2),
+      daysWithReorg: days.filter((d) => d.count > 0).length,
+      avgDepth: total ? +(orphans / total).toFixed(2) : 0,
+      peakDay: peak.count ? peak : null,
+      excluded: data?.summary?.excluded,
+    };
+  })() : null;
   const [ai, setAi] = useState({ loading: false, label: null, text: null, at: null, err: null });
 
   // body: {days} 整体解读窗口 / {eventT} 单事件归因;label 用于结果区标题与按钮态
@@ -83,7 +98,7 @@ export default function ReorgPanel({ data }) {
     draw();
     const ro = new ResizeObserver(draw); ro.observe(canvas);
     return () => ro.disconnect();
-  }, [data]);
+  }, [data, aiDays]);
 
   const chips = sum ? [
     { v: sum.avgPerDay, l: `日均次数 · ${sum.spanDays}d`, tone: sum.avgPerDay > 5 ? "warn" : "ok" },
@@ -93,7 +108,7 @@ export default function ReorgPanel({ data }) {
   ] : [];
 
   // 事件分级:严重 = 孤块≥8;关注 = 孤块≥3 或单小时≥2次;其余(含本机观测)为参考
-  const events = data?.events ?? [];
+  const events = (data?.events ?? []).filter((e) => e.t >= winCut);
   const sevOf = (e) => (e.orphans >= 8 ? "severe" : e.orphans >= 3 || e.count >= 2 ? "watch" : "info");
   const severe = events.filter((e) => sevOf(e) === "severe");
   // 结论句:15天内 N 天发生;有严重→需关注;有关注→轻微;否则正常
@@ -129,7 +144,7 @@ export default function ReorgPanel({ data }) {
           )}
         </span>
         <span className="reorg-head-r">
-          <span className="sub">近 {days.length || 15} 天 · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
+          <span className="sub">{aiDays === 1 ? "近 24h" : `近 ${days.length || aiDays} 天`} · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
           <span className="tf-ranges">
             {[[1, "24h"], [7, "7天"], [15, "15天"]].map(([d, l]) => (
               <button key={d} className={`tf-range ${aiDays === d ? "on" : ""}`} onClick={() => setAiDays(d)}>{l}</button>

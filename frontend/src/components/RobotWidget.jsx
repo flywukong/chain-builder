@@ -190,7 +190,7 @@ export default function RobotWidget({ variant = "home" }) {
       {/* 头顶:CLICK ME + 时间窗选择(默认 24h);MEV 形态只留 CLICK ME */}
       {!open && (
         <span className="robot-head-row">
-          <span className="robot-name">CLICK ME</span>
+          <span className="robot-name" role="button" onClick={(e) => { e.stopPropagation(); setOpen(true); }}>CLICK ME !</span>
           {!isMev && <span className="robot-days">
             <button className="tf-range on" onClick={(e) => { e.stopPropagation(); setMenuOpen((x) => !x); }}>
               {dayLabel(days)} ▾

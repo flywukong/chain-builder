@@ -7,7 +7,7 @@ const API = import.meta.env.VITE_API_BASE ?? "";
 // falls back to the inline SVG if the file is absent.
 const ROBOT_IMG = (import.meta.env.BASE_URL ?? "/") + "robot.png";
 
-const DAY_OPTIONS = [1, 3, 7, 14, 30];
+const DAY_OPTIONS = [1, 3, 7, 15];
 const dayLabel = (d) => (d === 1 ? "24h" : `${d}天`);
 
 // 主页悬浮 AI 助手 = 巡检总结(常驻气泡,绿/黄/红)+ 时间窗选择 + 问答
@@ -68,7 +68,7 @@ export default function RobotWidget({ variant = "home" }) {
   const [ans, setAns] = useState(null);
   const [err, setErr] = useState(null);
   const [imgOk, setImgOk] = useState(true);
-  const [days, setDays] = useState(1);          // 时间窗,默认 24h
+  const [days, setDays] = useState(7);          // 时间窗,默认 7 天
   const [menuOpen, setMenuOpen] = useState(false);
   // 巡检结果 {text, brief, verdict, at, windowDays, loading}
   const [pa, setPa] = useState({ text: null, brief: null, verdict: null, at: null, windowDays: null, loading: false });
@@ -89,11 +89,13 @@ export default function RobotWidget({ variant = "home" }) {
   }, []);
 
   // 选择时间窗 → 按新窗口重新分析(异步任务 + 轮询,MCP 取证可达 1-2min)
+  // 巡检槽是共享单槽:若撞上自动巡检在跑,拿回的会是旧窗口结果 → 检测 windowDays 不符自动重发一次
   const runDays = async (d) => {
     setDays(d); setMenuOpen(false);
     setPa((x) => ({ ...x, loading: true }));
     try {
-      const j = await aiRequest("/api/ai/analyze", { days: d });
+      let j = await aiRequest("/api/ai/analyze", { days: d });
+      if (!j.error && j.windowDays !== d) j = await aiRequest("/api/ai/analyze", { days: d });
       if (j.error || !j.text) setPa((x) => ({ ...x, loading: false }));
       else setPa({ text: j.text, brief: j.brief ?? null, verdict: j.verdict ?? "ok", at: j.at, windowDays: j.windowDays, loading: false });
     } catch { setPa((x) => ({ ...x, loading: false })); }

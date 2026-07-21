@@ -1412,6 +1412,10 @@ body::before {
 /* 侧栏 logo:LEO 机器人头像 */
 .nav-logo-bot { width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 0 7px rgba(240,185,11,.5)); }
 
+/* 安全事件卡:窗口选择 chips */
+.se-win { display: flex; gap: 4px; }
+.se-win .tf-range { font-size: 9px; padding: 2px 7px; }
+
 /* 首页 Gas 卡:大流量结论(≥90% 为大流量),固定两行右对齐 */
 .hp-gas-surge { line-height: 1.55; text-align: right; }
 .hp-gas-surge.hot { color: var(--gold); font-weight: 800; }

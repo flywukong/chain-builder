@@ -74,7 +74,6 @@ function sc(o,f){ return { r:Math.min(255,o.r*f), g:Math.min(255,o.g*f), b:Math.
 const TILT = 0.5;
 const HOP  = 104;
 
-const last = (s) => { const v = s?.values ?? []; for (let i = v.length - 1; i >= 0; i--) if (typeof v[i] === "number") return v[i]; return null; };
 
 // BNB Chain 官方公告卡:与 TPS 同行,点击展开最新公告列表(点条目跳原文)
 function AnnounceCell() {
@@ -115,11 +114,18 @@ function AnnounceCell() {
 // header metric strip — all real: active set / TPS / announcement
 function RingStats({ windowStats, blockGas }) {
   const btMs = windowStats?.avgBlockTimeMs;
-  const tx = last(blockGas?.txsize);
-  const tps = tx && btMs ? Math.round(tx / (btMs / 1000)) : null;
+  // 过去 1 分钟平均每块交易数 ÷ 平均出块时间(单块抖动大,窗口均值与 BscScan 口径一致)
+  const tps = (() => {
+    const s = blockGas?.txsize;
+    if (!s?.times?.length || !btMs) return null;
+    const cut = s.times.at(-1) - 60_000;
+    let sum = 0, n = 0;
+    s.values.forEach((v, i) => { if (s.times[i] >= cut) { sum += v; n++; } });
+    return n ? Math.round(sum / n / (btMs / 1000)) : null;
+  })();
   const cells = [
     { icon: "◈", label: "活跃集合", value: ACTIVE_SET.length, unit: "验证者" },
-    { icon: "⤢", label: "吞吐", value: tps ?? "--", unit: "TPS" },
+    { icon: "⤢", label: "吞吐 · 1m均值", value: tps ?? "--", unit: "TPS" },
   ];
   return (
     <div className="ring-stats">

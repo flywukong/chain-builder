@@ -780,6 +780,7 @@ body::before {
 .reorg-events { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: auto; border-left: 1px solid #1d1b15; padding-left: 10px; }
 .re-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; flex-shrink: 0; }
 .re-empty { font-size: 10px; color: var(--green); padding: 6px 0; }
+.re-empty-last { display: block; margin-top: 5px; color: var(--muted); font-family: var(--mono); }
 .re-row { display: flex; align-items: baseline; gap: 9px; font-family: var(--mono); font-size: 11px; background: #141310; border: 1px solid #201d15; border-radius: 4px; padding: 3px 8px; flex-shrink: 0; }
 .re-time { color: var(--text); }
 .re-cnt { color: var(--gold); font-weight: 700; }

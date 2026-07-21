@@ -108,8 +108,9 @@ export default function ReorgPanel({ data }) {
   ] : [];
 
   // 事件分级:严重 = 孤块≥8;关注 = 孤块≥3 或单小时≥2次;其余(含本机观测)为参考
-  const events = (data?.events ?? []).filter((e) => e.t >= winCut);
   const sevOf = (e) => (e.orphans >= 8 ? "severe" : e.orphans >= 3 || e.count >= 2 ? "watch" : "info");
+  const allEvents = data?.events ?? [];
+  const events = allEvents.filter((e) => e.t >= winCut);
   const severe = events.filter((e) => sevOf(e) === "severe");
   // 结论句:15天内 N 天发生;有严重→需关注;有关注→轻微;否则正常
   const verdict = severe.length ? { t: "需关注", cls: "warn" }
@@ -198,9 +199,17 @@ export default function ReorgPanel({ data }) {
             <div className="re-title">重组事件(严重 = 单次回滚≥8块 · 关注 = ≥3块或≥2次/小时;轻微不列出)</div>
             {(() => {
               const notable = events.filter((e) => sevOf(e) !== "info").sort((a, b) => b.t - a.t);
-              return notable.length === 0
-                ? <div className="re-empty">✓ 窗口内无严重/关注级重组</div>
-                : notable.map((e) => <EvRow key={e.t} e={e} tone={sevOf(e)} />);
+              if (notable.length) return notable.map((e) => <EvRow key={e.t} e={e} tone={sevOf(e)} />);
+              // 窗口内为空时提示 15 天内最近一次,避免「0 次」被误读为没有数据
+              const last = allEvents.filter((e) => sevOf(e) !== "info").sort((a, b) => b.t - a.t)[0];
+              return (
+                <div className="re-empty">
+                  ✓ 窗口内无严重/关注级重组
+                  {last && last.t < winCut && (
+                    <span className="re-empty-last">最近一次:{fmtHour(last.t)} · 回滚 {last.orphans} 块(切「15天」查看)</span>
+                  )}
+                </div>
+              );
             })()}
           </div>
         </div>

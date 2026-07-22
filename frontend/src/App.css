@@ -170,6 +170,14 @@ body::before {
   box-shadow: 0 8px 24px rgba(0,0,0,.6);
 }
 .robot-days-menu .tf-range { text-align: center; }
+/* Validator 版本落后配色:大版本落后(major/minor)红,小版本落后(仅 patch)黄;不落后走 .latest 绿 */
+.rv-seg.lag-minor { background: var(--gold); opacity: .75; }
+.rv-seg.lag-major { background: #E5484D; opacity: .9; }
+.rv-item i.lag-minor { background: var(--gold); }
+.rv-item i.lag-major { background: #E5484D; }
+.rv-lag-major .hpd-num { color: #E5484D; font-weight: 700; }
+.rv-lag-minor .hpd-num { color: var(--gold); }
+.rv-lag-major .hpd-mid { color: #E5484D; }
 /* 巡检结论卡:pop 内详情 + 悬浮常驻两用;绿=健康 黄=需关注 红=告警 */
 .robot-brief { display: flex; flex-direction: column; gap: 5px; text-align: left; cursor: pointer;
   background: linear-gradient(180deg, rgba(26,22,8,.97), rgba(16,14,8,.97)); border: 1px solid rgba(240,185,11,.5);

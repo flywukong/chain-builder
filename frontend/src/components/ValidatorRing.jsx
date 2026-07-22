@@ -5,6 +5,10 @@ import RobotWidget from "./RobotWidget.jsx";
 const API = import.meta.env.VITE_API_BASE ?? "";
 
 const cmpVer = (a, b) => { const pa = a.split(".").map(Number), pb = b.split(".").map(Number); for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); return 0; };
+// 落后程度:相对基准,major/minor 落后=大版本落后(红);仅 patch 落后(如 1.7.5→1.7.4)=小版本落后(黄)
+const lagLevel = (ver, base) => { const v = String(ver).split(".").map(Number), b = String(base).split(".").map(Number); return ((v[0] || 0) < (b[0] || 0) || (v[1] || 0) < (b[1] || 0)) ? "major" : "minor"; };
+// 版本段/节点相对主流的着色 class:不落后=latest(绿);大版本落后=lag-major(红);小版本落后=lag-minor(黄)
+const verClass = (ver, mainstream) => (cmpVer(ver, mainstream) < 0 ? `lag-${lagLevel(ver, mainstream)}` : "latest");
 
 // 全网 geth 版本分布(按 validator 去重,来自出块 extraData;最新版绿、落后橙)
 function RingVersions({ mevStats }) {
@@ -13,10 +17,11 @@ function RingVersions({ mevStats }) {
   if (!versions.length) return null;
   const total = versions.reduce((s, v) => s + v.n, 0);
   const latest = versions.map((v) => v.ver).reduce((a, b) => (cmpVer(b, a) > 0 ? b : a));
-  // 落后名单:minerVersions(地址→版本,值带 v 前缀)里非最新版的 validator,旧版本靠前
+  // 落后名单:低于主流版本 mainstream(出块最多的众数)的 validator,旧版本靠前;大版本落后红、小版本落后黄
   const norm = (s) => (s || "").replace(/^v/i, "");
+  const mainstream = versions.reduce((a, b) => (b.n > a.n ? b : a)).ver;
   const behind = Object.entries(mevStats?.minerVersions ?? {})
-    .filter(([, ver]) => norm(ver) && norm(ver) !== latest)
+    .filter(([, ver]) => norm(ver) && cmpVer(norm(ver), mainstream) < 0)
     .map(([addr, ver]) => ({ addr, ver: norm(ver), ...lookupValidator(addr) }))
     .sort((a, b) => cmpVer(a.ver, b.ver));
   return (
@@ -27,13 +32,13 @@ function RingVersions({ mevStats }) {
       </div>
       <div className="rv-bar">
         {versions.map((v) => (
-          <span key={v.ver} className={`rv-seg ${v.ver === latest ? "latest" : "old"}`} style={{ width: `${v.pct}%` }} title={`v${v.ver} · ${v.n} 验证者 · ${v.pct}%`} />
+          <span key={v.ver} className={`rv-seg ${verClass(v.ver, mainstream)}`} style={{ width: `${v.pct}%` }} title={`v${v.ver} · ${v.n} 验证者 · ${v.pct}%`} />
         ))}
       </div>
       <div className="rv-legend">
         {versions.map((v) => (
           <span key={v.ver} className="rv-item">
-            <i className={v.ver === latest ? "latest" : "old"} />v{v.ver} <b>{v.pct}%</b><em>({v.n})</em>
+            <i className={verClass(v.ver, mainstream)} />v{v.ver} <b>{v.pct}%</b><em>({v.n})</em>
           </span>
         ))}
         {behind.length > 0 && (
@@ -47,14 +52,14 @@ function RingVersions({ mevStats }) {
           <div className="ai-modal hp-modal">
             <div className="ai-modal-head">
               <span className="hp-modal-title">落后版本 validator · {behind.length}</span>
-              <span className="ai-modal-meta">24h 出块 extraData · 最新 v{latest} · 旧版本靠前</span>
+              <span className="ai-modal-meta">24h 出块 extraData · 主流 v{mainstream} · 最新 v{latest} · 低于主流为落后</span>
               <button className="robot-close" onClick={() => setShowBehind(false)}>×</button>
             </div>
             <div className="hpd-list">
               {behind.map((b) => (
-                <div key={b.addr} className="hpd-row">
+                <div key={b.addr} className={`hpd-row rv-lag-${lagLevel(b.ver, mainstream)}`}>
                   <span className="hpd-num">v{b.ver}</span>
-                  <span className="hpd-mid">{b.name}{b.group === "internal" ? " · 内部运营 ⚠" : ""}</span>
+                  <span className="hpd-mid">{b.name}{b.group === "internal" ? " · 内部运营 ⚠" : ""}{lagLevel(b.ver, mainstream) === "major" ? " · 大版本落后" : ""}</span>
                   <span className="hpd-end">{b.addr.slice(0, 10)}…</span>
                 </div>
               ))}

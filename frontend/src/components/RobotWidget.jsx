@@ -24,10 +24,10 @@ const QA_PRESET = {
   },
   monitor: {
     title: "🤖 LEO · 监控问答",
-    greet: "监控页相关的都可以问:reorg 事件与影响面、空块与出块质量、导入时延、节点同步、某个块是谁出的、某段区块的出块间隔有没有异常…",
+    greet: "监控页相关的都可以问:reorg 与 slash 事件、空块与出块质量、commit / 导入时延、节点同步、某个块是谁出的、某段区块的出块间隔有没有异常…",
     placeholder: "例:块 109,000,000 是谁出的?今天空块多吗?",
     bubbleHead: "LEO · 监控问答",
-    bubbleLine: "reorg / 空块 / 出块人 / 时延…监控相关都可以问",
+    bubbleLine: "reorg / slash / 空块 / commit 时延高…等相关问题都可以问我",
     summary: { title: "近 15 天 Reorg 总结", url: "/api/ai/reorg", body: { days: 15 } },
   },
   txn: {

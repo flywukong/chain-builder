@@ -12,7 +12,7 @@ const fmtHour = (t) => {
 // 链级去重口径 max(increase[1h])、剔除单节点本地抖动、日聚合 + 孤块数 + 平均深度
 export default function ReorgPanel({ data }) {
   const canvasRef = useRef(null);
-  const [aiDays, setAiDays] = useState(15);   // 面板窗口:1(24h)/ 7 / 15,默认 15 —— 图表/统计/事件/AI 全部跟随
+  const [aiDays, setAiDays] = useState(30);   // 面板窗口:1(24h)/ 7 / 15 / 30,默认 30 —— 图表/统计/事件/AI 全部跟随
   // 窗口化:统计卡与事件列表按所选窗口切片,和首页安全卡口径一致(否则首页 7 天 0 次、这里却见 15 天前的事件)
   const allDays = data?.days ?? [];
   const days = allDays.slice(-aiDays);
@@ -89,7 +89,8 @@ export default function ReorgPanel({ data }) {
           ctx.fillStyle = "#e0c96a"; ctx.font = "700 9px monospace"; ctx.textAlign = "center";
           ctx.fillText(d.count, cxm - bw / 2 - 1, padT + ih - hC - 4);
         }
-        if (i % 2 === 0 || d.count > 0) {
+        const labelStep = n > 20 ? 4 : n > 10 ? 2 : 1;   // 30 天窗口标签稀疏,避免拥挤
+        if (i % labelStep === 0 || d.count > 0) {
           ctx.fillStyle = d.count > 0 ? "#8a857c" : "#4a463c"; ctx.font = "8.5px monospace"; ctx.textAlign = "center";
           ctx.fillText(d.date, cxm, H - 4);
         }
@@ -147,7 +148,7 @@ export default function ReorgPanel({ data }) {
         <span className="reorg-head-r">
           <span className="sub">{aiDays === 1 ? "近 24h" : `近 ${days.length || aiDays} 天`} · 链级去重 max(increase[1h]) · 剔除单节点抖动{sum?.excluded ? `(已剔 ${sum.excluded})` : ""}</span>
           <span className="tf-ranges">
-            {[[1, "24h"], [7, "7天"], [15, "15天"]].map(([d, l]) => (
+            {[[1, "24h"], [7, "7天"], [15, "15天"], [30, "30天"]].map(([d, l]) => (
               <button key={d} className={`tf-range ${aiDays === d ? "on" : ""}`} onClick={() => setAiDays(d)}>{l}</button>
             ))}
           </span>

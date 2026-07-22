@@ -348,7 +348,7 @@ async function enrichReorgEvents(tl) {
 
 async function pollTimelines() {
   let ok = true;
-  try { broadcast("reorgTimeline", await enrichReorgEvents(await fetchReorgTimeline(cfg.keterConfigPath))); }
+  try { broadcast("reorgTimeline", await enrichReorgEvents(await fetchReorgTimeline(cfg.keterConfigPath, 30))); }
   catch (err) { ok = false; console.error("[reorg timeline poll]", err.message); keterMark("timelineOkAt", err); }
   try { broadcast("trafficTimeline", await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath))); }
   catch (err) { ok = false; console.error("[traffic timeline poll]", err.message); keterMark("timelineOkAt", err); }
@@ -986,11 +986,11 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
     });
   }
 
-  // ── 整体解读:窗口可选(默认 7d,支持 1/7/15)──
+  // ── 整体解读:窗口可选(默认 7d,支持 1/7/15/30)──
   // 只喂链级数据(geth chain_reorg_executes,≥2 节点确认):本机 WS 观测走的是 LB RPC,
   // 后端切换会被误读成 depth 2-3 的"重组"(24h 可达数百次假事件),不进 AI 输入。
   // 指标框架对齐 osaka-mendel 报告:链级次数/日、去重孤块/日、发生天数、平均深度、单日峰值。
-  const days = Math.min(Math.max(parseInt(body?.days, 10) || 7, 1), 15);
+  const days = Math.min(Math.max(parseInt(body?.days, 10) || 7, 1), 30);
   const cut = Date.now() - days * 86400e3;
   const dayRows = (tl?.days ?? []).slice(-days);
   const total = dayRows.reduce((s, d) => s + d.count, 0);

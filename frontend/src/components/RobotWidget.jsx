@@ -28,7 +28,7 @@ const QA_PRESET = {
     placeholder: "例:块 109,000,000 是谁出的?今天空块多吗?",
     bubbleHead: "LEO · 监控问答",
     bubbleLine: "reorg / 空块 / 出块人 / 时延…监控相关都可以问",
-    summary: { title: "近 7 天 Reorg 总结", url: "/api/ai/reorg", body: { days: 7 } },
+    summary: { title: "近 15 天 Reorg 总结", url: "/api/ai/reorg", body: { days: 15 } },
   },
   txn: {
     title: "🤖 LEO · 交易问答",

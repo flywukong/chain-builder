@@ -795,6 +795,34 @@ async function buildAiData(days = 7) {
       })) };
     })(),
     slashed: (slash ?? []).filter((v) => v.slashCount > 0).map((v) => ({ addr: v.consensusAddr, count: v.slashCount })),
+    // 窗口内 slash(与 Slash 面板同口径:按 validator 连续块聚合成段)——首页巡检四段之一
+    slashWindow: (() => {
+      const v = slashEvents.view(days * 86400e3);
+      const eps = slashEpisodes(v.items);
+      return {
+        blocks: v.count, episodes: eps.length,
+        items: eps.slice(0, 8).map((e) => ({
+          timeLocal: e.timeLocal, validator: e.name, internal: e.internal,
+          blocks: e.blocks, startBlock: e.startBlock, endBlock: e.endBlock, filler: e.fillers?.[0] ?? null,
+        })),
+      };
+    })(),
+    // 全网 geth 版本升级情况(24h 内出过块的 validator 去重)——首页巡检四段之一
+    versionUpgrade: (() => {
+      const m = mevAgg.getStats();
+      const vers = m?.versions ?? [];
+      if (!vers.length) return null;
+      const cmp = (a, b) => { const pa = a.split(".").map(Number), pb = b.split(".").map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; } return 0; };
+      const latest = vers.map((v) => v.ver).reduce((a, b) => (cmp(b, a) > 0 ? b : a));
+      const laggards = Object.entries(m.minerVersions || {})
+        .map(([addr, ver]) => ({ ver: (ver || "").replace(/^v/, ""), ...validatorInfo(addr) }))
+        .filter((x) => x.ver && cmp(x.ver, latest) < 0)
+        .sort((a, b) => cmp(a.ver, b.ver));
+      return {
+        latest, distribution: vers, laggardCount: laggards.length,
+        laggards: laggards.slice(0, 12).map((x) => ({ name: x.name, internal: x.internal, ver: x.ver })),
+      };
+    })(),
   };
 }
 // Network analysis: on-demand + auto-refresh hourly (broadcast so panels update live)
@@ -807,9 +835,9 @@ try {
   }
 } catch {}
 
-// 首行结论 → 等级:正常=ok(前端折叠) / 需关注=warn / 告警=alert
-const verdictOf = (text) => {
-  const head = (text ?? "").slice(0, 40);
+// [播报] 大结论措辞 → 等级:正常=ok(前端折叠) / 需关注=warn / 告警=alert
+const verdictOf = (line) => {
+  const head = (line ?? "").slice(0, 40);
   return head.includes("告警") ? "alert" : head.includes("需关注") ? "warn" : "ok";
 };
 
@@ -826,7 +854,7 @@ async function runNetworkAnalysis(days = 7, auto = true) {
       brief = first.replace(/^\[播报\]\s*/, "").trim();
       text = nl === -1 ? "" : raw.slice(nl + 1).trim();
     }
-    aiJobs.network = { text, brief, verdict: verdictOf(text), windowDays: days, at: Date.now(), running: false, error: null, auto };
+    aiJobs.network = { text, brief, verdict: verdictOf(brief ?? text), windowDays: days, at: Date.now(), running: false, error: null, auto };
     try { fs.writeFileSync(AI_NETWORK_FILE, JSON.stringify({ text, brief, verdict: aiJobs.network.verdict, windowDays: days, at: aiJobs.network.at, auto })); } catch {}
   } catch (err) {
     aiJobs.network = { ...aiJobs.network, running: false, error: err.message };

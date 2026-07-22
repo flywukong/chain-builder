@@ -178,6 +178,8 @@ body::before {
 .rv-lag-major .hpd-num { color: #E5484D; font-weight: 700; }
 .rv-lag-minor .hpd-num { color: var(--gold); }
 .rv-lag-major .hpd-mid { color: #E5484D; }
+/* AI 巡检段标题(整行加粗):黄色小标题,与正文区分 */
+.ai-h { display: inline-block; color: var(--gold); font-weight: 800; letter-spacing: .3px; margin: 6px 0 2px; }
 /* 巡检结论卡:pop 内详情 + 悬浮常驻两用;绿=健康 黄=需关注 红=告警 */
 .robot-brief { display: flex; flex-direction: column; gap: 5px; text-align: left; cursor: pointer;
   background: linear-gradient(180deg, rgba(26,22,8,.97), rgba(16,14,8,.97)); border: 1px solid rgba(240,185,11,.5);

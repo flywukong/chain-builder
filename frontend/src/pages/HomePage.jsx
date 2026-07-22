@@ -10,9 +10,9 @@ const fmtDay = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.g
 // 安全 & 近期事件 — 合并原 Slash / 流量两卡:slash + 近7d reorg + 近7d 大流量,点击跳子系统
 // 大流量口径:区块 gas 利用率 ≥ hotPct(90%);pending 仅积压参考
 function SafetyEventsCard({ slashStatus, slashEvents, reorgTimeline, trafficTimeline, txpool, gasUtil, onNav }) {
-  const [days, setDays] = useState(7);          // 3/7/15/30;slash 与 reorg 数据窗口上限 15 天
+  const [days, setDays] = useState(7);          // 3/7/15/30;slash 数据上限 15 天,reorg 上限 30 天
   const slashDays = Math.min(days, 15);
-  const reorgDays = Math.min(days, 15);
+  const reorgDays = Math.min(days, 30);
   const winLabel = (d) => (d === 1 ? "24h" : `近 ${d} 天`);
   const slashed = (slashStatus ?? []).filter((v) => v.slashCount > 0).sort((a, b) => b.slashCount - a.slashCount);
   const now = Date.now();

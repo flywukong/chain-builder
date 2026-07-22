@@ -35,7 +35,7 @@ export function AiText({ text }) {
   return text.split("\n").map((line, i) => {
     // 整行被 ** 包裹 = 段标题(如「**1) Slash 状况**」「**流量**」)→ 黄色小标题
     const h = line.trim().match(/^\*\*(.+?)\*\*$/);
-    if (h) return <span key={i} className="ai-h">{h[1]}{"\n"}</span>;
+    if (h) return <span key={i} className="ai-h">{h[1].replace(/[:：]\s*$/, "")}：{"\n"}</span>;
     return (
       <span key={i}>
         {line.split(/\*\*(.+?)\*\*/g).map((p, j) => (j % 2 ? <b key={j}>{p}</b> : p))}

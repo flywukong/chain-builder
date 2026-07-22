@@ -1313,13 +1313,21 @@ app.get("/health",        async () => ({ ok: true, block: streamer.lastNumber, w
 // ── Serve the built frontend (single-process local deploy: frontend+api+ws same-origin) ──
 const distPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../frontend/dist");
 if (fs.existsSync(distPath)) {
-  await app.register(fastifyStatic, { root: distPath });
+  await app.register(fastifyStatic, {
+    root: distPath,
+    // index.html 走 no-cache(每次向后端校验,总是拉到引用最新 hash 的版本);带 content-hash 的 /assets/* 永久缓存。
+    // 效果:更新后浏览器自动加载新 JS/CSS,无需 cmd+shift+R 硬刷新。
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
+      else if (/[\\/]assets[\\/]/.test(filePath)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  });
   // SPA fallback: serve index.html for non-api/ws/asset routes
   app.setNotFoundHandler((req, reply) => {
     if (req.raw.url.startsWith("/api") || req.raw.url.startsWith("/ws")) {
       return reply.code(404).send({ error: "not found" });
     }
-    return reply.sendFile("index.html");
+    return reply.header("Cache-Control", "no-cache").sendFile("index.html");
   });
   console.log(`Serving frontend from ${distPath}`);
 } else {

@@ -814,13 +814,18 @@ async function buildAiData(days = 7) {
       if (!vers.length) return null;
       const cmp = (a, b) => { const pa = a.split(".").map(Number), pb = b.split(".").map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; } return 0; };
       const latest = vers.map((v) => v.ver).reduce((a, b) => (cmp(b, a) > 0 ? b : a));
+      // 主流版本 = 出块节点数最多的版本(众数);落后以主流为基准,而非以个别超前节点的最新版为基准
+      const mainstream = vers.reduce((a, b) => (b.n > a.n ? b : a)).ver;
+      // 落后程度:major/minor 落后 = 大版本落后(前端标红);仅 patch 落后 = 小版本落后(标黄)
+      const lagLevel = (v) => { const a = String(v).split(".").map(Number), b = String(mainstream).split(".").map(Number); return ((a[0] || 0) < (b[0] || 0) || (a[1] || 0) < (b[1] || 0)) ? "major" : "minor"; };
       const laggards = Object.entries(m.minerVersions || {})
         .map(([addr, ver]) => ({ ver: (ver || "").replace(/^v/, ""), ...validatorInfo(addr) }))
-        .filter((x) => x.ver && cmp(x.ver, latest) < 0)
+        .filter((x) => x.ver && cmp(x.ver, mainstream) < 0)
         .sort((a, b) => cmp(a.ver, b.ver));
       return {
-        latest, distribution: vers, laggardCount: laggards.length,
-        laggards: laggards.slice(0, 12).map((x) => ({ name: x.name, internal: x.internal, ver: x.ver })),
+        latest, mainstream, distribution: vers, laggardCount: laggards.length,
+        laggardMajor: laggards.filter((x) => lagLevel(x.ver) === "major").length,
+        laggards: laggards.slice(0, 12).map((x) => ({ name: x.name, internal: x.internal, ver: x.ver, level: lagLevel(x.ver) })),
       };
     })(),
   };

@@ -7,7 +7,7 @@ const API = import.meta.env.VITE_API_BASE ?? "";
 // Slash 分析(SlashIndicator 事件,窗口 24h/7d/15d):谁被 slash、连续块数、替代出块者、
 // 出块间隔、自营/外部归属。episodes 由后端按「同 validator 连续块」聚合。
 export default function SlashPanel() {
-  const [days, setDays] = useState(7);        // 1(24h)/ 7 / 15,默认 7 天;store 15d,历史自上线起积累
+  const [days, setDays] = useState(15);       // 1(24h)/ 7 / 15,默认 15 天;store 15d,历史自上线起积累
   const winLabel = days === 1 ? "24h" : `${days} 天`;
   const [d, setD] = useState(null);
   const [ai, setAi] = useState({ loading: false, text: null, err: null });

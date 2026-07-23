@@ -42,13 +42,14 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
         </span>
       </div>
 
-      {page === "home" && (
-        <span className="topbar-health-title">内部 VALIDATOR 健康总览{nodeCount != null ? ` · ${nodeCount} nodes` : ""}</span>
-      )}
+      <div className="zoom-ctl" title="界面大小 · 本机记忆">
+        <button onClick={() => onZoomPref?.(Math.max(0.7, +(zoomPref - 0.1).toFixed(2)))}>−</button>
+        <span className="zc-val" onClick={() => onZoomPref?.(1)} title="点击重置 100%">{Math.round(zoomPref * 100)}%</span>
+        <button onClick={() => onZoomPref?.(Math.min(1.5, +(zoomPref + 0.1).toFixed(2)))}>+</button>
+      </div>
 
       <div className="topbar-stats">
-        <Stat label="当前区块" value={latestBlock ? `#${latestBlock.number.toLocaleString()}` : "--"} />
-        <Divider />
+        {page === "home" && <span className="topbar-health-title">内部 VALIDATOR 健康总览</span>}
         {(keterStale || keterDown) && (
           <>
             <div title={keterHealth?.error ?? ""}>
@@ -58,11 +59,6 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
           </>
         )}
         <div className={`topbar-dot ${connected ? "dot-ok" : "dot-err"}`} title={connected ? "WS connected" : "WS disconnected"} />
-        <div className="zoom-ctl" title="界面大小 · 本机记忆">
-          <button onClick={() => onZoomPref?.(Math.max(0.7, +(zoomPref - 0.1).toFixed(2)))}>−</button>
-          <span className="zc-val" onClick={() => onZoomPref?.(1)} title="点击重置 100%">{Math.round(zoomPref * 100)}%</span>
-          <button onClick={() => onZoomPref?.(Math.min(1.5, +(zoomPref + 0.1).toFixed(2)))}>+</button>
-        </div>
       </div>
     </div>
   );

@@ -143,6 +143,7 @@ function RingStats({ windowStats, blockGas }) {
           </div>
         </div>
       ))}
+      <div className="leo-test-box">LEO TEST V2</div>
     </div>
   );
 }

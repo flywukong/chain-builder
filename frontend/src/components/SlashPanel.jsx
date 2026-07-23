@@ -81,7 +81,7 @@ export default function SlashPanel() {
                   <div key={name} className="eb-miner">
                     <em className={v.n >= 3 || v.internal ? "eb-hot" : ""}>{name}{v.internal ? " · 自营" : ""}{v.n >= 3 ? " ⚠" : ""}</em>
                     <span className="eb-mbar"><i style={{ width: `${(v.n / maxV) * 100}%` }} /></span>
-                    <b>{v.n}</b>
+                    <b>{v.n} 块</b>
                   </div>
                 ))}
           </div>

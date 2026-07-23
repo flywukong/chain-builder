@@ -1376,6 +1376,11 @@ body::before {
 .eb-listcol .eb-list { max-height: 240px; }
 .eb-miners .re-title { margin-bottom: 2px; }
 .eb-hot { color: var(--orange) !important; font-weight: 700; }
+/* Slash 面板:validator 块数行放大、块数黄色带「块」、bar 固定较短不占满宽 */
+.sl-panel .eb-miner { font-size: 14px; gap: 12px; margin-bottom: 2px; }
+.sl-panel .eb-miner em { width: 170px; }
+.sl-panel .eb-mbar { flex: 0 0 150px; height: 8px; }
+.sl-panel .eb-miner b { width: auto; min-width: 52px; font-size: 16px; font-weight: 800; color: var(--gold); }
 /* 流量页拆分后的 chips 行 */
 .tf-chips3 { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 760px; }
 

@@ -53,6 +53,7 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   const lastPeak = peaks.at(-1);
   const peakT = (t) => new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
   const peakBlk = (n) => (n == null ? "?" : "#" + n.toLocaleString());
+  const peakDT = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${peakT(t)}`; };
 
   // 右区:gas 流量汇总(默认 7 天,可切 15 天;挂载/切换自动加载,1h 内的同参缓存直接用)
   const [sumDays, setSumDays] = useState(7);
@@ -108,6 +109,8 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   const m = METRICS[metric];
   const st = seriesStat(m.src(bg), m.scale === 1e6 ? 1e6 : 1);   // gasused 以 M 计
   const guStat = seriesStat(bg?.gasused, 1e6);
+  const avgUtilPct = guStat?.avg != null && glM ? Math.round((guStat.avg / glM) * 100) : null;
+  const utilLevel = avgUtilPct == null ? "" : avgUtilPct >= 60 ? "偏高" : avgUtilPct >= 30 ? "中等" : "较低";
   // 异常点:块 gas 超关注阈值(50% 上限)的采样点数
   const hotPoints = (bg?.gasused?.values ?? []).filter((v) => typeof v === "number" && v > WATCH_GAS).length;
 
@@ -257,10 +260,10 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
               <em className="bg-src">曲线为 {SAMPLE_IPS.join(" / ")} 两台典型 validator 均值 · {winLabel}</em>
             </div>
             <div className="bg-canvas-wrap">
-              <span className="bg-chart-tag">近 {winCn} 流量</span>
+              <span className="bg-chart-tag">近 {winCn} 平均 gas {avgUtilPct ?? "--"}% · {utilLevel}</span>
               <span className={`bg-peak-tag ${lastPeak ? "hot" : ""}`}>
                 {lastPeak
-                  ? <>最近高峰 {lastPeak.peakM}M · {peakT(lastPeak.startT)} · 块 {peakBlk(lastPeak.startBlock)}</>
+                  ? <>最近高峰 {lastPeak.peakM}M · {peakDT(lastPeak.startT)} · 块 {peakBlk(lastPeak.startBlock)}</>
                   : <>近 {winCn} 无明显高峰</>}
               </span>
               <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />

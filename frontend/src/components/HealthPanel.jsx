@@ -21,30 +21,36 @@ function versionInfo(nodeStats) {
   const vers = Object.keys(map).filter((v) => v !== "unknown");
   const latest = vers.length ? vers.reduce((a, b) => (cmpVer(b, a) > 0 ? b : a)) : null;
   const total = Object.values(map).reduce((s, a) => s + a.length, 0);
+  // 主流版本 = 已知版本里出块节点数最多的(众数):健康基线。落后与升级覆盖率都以主流为准,
+  // 而非以个别抢先升级的最新版为准——否则占多数的主流会被误判为「落后 / 未升级」。
+  const mainstream = vers.length ? vers.reduce((a, b) => (map[b].length > map[a].length ? b : a)) : null;
   const latestCount = latest ? map[latest].length : 0;
   const latestPct = latest && total ? Math.round((latestCount / total) * 100) : 0;
-  // every node not on latest = "behind" (includes unknown)
+  const mainstreamCount = mainstream ? map[mainstream].length : 0;
+  const mainstreamPct = mainstream && total ? Math.round((mainstreamCount / total) * 100) : 0;
+  const belowMain = (v) => v === "unknown" || (mainstream && cmpVer(v, mainstream) < 0);
+  // 落后 = 版本低于主流(含 unknown);比主流更新的激进版本不算落后
   const behindList = [];
   Object.entries(map).forEach(([v, nodes]) => {
-    if (v === latest) return;
+    if (!belowMain(v)) return;
     nodes.forEach((n) => behindList.push({ ip: n.ip, ver: v, tier: n.tier }));
   });
   // 风险排序:Cabinet 落后 > Candidate 落后 > Inactive 落后 > unknown 版本;组内版本越旧越靠前
   const TIER_RANK = { cabinet: 0, candidate: 1, inactive: 2 };
   const risk = (b) => (b.ver === "unknown" ? 3 : TIER_RANK[b.tier] ?? 2);
   behindList.sort((a, b) => risk(a) - risk(b) || (a.ver === "unknown" ? 0 : cmpVer(a.ver, b.ver)));
-  // 分层升级覆盖率:cabinet(出块中) / candidate(当选) 是重点,inactive 参考
+  // 分层升级覆盖率:ok = 版本 ≥ 主流(在主流或更新);cabinet(出块中) / candidate(当选) 是重点,inactive 参考
   const tiers = {};
   for (const t of ["cabinet", "candidate", "inactive"]) tiers[t] = { total: 0, ok: 0 };
   Object.entries(map).forEach(([v, nodes]) => {
     nodes.forEach((n) => {
       const t = tiers[n.tier] ?? tiers.inactive;
       t.total++;
-      if (v === latest) t.ok++;
+      if (!belowMain(v)) t.ok++;
     });
   });
   for (const t of Object.values(tiers)) t.pct = t.total ? Math.round((t.ok / t.total) * 100) : null;
-  return { latest, latestPct, total, behind: behindList.length, behindList, tiers };
+  return { latest, latestPct, latestCount, mainstream, mainstreamPct, mainstreamCount, total, behind: behindList.length, behindList, tiers };
 }
 
 // Gas 利用率迷你走势(24h,2 台典型节点均值)
@@ -145,15 +151,21 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
         <div className={`hp-row hp-row-ver tone-${verTone}`}>
           <div className="hp-row-head">
             <span className="hp-row-k">节点版本</span>
-            <span className="hp-row-v">{ver.latest ? "v" + ver.latest : "—"}</span>
-            {!ver.latest && <span className="hp-row-aux">等待 keter</span>}
-            {ver.latest && (
+            <span className="hp-row-v">{ver.mainstream ? "v" + ver.mainstream : "—"}</span>
+            {!ver.mainstream && <span className="hp-row-aux">等待 keter</span>}
+            {ver.mainstream && (
               ver.behind > 0
                 ? <button className="hp-behind-btn" onClick={() => setShowBehind(true)}>落后版本 点击查看</button>
-                : <span className="hp-behind-none">✓ 全部最新</span>
+                : <span className="hp-behind-none">✓ 无落后节点</span>
             )}
           </div>
-          {ver.latest && (
+          {ver.mainstream && (
+            <div className="hp-ver-dist">
+              主流 v{ver.mainstream} · {ver.mainstreamPct}%({ver.mainstreamCount} 个)
+              {ver.latest && ver.latest !== ver.mainstream && <> · 最新 v{ver.latest} · {ver.latestPct}%({ver.latestCount} 个,较新)</>}
+            </div>
+          )}
+          {ver.mainstream && (
             <div className="hp-tier-rows">
               {TIER_LABELS.map(([t, label]) => {
                 const d = ver.tiers[t];
@@ -227,7 +239,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
             <div className="ai-modal hp-modal">
               <div className="ai-modal-head">
                 <span className="hp-modal-title">落后版本节点 · {ver.behind}</span>
-                <span className="ai-modal-meta">风险排序:Cabinet → Candidate → Inactive → 未知版本</span>
+                <span className="ai-modal-meta">落后 = 低于主流 v{ver.mainstream} · 风险排序:Cabinet → Candidate → Inactive → 未知版本</span>
                 <button className="robot-close" onClick={() => setShowBehind(false)}>×</button>
               </div>
               <div className="hpd-list">

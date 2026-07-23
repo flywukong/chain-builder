@@ -50,7 +50,12 @@ function versionInfo(nodeStats) {
     });
   });
   for (const t of Object.values(tiers)) t.pct = t.total ? Math.round((t.ok / t.total) * 100) : null;
-  return { latest, latestPct, latestCount, mainstream, mainstreamPct, mainstreamCount, total, behind: behindList.length, behindList, tiers };
+  // 各版本分布(按节点数降序):rel = mainstream 主流 / newer 较新(比主流高)/ older 落后 / unknown 未知
+  const dist = Object.entries(map).map(([ver, nodes]) => ({
+    ver, count: nodes.length, pct: total ? Math.round((nodes.length / total) * 100) : 0,
+    rel: ver === "unknown" ? "unknown" : ver === mainstream ? "mainstream" : (mainstream && cmpVer(ver, mainstream) > 0) ? "newer" : "older",
+  })).sort((a, b) => b.count - a.count);
+  return { latest, latestPct, latestCount, mainstream, mainstreamPct, mainstreamCount, total, behind: behindList.length, behindList, tiers, dist };
 }
 
 // Gas 利用率迷你走势(24h,2 台典型节点均值)
@@ -160,10 +165,21 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
             )}
           </div>
           {ver.mainstream && (
-            <div className="hp-ver-dist">
-              主流 v{ver.mainstream} · {ver.mainstreamPct}%({ver.mainstreamCount} 个)
-              {ver.latest && ver.latest !== ver.mainstream && <> · 最新 v{ver.latest} · {ver.latestPct}%({ver.latestCount} 个,较新)</>}
-            </div>
+            <>
+              <div className="hp-ver-dist">
+                主流基线 v{ver.mainstream} · {ver.mainstreamPct}%({ver.mainstreamCount} 个)
+                {ver.latest && ver.latest !== ver.mainstream && <> · 最新 v{ver.latest}(较新 · {ver.latestPct}% · {ver.latestCount} 个)</>}
+              </div>
+              <div className="hp-ver-list">
+                {(ver.dist ?? []).map((d) => (
+                  <span key={d.ver} className={`hp-ver-chip rel-${d.rel}`}>
+                    <i />{d.ver === "unknown" ? "未知" : "v" + d.ver}
+                    <em>{d.rel === "mainstream" ? "主流" : d.rel === "newer" ? "较新" : d.rel === "unknown" ? "未知" : "落后"}</em>
+                    <b>{d.count} 个 · {d.pct}%</b>
+                  </span>
+                ))}
+              </div>
+            </>
           )}
           {ver.mainstream && (
             <div className="hp-tier-rows">

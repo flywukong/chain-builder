@@ -454,6 +454,18 @@ body::before {
 .hp-row-ver .hp-row-v { font-size: 26px; }
 .hp-row-ver .hp-row-aux { font-size: 11.5px; color: var(--muted); }
 .hp-ver-dist { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .3px; }
+.hp-ver-list { display: flex; flex-wrap: wrap; gap: 5px 8px; margin-top: 3px; }
+.hp-ver-chip { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--text-dim); background: rgba(255,255,255,.03); border: 1px solid #23211a; border-radius: 5px; padding: 2px 7px; }
+.hp-ver-chip i { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+.hp-ver-chip.rel-mainstream i { background: #3FB8A0; }
+.hp-ver-chip.rel-newer i { background: #45B8FF; }
+.hp-ver-chip.rel-older i { background: var(--orange); }
+.hp-ver-chip.rel-unknown i { background: #6b6b6b; }
+.hp-ver-chip em { font-style: normal; color: var(--muted); }
+.hp-ver-chip.rel-mainstream em { color: #3FB8A0; }
+.hp-ver-chip.rel-newer em { color: #45B8FF; }
+.hp-ver-chip.rel-older em { color: var(--orange); }
+.hp-ver-chip b { color: var(--text); font-weight: 700; }
 /* 版本层级覆盖:三行,label + 进度条 + 数字 */
 .hp-tier-rows { display: flex; flex-direction: column; gap: 13px; }
 .hp-tier-row { display: flex; align-items: center; gap: 9px; font-family: var(--mono); }

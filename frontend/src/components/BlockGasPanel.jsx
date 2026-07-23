@@ -260,8 +260,8 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
               <span className="bg-chart-tag">近 {winCn} 流量</span>
               <span className={`bg-peak-tag ${lastPeak ? "hot" : ""}`}>
                 {lastPeak
-                  ? <>高峰(&gt;{fetched?.peakThresholdM ?? 45}M):{peakT(lastPeak.startT)}{lastPeak.endT !== lastPeak.startT ? `-${peakT(lastPeak.endT)}` : ""} · 块 {peakBlk(lastPeak.startBlock)}{lastPeak.endBlock !== lastPeak.startBlock ? ` ~ ${peakBlk(lastPeak.endBlock)}` : " 附近"} · 峰 {lastPeak.peakM}M{(fetched?.peakTotal ?? 0) > 1 ? ` · 共 ${fetched.peakTotal} 段` : ""}</>
-                  : <>近 {winCn} 无 &gt;{fetched?.peakThresholdM ?? 45}M 高峰</>}
+                  ? <>最近高峰 {lastPeak.peakM}M · {peakT(lastPeak.startT)} · 块 {peakBlk(lastPeak.startBlock)}</>
+                  : <>近 {winCn} 无明显高峰</>}
               </span>
               <canvas ref={canvasRef} className="bg-canvas" onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
             </div>

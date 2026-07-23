@@ -115,13 +115,17 @@ export async function runTrafficTrendAnalysis(data) {
     `打满深挖(重点):若窗口内有高占用事件或 ≥${data.hotPct ?? 90}% 的小时,对峰值时段做链上抽查——①用 bscops 的 get_block_miners 拉事件区块区间(episodes 里有 startBlock/endBlock)的序列,看 gasUsedM 分布:有多少块接近打满(≥${Math.round((data.gasLimitM ?? 55) * 0.9)}M)、多少块明明高负载却只有 55~70% 利用率;②对 1-2 个未打满的高负载块,用 bnbchain 的 get_block_by_number 取 transactionHashes,抽查 2-3 笔 get_transaction 看特征:同一 to 合约 + 同一 methodId 占块内 gas 大头、from 分散但每个只发 1-2 笔、gasPrice 低(如 0.1 gwei)——这是 builder bundle 批处理特征;③归因口径:出现该特征时,未打满的原因是 builder 在 450ms 出块窗口内的打包性能(优先处理 bundle 后提前 finalize,后续更高 gasUsed 的 bid 来不及被接受),不是需求不足;无该特征则按真实需求解读。本场景工具调用可放宽至 ≤12 次,优先批量工具。`,
   ] : [];
   const prompt = [
-    `你是 BSC 主网的资深运维分析师。解读近 ${data.windowLabel} 的 ${dim} 形态,中文 markdown,220 字以内,直接正文。`,
+    `你是 BSC 主网的资深运维分析师。解读近 ${data.windowLabel} 的 ${dim} 形态,中文 markdown,320 字以内,直接正文。`,
     "",
     data.focus === "gas"
       ? `数据口径:windowStats 是所选窗口的小时均值统计(单位 %,按当前链上上限 ${data.gasLimitM ?? 55}M 折算);hoursOver = 利用率≥${data.hotPct ?? 90}% 的小时数;episodes 是窗口内的高占用事件,kind=sustained 为持续高负载(小时均值超阈)、kind=burst 为瞬时冲高(仅分钟级峰值超阈,几分钟内回落);minutePeaks24h 是近 24 小时的分钟级瞬时高峰(>${45}M,timeLocal 已是北京时间,peakPct 为峰值利用率)——短时打满在小时均值里会被摊平,两类都要讲。`
       : `数据口径:windowStats 是所选窗口的小时均值统计(单位 笔);hoursOver = pending>${data.threshold ?? 4000} 的小时数;episodes 是窗口内的拥堵事件,kind=sustained 为持续拥堵(小时均值超阈)、kind=burst 为瞬时冲高(仅分钟级峰值超阈,很快回落);baseline30d 是 30 天基线。`,
     ...gasDeep,
-    "输出结构:①首行结论(正常/需关注 + 窗口水位一句话);②事件/打满情况:先说近 24 小时——minutePeaks24h 有段就逐段一行(北京时间 timeLocal/峰值 M 与 peakPct/块高区间 startBlock~endBlock),没有就一句「近 24 小时无明显高峰」;再列窗口内的持续高负载事件(episodes,日期时间/峰值/块区间/已回落);gas focus 时给出打满结论(打满 vs 未打满的块占比与未打满归因);③建议一句。时间一律北京时间,不写 UTC;用值班口语,不用「脉冲/突刺」。",
+    "输出严格分三段。每段格式:先单独一行只写加粗小标题(整行只有「**标题**」、用星号包住标题且不带任何其它字,这样才会渲染成黄色小标题),从下一行起写该段内容。三段标题依次为 **结论**、**事件**、**深度分析**。",
+    "结论段:标题行下方一行——正常/需关注 + 窗口水位(如「7 天小时均值 X%、当前 Y%,水位健康」)。",
+    "事件段:标题行下方,每个事件独占一行、以「- 」折号开头,禁止用分号把多个事件挤在一行。先近 24 小时——minutePeaks24h 有几段写几行「- timeLocal(北京时间) · 峰 XM/peakPct% · 块 #startBlock~#endBlock」,没有则一行「- 近 24 小时无明显高峰」;再逐行列窗口内持续高负载事件 episodes「- 日期时间 · 峰 XM/占比 · 块 #A~#B · 已回落」。",
+    "深度分析段:标题行下方——gas focus 给打满结论(打满 vs 未打满块占比与未打满归因,见下方打满深挖);非 gas 给拥堵归因 + 一句建议。",
+    "全程北京时间、不写 UTC;用值班口语,不用「脉冲/突刺」。",
     "硬性要求:①每一条事件都必须给出块区间,取该事件的 blockRange.from~blockRange.to(写成「块 #A~#B」);blockRange 为 null 才可省略,严禁只给部分事件区间。②凡提到具体合约/热点代币/发送方地址,一律写完整 42 位地址(0x 开头全长),严禁用「0x1266…5f20」这类缩写——读者要复制去 BscScan;完整地址不计入字数限制。",
     "",
     "数据(JSON):",

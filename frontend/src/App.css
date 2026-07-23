@@ -178,7 +178,6 @@ body::before {
 .rv-lag-major .hpd-num { color: #E5484D; font-weight: 700; }
 .rv-lag-minor .hpd-num { color: var(--gold); }
 .rv-lag-major .hpd-mid { color: #E5484D; }
-.leo-test-box { background: #F0B90B; color: #14120a; font-weight: 800; font-family: var(--mono); font-size: 13px; letter-spacing: 1.5px; padding: 12px 20px; border-radius: 10px; align-self: center; box-shadow: 0 0 16px rgba(240,185,11,.6); }
 /* AI 巡检段标题(整行加粗):黄色小标题,与正文区分 */
 .ai-h { display: inline-block; color: var(--gold); font-weight: 800; letter-spacing: .3px; margin: 6px 0 2px; }
 /* 巡检结论卡:pop 内详情 + 悬浮常驻两用;绿=健康 黄=需关注 红=告警 */

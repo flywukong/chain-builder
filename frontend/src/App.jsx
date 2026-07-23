@@ -53,6 +53,7 @@ export default function App() {
           connected={state.connected}
           keterHealth={state.keterHealth}
           page={page}
+          nodeCount={state.nodeStats?.length ?? null}
           zoomPref={zoomPref}
           onZoomPref={setZoomPref}
         />

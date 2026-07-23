@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function Topbar({ latestBlock, windowStats, mevStats, connected, keterHealth, page, zoomPref = 1, onZoomPref }) {
+export default function Topbar({ latestBlock, windowStats, mevStats, connected, keterHealth, page, nodeCount = null, zoomPref = 1, onZoomPref }) {
   const [netOpen, setNetOpen] = useState(false);
 
   // keter 快照新鲜度:正常时不占位,数据超 25min 或一直拉不到才亮警示
@@ -41,6 +41,10 @@ export default function Topbar({ latestBlock, windowStats, mevStats, connected, 
           )}
         </span>
       </div>
+
+      {page === "home" && (
+        <span className="topbar-health-title">内部 VALIDATOR 健康总览{nodeCount != null ? ` · ${nodeCount} nodes` : ""}</span>
+      )}
 
       <div className="topbar-stats">
         <Stat label="当前区块" value={latestBlock ? `#${latestBlock.number.toLocaleString()}` : "--"} />

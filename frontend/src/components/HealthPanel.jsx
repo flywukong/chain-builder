@@ -50,11 +50,17 @@ function versionInfo(nodeStats) {
     });
   });
   for (const t of Object.values(tiers)) t.pct = t.total ? Math.round((t.ok / t.total) * 100) : null;
-  // 各版本分布(按节点数降序):rel = mainstream 主流 / newer 较新(比主流高)/ older 落后 / unknown 未知
-  const dist = Object.entries(map).map(([ver, nodes]) => ({
-    ver, count: nodes.length, pct: total ? Math.round((nodes.length / total) * 100) : 0,
-    rel: ver === "unknown" ? "unknown" : ver === mainstream ? "mainstream" : (mainstream && cmpVer(ver, mainstream) > 0) ? "newer" : "older",
-  })).sort((a, b) => b.count - a.count);
+  // 版本分布:主流单列、比主流新的(较新)各列、落后(含 unknown)合并成一条(不逐一列版本号)
+  const dist = [];
+  if (mainstream) dist.push({ rel: "mainstream", ver: mainstream, count: mainstreamCount, pct: mainstreamPct });
+  Object.entries(map)
+    .filter(([v]) => v !== "unknown" && mainstream && cmpVer(v, mainstream) > 0)
+    .sort((a, b) => cmpVer(b[0], a[0]))
+    .forEach(([v, nodes]) => dist.push({ rel: "newer", ver: v, count: nodes.length, pct: total ? Math.round((nodes.length / total) * 100) : 0 }));
+  const olderCount = Object.entries(map)
+    .filter(([v]) => v === "unknown" || (mainstream && cmpVer(v, mainstream) < 0))
+    .reduce((s, [, nodes]) => s + nodes.length, 0);
+  if (olderCount > 0) dist.push({ rel: "older", ver: null, count: olderCount, pct: total ? Math.round((olderCount / total) * 100) : 0 });
   return { latest, latestPct, latestCount, mainstream, mainstreamPct, mainstreamCount, total, behind: behindList.length, behindList, tiers, dist };
 }
 
@@ -129,10 +135,6 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
 
   return (
     <div className="panel health-panel">
-      <div className="panel-header">
-        <span className="hp-title-badge">内部 Validator 健康总览</span>
-        <span className="sub">{ver.total} nodes</span>
-      </div>
       <div className="panel-body health-body">
         {/* 第一行:链运行 + 流量,并列大字;Sync 异常 chip */}
         <div className={`hp-row tone-${rowTone}`}>
@@ -172,9 +174,9 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
               </div>
               <div className="hp-ver-list">
                 {(ver.dist ?? []).map((d) => (
-                  <span key={d.ver} className={`hp-ver-chip rel-${d.rel}`}>
-                    <i />{d.ver === "unknown" ? "未知" : "v" + d.ver}
-                    <em>{d.rel === "mainstream" ? "主流" : d.rel === "newer" ? "较新" : d.rel === "unknown" ? "未知" : "落后"}</em>
+                  <span key={d.rel + (d.ver ?? "")} className={`hp-ver-chip rel-${d.rel}`}>
+                    <i />
+                    {d.ver ? <>v{d.ver} <em>{d.rel === "mainstream" ? "主流" : "较新"}</em></> : <em>落后</em>}
                     <b>{d.count} 个 · {d.pct}%</b>
                   </span>
                 ))}

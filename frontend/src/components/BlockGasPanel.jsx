@@ -117,7 +117,13 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   // 结论:正常/偏高 + 区间 + 距上限
   const headroom = gu != null ? Math.max(0, 100 - (gu / GL) * 100) : null;
   const verdict = gu == null ? null : (gu / GL) * 100 >= 60 || hotPoints > 0 ? { t: "偏高", cls: "warn" } : { t: "正常", cls: "ok" };
-  const aiFirstLine = sum.text ? sum.text.split("\n").find((l) => l.trim())?.replace(/^结论[::]\s*/, "") : null;
+  // 摘要取「结论」段的实质内容:跳过纯 **标题** 行(如 **结论**),取第一行正文,清掉残留标记
+  const aiFirstLine = (() => {
+    if (!sum.text) return null;
+    const lines = sum.text.split("\n").map((l) => l.trim()).filter(Boolean);
+    const content = lines.find((l) => !/^\*\*.+\*\*$/.test(l)) ?? lines[0] ?? "";
+    return content.replace(/^结论[::]\s*/, "").replace(/\*\*/g, "").trim();
+  })();
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -168,19 +168,22 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           </div>
           {ver.mainstream && (
             <>
-              <div className="hp-ver-dist">
-                主流基线 v{ver.mainstream} · {ver.mainstreamPct}%({ver.mainstreamCount} 个)
-                {ver.latest && ver.latest !== ver.mainstream && <> · 最新 v{ver.latest}(较新 · {ver.latestPct}% · {ver.latestCount} 个)</>}
-              </div>
               <div className="hp-ver-list">
-                {(ver.dist ?? []).map((d) => (
+                {(ver.dist ?? []).filter((d) => d.rel !== "older").map((d) => (
                   <span key={d.rel + (d.ver ?? "")} className={`hp-ver-chip rel-${d.rel}`}>
-                    <i />
-                    {d.ver ? <>v{d.ver} <em>{d.rel === "mainstream" ? "主流" : "较新"}</em></> : <em>落后</em>}
+                    <i />v{d.ver} <em>{d.rel === "mainstream" ? "主流" : "较新"}</em>
                     <b>{d.count} 个 · {d.pct}%</b>
                   </span>
                 ))}
               </div>
+              {(ver.dist ?? []).filter((d) => d.rel === "older").map((d) => (
+                <div key="older" className="hp-ver-list">
+                  <span className="hp-ver-chip rel-older">
+                    <i /><em>落后</em>
+                    <b>{d.count} 个 · {d.pct}%</b>
+                  </span>
+                </div>
+              ))}
             </>
           )}
           {ver.mainstream && (

@@ -167,25 +167,17 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
             )}
           </div>
           {ver.mainstream && (
-            <>
-              <div className="hp-ver-list">
-                {(ver.dist ?? []).filter((d) => d.rel !== "older").map((d) => (
-                  <span key={d.rel + (d.ver ?? "")} className={`hp-ver-chip rel-${d.rel}`}>
-                    <i />v{d.ver} <em>{d.rel === "mainstream" ? "主流" : "较新"}</em>
-                    <b>{d.count} 个 · {d.pct}%</b>
-                  </span>
-                ))}
-              </div>
-              {(ver.dist ?? []).filter((d) => d.rel === "older").map((d) => (
-                <div key="older" className="hp-ver-list">
-                  <span className="hp-ver-chip rel-older">
-                    <i /><em>落后</em>
-                    <b>{d.count} 个 · {d.pct}%</b>
-                  </span>
-                </div>
+            <div className="hp-ver-list">
+              {(ver.dist ?? []).map((d) => (
+                <span key={d.rel + (d.ver ?? "")} className={`hp-ver-chip rel-${d.rel}`}>
+                  <i />
+                  {d.ver ? <>v{d.ver} <em>{d.rel === "mainstream" ? "主流" : "较新"}</em></> : <em>落后</em>}
+                  <b>{d.count} 个 · {d.pct}%</b>
+                </span>
               ))}
-            </>
+            </div>
           )}
+          {ver.mainstream && <div className="hp-tier-title">主流版本升级进度</div>}
           {ver.mainstream && (
             <div className="hp-tier-rows">
               {TIER_LABELS.map(([t, label]) => {

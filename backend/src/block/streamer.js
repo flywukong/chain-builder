@@ -115,6 +115,7 @@ const EMPTY_GAS_MAX = 200_000;
 const REORG_MAX_DEPTH = 64;
 const WS_STALE_MS    = 10000; // WS open but silent this long while chain advances → reconnect
 const MEV_CONCURRENCY = 6;    // parallel getBlock(full) for MEV enrichment (off the tip path)
+const LARGE_TX_CANDIDATE_GAS = 3_000_000; // tx.gasLimit ≥ this ⇒ large-tx candidate (gasUsed ≤ gasLimit, no miss); receipt confirms
 const MEV_QUEUE_CAP   = 80;   // cap pending MEV enrichments; drop stale beyond this
 
 export class BlockStreamer extends EventEmitter {
@@ -357,7 +358,7 @@ export class BlockStreamer extends EventEmitter {
     while (this._mevActive < MEV_CONCURRENCY && this._mevQueue.length) {
       const block = this._mevQueue.shift();
       this._mevActive++;
-      this._getMevInfo(block.number)
+      this._getMevInfo(block)
         .then((mev) => {
           block.mev = mev;
           block.isMev = mev.source !== "local" && mev.source !== "pending";
@@ -369,7 +370,8 @@ export class BlockStreamer extends EventEmitter {
     }
   }
 
-  async _getMevInfo(blockNumber) {
+  async _getMevInfo(block) {
+    const blockNumber = block.number;
     // 1) eth_getBlockMevInfo — not yet on mainnet, but future-proof / works on updated nodes.
     try {
       const info = await this.http.send("eth_getBlockMevInfo", [ethers.toQuantity(blockNumber)]);
@@ -385,9 +387,13 @@ export class BlockStreamer extends EventEmitter {
     // 2) Heuristic (current mainnet): the builder payout is among the last txs of the
     //    block → its `to` matches a known builder address. Mirrors getchainstatus.js.
     try {
-      const block = await this.http.getBlock(blockNumber, true); // prefetch full txs (1 call)
-      const txs = block?.prefetchedTransactions;
+      const full = await this.http.getBlock(blockNumber, true); // prefetch full txs (1 call)
+      const txs = full?.prefetchedTransactions;
       if (!txs?.length) return { source: "local" };
+      // 顺带筛「大额单笔 tx」候选:gasLimit ≥ 阈值(gasUsed ≤ gasLimit,不会漏);server 端拉 receipt 确认真实 gasUsed
+      block.largeTxCandidates = txs
+        .filter((t) => t?.gasLimit != null && Number(t.gasLimit) >= LARGE_TX_CANDIDATE_GAS)
+        .map((t) => ({ hash: t.hash, to: t.to ?? null, from: t.from ?? null }));
       for (const tx of txs.slice(-8)) {
         const name = tx?.to && getBuilderName(tx.to);
         if (name) return { source: "bid", builder: tx.to, builderName: name, fallback: true };

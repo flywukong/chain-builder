@@ -318,6 +318,78 @@ function MultiLineChart({ times, series, label }) {
 
 // ── 最近 3 次大流量 · 涉及合约:每个事件一组,7d 内走 TXN 采样桶(真实 gasUsed) ──
 // trigger 可选 pending/gas:Pending 面板下的专属视图;不足 3 次按实际数量展示
+// 大额单笔 tx(gas 巨鲸):单笔 gasUsed ≥ 阈值(3M/5M/10M)。列表 + 链上查证 AI 归因
+const LTX_THRESHOLDS = [[3000000, "3M"], [5000000, "5M"], [10000000, "10M"]];
+function LargeTxPanel() {
+  const [days, setDays] = useState(1);
+  const [min, setMin] = useState(5000000);
+  const [d, setD] = useState(null);
+  const [ai, setAi] = useState({ loading: false, text: null, err: null });
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + `/api/traffic/large-txs?days=${days}&min=${min}`).then((r) => r.json()).then((j) => { if (alive) setD(j); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [days, min]);
+  const items = d?.items ?? [];
+  const runAi = async () => {
+    setAi({ loading: true, text: null, err: null });
+    try {
+      const j = await aiRequest("/api/ai/large-txs", { days, min });
+      if (j.error) setAi({ loading: false, text: null, err: j.error });
+      else setAi({ loading: false, text: j.text, err: null });
+    } catch (e) { setAi({ loading: false, text: null, err: String(e) }); }
+  };
+  return (
+    <div className="panel tf-panel">
+      <div className="panel-header">
+        <span>大额单笔 tx · gas 巨鲸
+          {d && <em className="panel-verdict pv-ok">{d.count} 笔 · ≥{Math.round(min / 1e6)}M</em>}
+        </span>
+        <span className="bm-ctls">
+          <span className="sub">单笔 gasUsed ≥ 阈值(receipt 确认)· 单块上限 ~55M · 60s 刷新</span>
+          <span className="tf-ranges">
+            {LTX_THRESHOLDS.map(([v, l]) => (
+              <button key={v} className={`tf-range ${min === v ? "on" : ""}`} onClick={() => setMin(v)}>{l}</button>
+            ))}
+          </span>
+          <span className="tf-ranges">
+            {[[1, "24h"], [3, "3天"]].map(([v, l]) => (
+              <button key={v} className={`tf-range ${days === v ? "on" : ""}`} onClick={() => setDays(v)}>{l}</button>
+            ))}
+          </span>
+          <button className="st-auto-btn ai-cta panel-ai-btn" onClick={runAi} disabled={ai.loading || items.length === 0}>
+            {ai.loading ? "解读中… ~1min" : "⚡ AI 解读"}
+          </button>
+        </span>
+      </div>
+      <div className="panel-body tf-body">
+        <div className="ltx-list">
+          {items.map((x) => (
+            <div key={x.txHash} className="ltx-row">
+              <span className="ltx-time">{x.timeLocal}</span>
+              <a className="ltx-tx" href={`https://bscscan.com/tx/${x.txHash}`} target="_blank" rel="noreferrer" title={`${x.txHash} · 点击在 BscScan 查看`}>
+                {x.txHash.slice(0, 10)}…<span className="tg-ext">↗</span>
+              </a>
+              <span className="ltx-gas">{(x.gasUsed / 1e6).toFixed(2)}M</span>
+              <span className="ltx-share" title="占该块 gas 的比例">{x.blockSharePct != null ? `${x.blockSharePct}%` : "--"}</span>
+              <a className="ltx-to" href={x.to ? `https://bscscan.com/address/${x.to}` : undefined} target="_blank" rel="noreferrer" title={x.to ?? "合约创建"}>
+                {x.to ? x.to.slice(0, 10) + "…" : "合约创建"}<span className="tg-ext">↗</span>
+              </a>
+              <span className="ltx-miner">{x.minerName ?? "?"}{x.minerInternal ? "·自营" : ""}</span>
+            </div>
+          ))}
+          {items.length === 0 && <div className="re-empty">窗口内暂无 ≥{Math.round(min / 1e6)}M 的大额单笔 tx(数据自部署起累计)</div>}
+        </div>
+        {ai.loading && <div className="tf-ai-loading"><span className="tf-ai-spin" /><span>claude 链上查证中…合约身份 / 用途,约 1min</span></div>}
+        {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
+        {ai.text && <div className="hpd-ai"><AiText text={ai.text} /></div>}
+      </div>
+    </div>
+  );
+}
+
 function EpisodeContractsPanel({ title = "最近大流量 · 涉及合约", trigger = null }) {
   const [d, setD] = useState(null);
   useEffect(() => {
@@ -527,6 +599,9 @@ function TrafficHistoryPanel({ tl, blockGas }) {
 
       {/* 面板二:Top Gas 消耗合约(谁在烧 gas) */}
       <TopGasPanel />
+
+      {/* 面板:大额单笔 tx(gas 巨鲸)+ 链上查证归因 */}
+      <LargeTxPanel />
 
       {/* 面板三:最近大流量涉及合约 */}
       <EpisodeContractsPanel />

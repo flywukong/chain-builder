@@ -106,6 +106,27 @@ export async function runTrafficAnalysis(data) {
   return spawnClaude(prompt, { mcp: true });
 }
 
+// ── 大额单笔 tx(gas 巨鲸)归因:链上查证每笔大 gas 交易到底在干嘛 ──
+export async function runLargeTxAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网的资深运维分析师。下面是最近 ${data.windowDays} 天内「单笔 gasUsed ≥ ${data.minGasM}M」的大额交易(gas 巨鲸,共 ${data.count} 笔,列出前 ${data.items?.length ?? 0} 笔)。用中文 markdown 输出,面向普通用户,直接正文,250 字以内(完整地址不计入)。`,
+    "背景:BSC 单块 gasLimit ~55M、平均实际只用 ~15-20M,所以单笔烧掉数 M gas 的交易相当显眼——通常是复杂 DeFi 交互、多路径批量 swap、合约部署、MEV bundle 里的重操作,或低效/被滥用的合约。",
+    MCP_GUIDE,
+    "取证建议:对出现多次或占块比高的 to 合约,用 read_contract(name/symbol)或 get_erc20_token_info 识别实体;必要时 get_transaction 抽查 1-2 笔看 method。识别不出就写「未验证合约」+ 完整地址。",
+    "",
+    "要求:",
+    "1. 先一句总体判断:这些大额交易属于正常的复杂链上活动,还是有异常集中(同一合约/同一发送方反复烧大 gas)值得关注。",
+    "2. 按 to 合约归类:哪些合约贡献了最多的大额交易(给次数、典型单笔 gasUsed(M)、占块比),它们是什么——能识别就点名(DeFi 协议/类型),不能就写「未验证合约」+ 完整 42 位地址(0x 开头全长、反引号包裹、严禁截断)。",
+    "3. 挑 1-3 笔最突出的具体交易点评:时间(北京时间)、块高、gasUsed(M)、占该块 gas 比例、涉及合约。",
+    "4. 若某发送方 from 反复出现,提示可能是脚本/bot 集群。",
+    "表述纪律:时间用北京时间、数值按原样精度不乱凑整、不用「脉冲/突刺」这类词。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt, { mcp: true });
+}
+
 // ── 流量窗口解读:pending / gas 单维度形态分析(窗口跟随前端选择)──
 // gas focus 额外做「打满深挖」:高峰时段未打满块的交易特征与归因(bundle/builder 窗口性能)
 export async function runTrafficTrendAnalysis(data) {

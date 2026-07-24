@@ -22,10 +22,11 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
+import { LargeTxStore, LARGE_TX_RECORD_MIN } from "./txn/largeTxStore.js";
 import { TxnSampler } from "./txn/sampler.js";
 import { lookupSelectors } from "./txn/siglookup.js";
 import { getAddrIntel, getCachedIntel } from "./txn/addrIntel.js";
@@ -52,6 +53,7 @@ const slashEvents  = new SlashEventStore(path.join(dataDir, "slash-events-15d-v2
 // 交易分析子系统:1min/块 采样 → 规则分类 → AI 归类未知热门合约(标签库滚雪球)
 const labelBook  = new LabelBook(path.join(dataDir, "contract-labels.json"));
 const txnStore   = new TxnStore(path.join(dataDir, "txn-7d.json"));
+const largeTxStore = new LargeTxStore(path.join(dataDir, "large-tx-3d.json"));
 const txnSampler = new TxnSampler({ provider, store: txnStore, labelBook });
 
 // validatorSlashed(address) 事件扫描(SlashIndicator 0x…1001)
@@ -188,7 +190,31 @@ streamer.on("block", (block) => {
   }
 });
 // MEV aggregator fed by enriched blocks (async, off the tip path)
-streamer.on("blockMev", (block) => mevAgg.add(block));
+streamer.on("blockMev", (block) => { mevAgg.add(block); scanLargeTxs(block); });
+
+// 大额单笔 tx:对 streamer 标记的候选(gasLimit≥阈值,通常每块 0~几笔)拉 receipt 确认真实 gasUsed
+async function scanLargeTxs(block) {
+  const cands = block.largeTxCandidates;
+  if (!cands?.length) return;
+  for (const c of cands) {
+    try {
+      const r = await streamer.http.getTransactionReceipt(c.hash);
+      const gasUsed = r ? Number(r.gasUsed) : 0;
+      if (gasUsed >= LARGE_TX_RECORD_MIN) {
+        largeTxStore.add({
+          t: block.timestampMs ?? Date.now(),
+          block: block.number,
+          txHash: c.hash,
+          gasUsed,
+          blockGasUsed: block.gasUsed,
+          to: c.to ?? r?.to ?? null,
+          from: c.from ?? null,
+          miner: block.miner ?? null,
+        });
+      }
+    } catch {}
+  }
+}
 streamer.on("reorg", (info) => {
   console.warn("[streamer] reorg", info);
   // 被重组高度上的旧块出块人(窗口里还是旧链数据)—— reorg 嫌疑方
@@ -593,6 +619,22 @@ app.get("/api/block-gas", async (req) => {
     blockGasWinCache = { at: Date.now(), minutes, data };
   }
   return data;
+});
+// 大额单笔 tx(gas 巨鲸):单笔 receipt.gasUsed ≥ min(默认 3M);窗口内按时间倒序,附出块 validator 与占块比
+app.get("/api/traffic/large-txs", async (req) => {
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 3);
+  const minGas = Math.max(parseInt(req.query?.min, 10) || LARGE_TX_RECORD_MIN, LARGE_TX_RECORD_MIN);
+  const v = largeTxStore.view(days * 86400e3, minGas);
+  return {
+    days, minGas, recordMin: LARGE_TX_RECORD_MIN, count: v.count,
+    items: v.items.slice(0, 60).map((x) => ({
+      block: x.block, txHash: x.txHash, gasUsed: x.gasUsed, to: x.to, from: x.from,
+      minerName: x.miner ? validatorInfo(x.miner).name : null,
+      minerInternal: x.miner ? validatorInfo(x.miner).internal : false,
+      blockSharePct: x.blockGasUsed ? Math.round((x.gasUsed / x.blockGasUsed) * 100) : null,
+      timeLocal: new Date(x.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+    })),
+  };
 });
 // Top gas 消耗合约榜(流量子系统):TXN 采样 receipts 的真实 gasUsed 聚合
 app.get("/api/traffic/top-gas", async (req) => {
@@ -1079,6 +1121,21 @@ aiRoutes("sync", "/api/ai/sync", async (body) => {
 // 大流量分析:最近一次大流量事件 + 峰值时段链上采样(合约归因)
 // body.days+focus → 窗口形态解读(pending / gas 单维度);body.episodeStart → 单事件归因
 // 流量分析走 jobId 池:多个事件归因 / 汇总可并发(不同目标各自独立通道),避免单槽互相 409
+// 大额单笔 tx 归因分析:对窗口内 gas 巨鲸交易做链上查证(合约身份/用途/是否套利批处理等)
+aiRoutes("largeTx", "/api/ai/large-txs", async (body) => {
+  const minGas = Math.max(parseInt(body?.min, 10) || LARGE_TX_RECORD_MIN, LARGE_TX_RECORD_MIN);
+  const days = Math.min(Math.max(parseInt(body?.days, 10) || 1, 1), 3);
+  const v = largeTxStore.view(days * 86400e3, minGas);
+  const items = v.items.slice(0, 20).map((x) => ({
+    timeLocal: new Date(x.t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+    block: x.block, txHash: x.txHash,
+    gasUsedM: +(x.gasUsed / 1e6).toFixed(2),
+    blockSharePct: x.blockGasUsed ? Math.round((x.gasUsed / x.blockGasUsed) * 100) : null,
+    to: x.to, from: x.from,
+    miner: x.miner ? validatorInfo(x.miner).name : null,
+  }));
+  return runLargeTxAnalysis({ windowDays: days, minGasM: minGas / 1e6, count: v.count, items });
+});
 aiJobPool("/api/ai/traffic", async (body) => {
   // 冷启动 latest 尚空时兜底也要 enrich,保证 episodes 带 refined.startBlock(否则块区间缺失)
   const tl = latest.trafficTimeline ?? await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath));

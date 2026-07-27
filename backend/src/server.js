@@ -1051,12 +1051,23 @@ aiRoutes("reorg", "/api/ai/reorg", async (body) => {
       }
     }
     const beijing = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" });
+    // 输家(被回滚旧块的出块人):canonical 链已无孤块,只能靠本机 WS 实时观测(reorgObs, 24h),按块区间匹配。
+    // 宽窗口内可能混入单点噪声 micro-reorg,选深度最接近事件回滚块数(picked.orphans)的那条 = 真正的链级 reorg。
+    const obsCands = reorgObs.view().recent.filter((o) =>
+      o.oldMiners?.length && fromB && toB && Math.max(o.to, fromB) <= Math.min(o.from, toB));
+    const obs = obsCands.sort((a, b) =>
+      Math.abs((a.depth ?? 1) - (picked.orphans ?? 1)) - Math.abs((b.depth ?? 1) - (picked.orphans ?? 1)))[0] ?? null;
+    const rolledBackMiners = obs
+      ? [...new Set(obs.oldMiners)].map((m) => { const v = vinfo(m); return { name: v.name, internal: v.group === "internal" }; })
+      : [];
     return runReorgEventAnalysis({
       event: { timeLocal: beijing(picked.t), count: picked.count, orphans: picked.orphans, nodesSaw: picked.nodes ?? null },
       refinedMoment: refined ? { timeLocal: beijing(winT), executes5m: refined.executes5m } : null,
       blockRange: { from: fromB, to: toB, sampleStepBlocks: step },
       canonicalMinerSequence: minerSeq,
       fineWindow: fineSeq,   // 最大 gap 邻域的逐块序列(step=1);无明显 gap 时为 null
+      rolledBackMiners,      // 输家:被回滚旧块出块人(本机 WS 观测,可能多个);空数组=未观测到 / 超 24h
+      observedRange: obs ? { from: obs.from, to: obs.to, depth: obs.depth } : null,
       expectedBlockGapMs: 450,
     });
   }

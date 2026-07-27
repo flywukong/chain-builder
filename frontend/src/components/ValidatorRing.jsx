@@ -11,8 +11,10 @@ const lagLevel = (ver, base) => { const v = String(ver).split(".").map(Number), 
 const verClass = (ver, mainstream) => (cmpVer(ver, mainstream) < 0 ? `lag-${lagLevel(ver, mainstream)}` : "latest");
 
 // 全网 geth 版本分布(按 validator 去重,来自出块 extraData;最新版绿、落后橙)
+const GROUP_CN = { internal: "自营", "48club": "48Club", legend: "Legend", independent: "独立" };
 function RingVersions({ mevStats }) {
   const [showBehind, setShowBehind] = useState(false);
+  const [showVer, setShowVer] = useState(null);   // 点击某版本 → 显示该版本的 validator 名单
   const versions = mevStats?.versions ?? [];
   if (!versions.length) return null;
   const total = versions.reduce((s, v) => s + v.n, 0);
@@ -24,6 +26,13 @@ function RingVersions({ mevStats }) {
     .filter(([, ver]) => norm(ver) && cmpVer(norm(ver), mainstream) < 0)
     .map(([addr, ver]) => ({ addr, ver: norm(ver), ...lookupValidator(addr) }))
     .sort((a, b) => cmpVer(a.ver, b.ver));
+  // 选中版本的 validator 名单(按分组、名称排序)
+  const verList = showVer
+    ? Object.entries(mevStats?.minerVersions ?? {})
+        .filter(([, ver]) => norm(ver) === showVer)
+        .map(([addr]) => { const v = lookupValidator(addr); return { addr, name: v.name, group: v.group }; })
+        .sort((a, b) => (a.group || "").localeCompare(b.group || "") || (a.name || "").localeCompare(b.name || ""))
+    : [];
   return (
     <div className="ring-versions">
       <div className="rv-head">
@@ -32,14 +41,14 @@ function RingVersions({ mevStats }) {
       </div>
       <div className="rv-bar">
         {versions.map((v) => (
-          <span key={v.ver} className={`rv-seg ${verClass(v.ver, mainstream)}`} style={{ width: `${v.pct}%` }} title={`v${v.ver} · ${v.n} 验证者 · ${v.pct}%`} />
+          <span key={v.ver} className={`rv-seg ${verClass(v.ver, mainstream)}`} style={{ width: `${v.pct}%` }} title={`v${v.ver} · ${v.n} 验证者 · ${v.pct}% · 点击看名单`} onClick={() => setShowVer(v.ver)} />
         ))}
       </div>
       <div className="rv-legend">
         {versions.map((v) => (
-          <span key={v.ver} className="rv-item">
+          <button key={v.ver} className="rv-item rv-item-btn" onClick={() => setShowVer(v.ver)} title={`点击看 v${v.ver} 的 validator 名单`}>
             <i className={verClass(v.ver, mainstream)} />v{v.ver} <b>{v.pct}%</b><em>({v.n})</em>
-          </span>
+          </button>
         ))}
         {behind.length > 0 && (
           <button className="hp-behind-btn rv-behind-btn" onClick={() => setShowBehind(true)}>
@@ -63,6 +72,27 @@ function RingVersions({ mevStats }) {
                   <span className="hpd-end">{b.addr.slice(0, 10)}…</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {showVer && (
+        <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowVer(null); }}>
+          <div className="ai-modal hp-modal">
+            <div className="ai-modal-head">
+              <span className="hp-modal-title">v{showVer} · {verList.length} 个 validator</span>
+              <span className="ai-modal-meta">该版本出块 validator · 24h extraData{showVer === mainstream ? " · 主流" : cmpVer(showVer, mainstream) > 0 ? " · 较新" : " · 落后"}</span>
+              <button className="robot-close" onClick={() => setShowVer(null)}>×</button>
+            </div>
+            <div className="hpd-list">
+              {verList.map((x) => (
+                <div key={x.addr} className="hpd-row">
+                  <span className="hpd-num rv-va-grp" style={{ color: GROUPS[x.group]?.color ?? "#9aa" }}>{GROUP_CN[x.group] ?? "独立"}</span>
+                  <span className="hpd-mid">{x.name}</span>
+                  <a className="hpd-end rv-va-addr" href={`https://bscscan.com/address/${x.addr}`} target="_blank" rel="noreferrer" title={x.addr}>{x.addr.slice(0, 10)}…↗</a>
+                </div>
+              ))}
+              {verList.length === 0 && <div className="re-empty">该版本暂无出块 validator 记录</div>}
             </div>
           </div>
         </div>

@@ -282,7 +282,7 @@ body::before {
 .rv-title::before { content: ""; width: 4px; height: 15px; background: linear-gradient(180deg, var(--gold), #7a5e00); box-shadow: 0 0 7px rgba(240,185,11,.6); border-radius: 1px; }
 .rv-sub { font-size: 8.5px; color: var(--dim); font-family: var(--mono); }
 .rv-bar { display: flex; width: 50%; margin: 0 auto; height: 8px; border-radius: 4px; overflow: hidden; background: #17150f; gap: 1px; }
-.rv-seg { height: 100%; }
+.rv-seg { height: 100%; cursor: pointer; }
 .rv-seg.latest { background: var(--green); }
 .rv-seg.old { background: var(--orange); }
 .rv-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 7px; }
@@ -304,6 +304,12 @@ body::before {
 .rv-item i.old { background: var(--orange); }
 .rv-item b { color: var(--text); font-weight: 700; }
 .rv-item em { font-style: normal; color: var(--dim); }
+.rv-item-btn { background: none; border: 0; padding: 0; cursor: pointer; }
+.rv-item-btn:hover { color: var(--text); }
+.rv-item-btn:hover i { outline: 1px solid rgba(255,255,255,.4); outline-offset: 1px; }
+.rv-va-grp { min-width: 46px; font-weight: 700; }
+.rv-va-addr { text-decoration: none; }
+.rv-va-addr:hover { color: var(--gold); text-decoration: underline; }
 
 /* 近期工作 — 背景信息,默认折叠,弱化处理 */
 .ring-worklog { position: relative; flex-shrink: 0; margin: 0 10px 10px; padding: 7px 12px; background: rgba(255,255,255,.015); border: 1px solid #23211a; border-radius: 10px; }

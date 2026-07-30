@@ -90,7 +90,7 @@ export async function runTrafficAnalysis(data) {
     "若 lastEpisode 为 null,直接说明窗口内无大流量,给出 pending 基线与 gas 峰值作参考,不要硬造事件。",
     "",
     "已提供事件时间线(北京时间)、30 天基线,以及事件峰值时段链上采样(若有):sampledBlocks 为采样区块,topContracts 按交易 gasLimit 份额聚合。",
-    "事件的 refined 字段(若有)是 5m 精化结果:startT/peakT/endT 为精确时间,startBlock~endBlock 为事件区块高度区间——结论里引用该区间,方便读者链上取证。",
+    "事件区块区间的取值优先级(重要):若 chainEvidence.fullGasRange 存在(gas 打满事件的精定位结果),事件区间**一律以它为准**——from~to 是真正 gasUsed ≥ hotPct% 的连续块段(共 blocks 块),sampledBlocks / topContracts 也只统计这些真正打满的块,归因据此才准;没有 fullGasRange 时,才退用 refined 的 startBlock~endBlock(那是 5m 时间换算、偏宽,会把大量未打满块算进来)。结论里引用最终确定的这个区间;sampledBlocks 里的 pct 是各块 gas 利用率。",
     MCP_GUIDE,
     "本场景取证建议:topContracts 里未识别的高份额地址,用 read_contract(name/symbol)或 get_erc20_token_info 识别实体;可疑发送方用 get_native_balance / get_transaction 抽查 1-2 个,余额仅够 gas + nonce 密集 = 脚本集群。",
     "",

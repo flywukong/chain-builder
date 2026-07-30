@@ -15,7 +15,7 @@ import { ethers } from "ethers";
 import { BlockStreamer } from "./block/streamer.js";
 import { ChainContracts } from "./chain/contracts.js";
 import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
-import { sampleBlockContracts } from "./ai/evidence.js";
+import { sampleBlockContracts, sampleFullGasEvent } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
 import { EmptyBlockStore } from "./metrics/emptyStore.js";
@@ -1217,9 +1217,17 @@ aiJobPool("/api/ai/traffic", async (body) => {
     : tl.lastEpisode);
   let evidence = null;
   if (ep?.peakT) {
-    // 精化过的事件直接对准 5m 峰值采样;否则 hourly 桶 t 覆盖 (t-1h, t] 从桶头采
-    const sampleFrom = ep.refined?.precise ? ep.refined.peakT - 300e3 : ep.peakT - 3600e3;
-    evidence = await sampleBlockContracts(provider, sampleFrom, { samples: 8, labelBook }).catch((e) => ({ error: e.message }));
+    const peakMs = ep.refined?.precise ? ep.refined.peakT : ep.peakT;
+    // gas 打满事件:先精定位真正 gasUsed≥hotPct 的连续块段做归因(区间准、不被大量未打满块稀释);
+    // 找不到打满段或非 gas 事件,再回退到时间采样。
+    const isGas = ep.trigger ? ep.trigger.includes("gas") : true;
+    if (isGas) {
+      evidence = await sampleFullGasEvent(provider, peakMs, { hotPct: tl.hotPct ?? 90, labelBook }).catch(() => null);
+    }
+    if (!evidence) {
+      const sampleFrom = ep.refined?.precise ? peakMs - 300e3 : ep.peakT - 3600e3;
+      evidence = await sampleBlockContracts(provider, sampleFrom, { samples: 8, labelBook }).catch((e) => ({ error: e.message }));
+    }
   }
   return runTrafficAnalysis({
     hotPct: tl.hotPct ?? 90,

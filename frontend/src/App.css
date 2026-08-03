@@ -472,6 +472,10 @@ body::before {
 .hp-ver-chip.rel-mainstream em { color: #3FB8A0; }
 .hp-ver-chip.rel-newer em { color: #45B8FF; }
 .hp-ver-chip.rel-older em { color: var(--orange); }
+.hp-ver-chip.rel-older.lag-minor i { background: var(--gold); }
+.hp-ver-chip.rel-older.lag-minor em { color: var(--gold); }
+.hp-ver-chip.rel-older.lag-major i { background: #E5484D; }
+.hp-ver-chip.rel-older.lag-major em { color: #E5484D; }
 .hp-ver-chip b { color: var(--text); font-weight: 700; }
 /* 版本层级覆盖:三行,label + 进度条 + 数字 */
 .hp-tier-rows { display: flex; flex-direction: column; gap: 13px; }

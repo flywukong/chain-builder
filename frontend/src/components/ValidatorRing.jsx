@@ -19,9 +19,14 @@ function RingVersions({ mevStats }) {
   if (!versions.length) return null;
   const total = versions.reduce((s, v) => s + v.n, 0);
   const latest = versions.map((v) => v.ver).reduce((a, b) => (cmpVer(b, a) > 0 ? b : a));
-  // 落后名单:低于主流版本 mainstream(出块最多的众数)的 validator,旧版本靠前;大版本落后红、小版本落后黄
+  // 落后名单:低于基准版本 mainstream 的 validator,旧版本靠前;大版本落后红、小版本落后黄。
+  // 基准 = 采用量达标(>3 节点)的版本里最新的那个;都不达标才退回众数(出块最多)。
   const norm = (s) => (s || "").replace(/^v/i, "");
-  const mainstream = versions.reduce((a, b) => (b.n > a.n ? b : a)).ver;
+  const BASELINE_MIN_NODES = 3;
+  const qual = versions.filter((v) => v.n > BASELINE_MIN_NODES);
+  const mainstream = qual.length
+    ? qual.reduce((a, b) => (cmpVer(b.ver, a.ver) > 0 ? b : a)).ver
+    : versions.reduce((a, b) => (b.n > a.n ? b : a)).ver;
   const behind = Object.entries(mevStats?.minerVersions ?? {})
     .filter(([, ver]) => norm(ver) && cmpVer(norm(ver), mainstream) < 0)
     .map(([addr, ver]) => ({ addr, ver: norm(ver), ...lookupValidator(addr) }))

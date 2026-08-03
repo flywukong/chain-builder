@@ -11,6 +11,12 @@ function cmpVer(a, b) {
   return 0;
 }
 
+// 落后程度:major/minor 段更低=大版本落后;仅 patch 更低=小版本落后
+function lagLevel(v, base) {
+  const a = v.split(".").map(Number), b = base.split(".").map(Number);
+  return ((a[0] || 0) < (b[0] || 0) || (a[1] || 0) < (b[1] || 0)) ? "major" : "minor";
+}
+
 function versionInfo(nodeStats) {
   const map = {};
   (nodeStats ?? []).forEach((n) => {
@@ -21,9 +27,14 @@ function versionInfo(nodeStats) {
   const vers = Object.keys(map).filter((v) => v !== "unknown");
   const latest = vers.length ? vers.reduce((a, b) => (cmpVer(b, a) > 0 ? b : a)) : null;
   const total = Object.values(map).reduce((s, a) => s + a.length, 0);
-  // 主流版本 = 已知版本里出块节点数最多的(众数):健康基线。落后与升级覆盖率都以主流为准,
-  // 而非以个别抢先升级的最新版为准——否则占多数的主流会被误判为「落后 / 未升级」。
-  const mainstream = vers.length ? vers.reduce((a, b) => (map[b].length > map[a].length ? b : a)) : null;
+  // 版本基线 mainstream:采用量达标(>BASELINE_MIN_NODES 个节点)的版本里「最新」的那个;都不达标才退回众数。
+  // 一旦有一批(而非个别抢先)节点升到新版,基线就前移到新版,旧多数才如实计为「落后 / 未升级」;
+  // 反之个别一两台掉队或超前的节点不会左右基线。
+  const BASELINE_MIN_NODES = 3;
+  const qualified = vers.filter((v) => map[v].length > BASELINE_MIN_NODES);
+  const mainstream = qualified.length
+    ? qualified.reduce((a, b) => (cmpVer(b, a) > 0 ? b : a))
+    : (vers.length ? vers.reduce((a, b) => (map[b].length > map[a].length ? b : a)) : null);
   const latestCount = latest ? map[latest].length : 0;
   const latestPct = latest && total ? Math.round((latestCount / total) * 100) : 0;
   const mainstreamCount = mainstream ? map[mainstream].length : 0;
@@ -50,17 +61,24 @@ function versionInfo(nodeStats) {
     });
   });
   for (const t of Object.values(tiers)) t.pct = t.total ? Math.round((t.ok / t.total) * 100) : null;
-  // 版本分布:主流单列、比主流新的(较新)各列、落后(含 unknown)合并成一条(不逐一列版本号)
+  // 版本分布:基线单列;比基线新的(较新)各列;比基线旧的——采用量达标的版本各自点名成行(按落后程度着色),
+  // 其余零散旧版本 + unknown 合并成一条「落后」(不逐一列版本号)。
+  const pctOf = (n) => (total ? Math.round((n / total) * 100) : 0);
   const dist = [];
   if (mainstream) dist.push({ rel: "mainstream", ver: mainstream, count: mainstreamCount, pct: mainstreamPct });
   Object.entries(map)
     .filter(([v]) => v !== "unknown" && mainstream && cmpVer(v, mainstream) > 0)
     .sort((a, b) => cmpVer(b[0], a[0]))
-    .forEach(([v, nodes]) => dist.push({ rel: "newer", ver: v, count: nodes.length, pct: total ? Math.round((nodes.length / total) * 100) : 0 }));
-  const olderCount = Object.entries(map)
-    .filter(([v]) => v === "unknown" || (mainstream && cmpVer(v, mainstream) < 0))
-    .reduce((s, [, nodes]) => s + nodes.length, 0);
-  if (olderCount > 0) dist.push({ rel: "older", ver: null, count: olderCount, pct: total ? Math.round((olderCount / total) * 100) : 0 });
+    .forEach(([v, nodes]) => dist.push({ rel: "newer", ver: v, count: nodes.length, pct: pctOf(nodes.length) }));
+  let tailCount = (map.unknown ?? []).length;
+  Object.entries(map)
+    .filter(([v]) => v !== "unknown" && mainstream && cmpVer(v, mainstream) < 0)
+    .sort((a, b) => cmpVer(b[0], a[0]))
+    .forEach(([v, nodes]) => {
+      if (nodes.length > BASELINE_MIN_NODES) dist.push({ rel: "older", ver: v, count: nodes.length, pct: pctOf(nodes.length), lag: lagLevel(v, mainstream) });
+      else tailCount += nodes.length;
+    });
+  if (tailCount > 0) dist.push({ rel: "older", ver: null, count: tailCount, pct: pctOf(tailCount) });
   return { latest, latestPct, latestCount, mainstream, mainstreamPct, mainstreamCount, total, behind: behindList.length, behindList, tiers, dist };
 }
 
@@ -169,9 +187,11 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           {ver.mainstream && (
             <div className="hp-ver-list">
               {(ver.dist ?? []).map((d) => (
-                <span key={d.rel + (d.ver ?? "")} className={`hp-ver-chip rel-${d.rel}`}>
+                <span key={d.rel + (d.ver ?? "")} className={`hp-ver-chip rel-${d.rel}${d.lag ? " lag-" + d.lag : ""}`}>
                   <i />
-                  {d.ver ? <>v{d.ver} <em>{d.rel === "mainstream" ? "主流" : "较新"}</em></> : <em>落后</em>}
+                  {d.ver
+                    ? <>v{d.ver} <em>{d.rel === "mainstream" ? "主流" : d.rel === "newer" ? "较新" : "落后"}</em></>
+                    : <em>落后</em>}
                   <b>{d.count} 个 · {d.pct}%</b>
                 </span>
               ))}

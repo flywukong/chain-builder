@@ -856,8 +856,13 @@ async function buildAiData(days = 7) {
       if (!vers.length) return null;
       const cmp = (a, b) => { const pa = a.split(".").map(Number), pb = b.split(".").map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; } return 0; };
       const latest = vers.map((v) => v.ver).reduce((a, b) => (cmp(b, a) > 0 ? b : a));
-      // 主流版本 = 出块节点数最多的版本(众数);落后以主流为基准,而非以个别超前节点的最新版为基准
-      const mainstream = vers.reduce((a, b) => (b.n > a.n ? b : a)).ver;
+      // 基准版本 = 采用量达标(>3 节点)的版本里最新的那个;都不达标才退回众数(出块最多)。
+      // 一旦有一批节点升到新版,基准前移到新版,旧多数才如实计为落后;个别超前/掉队节点不左右基准。
+      const BASELINE_MIN_NODES = 3;
+      const qual = vers.filter((v) => v.n > BASELINE_MIN_NODES);
+      const mainstream = qual.length
+        ? qual.reduce((a, b) => (cmp(b.ver, a.ver) > 0 ? b : a)).ver
+        : vers.reduce((a, b) => (b.n > a.n ? b : a)).ver;
       // 落后程度:major/minor 落后 = 大版本落后(前端标红);仅 patch 落后 = 小版本落后(标黄)
       const lagLevel = (v) => { const a = String(v).split(".").map(Number), b = String(mainstream).split(".").map(Number); return ((a[0] || 0) < (b[0] || 0) || (a[1] || 0) < (b[1] || 0)) ? "major" : "minor"; };
       const laggards = Object.entries(m.minerVersions || {})

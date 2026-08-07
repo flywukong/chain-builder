@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { lookupValidator } from "../data/validators.js";
 
 // BSC fast-finality produces occasional harmless 1-block micro-reorgs; only a
 // 24h count above this signals real consensus trouble.
@@ -22,7 +23,10 @@ function versionInfo(nodeStats) {
   (nodeStats ?? []).forEach((n) => {
     const m = /BSC\/v?(\d+\.\d+\.\d+)/i.exec(n.nodeType || "");
     const v = m ? m[1] : "unknown";
-    (map[v] ??= []).push({ ip: n.instance || n.instanceName || "?", tier: n.tier || "inactive" });
+    // 名称:已知 validator(etherbase 在名录里)才算有名;否则留空,展示时回退到 IP
+    const vi = n.etherbase ? lookupValidator(n.etherbase) : null;
+    const name = vi && vi.name && !vi.name.startsWith("0x") ? vi.name : null;
+    (map[v] ??= []).push({ ip: n.instance || "?", instanceName: n.instanceName || null, name, tier: n.tier || "inactive" });
   });
   const vers = Object.keys(map).filter((v) => v !== "unknown");
   const latest = vers.length ? vers.reduce((a, b) => (cmpVer(b, a) > 0 ? b : a)) : null;
@@ -44,7 +48,7 @@ function versionInfo(nodeStats) {
   const behindList = [];
   Object.entries(map).forEach(([v, nodes]) => {
     if (!belowMain(v)) return;
-    nodes.forEach((n) => behindList.push({ ip: n.ip, ver: v, tier: n.tier }));
+    nodes.forEach((n) => behindList.push({ ip: n.ip, name: n.name, instanceName: n.instanceName, ver: v, tier: n.tier }));
   });
   // 风险排序:Cabinet 落后 > Candidate 落后 > Inactive 落后 > unknown 版本;组内版本越旧越靠前
   const TIER_RANK = { cabinet: 0, candidate: 1, inactive: 2 };
@@ -122,6 +126,7 @@ function GasSpark({ gasUsed, gasLimit }) {
 export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats, syncErrors, gasUsed, gasLimit }) {
   const [showSync, setShowSync] = useState(false);
   const [showBehind, setShowBehind] = useState(false);
+  const [behindTier, setBehindTier] = useState(null);   // 非空=只看该层(cabinet/candidate/inactive)落后节点
 
   const ws = windowStats;
   const reorg = reorgStats?.reorg24h ?? 0;                 // Keter ground truth (24h)
@@ -180,7 +185,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
             {!ver.mainstream && <span className="hp-row-aux">等待 keter</span>}
             {ver.mainstream && (
               ver.behind > 0
-                ? <button className="hp-behind-btn" onClick={() => setShowBehind(true)}>落后版本 点击查看</button>
+                ? <button className="hp-behind-btn" onClick={() => { setBehindTier(null); setShowBehind(true); }}>落后版本 点击查看</button>
                 : <span className="hp-behind-none">✓ 无落后节点</span>
             )}
           </div>
@@ -203,8 +208,12 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
               {TIER_LABELS.map(([t, label]) => {
                 const d = ver.tiers[t];
                 if (!d.total) return null;
+                const lag = d.total - d.ok;
                 return (
-                  <div key={t} className={`hp-tier-row ${t === "inactive" ? "dim" : d.ok === d.total ? "full" : "part"}`}>
+                  <div key={t}
+                       className={`hp-tier-row ${t === "inactive" ? "dim" : d.ok === d.total ? "full" : "part"}${lag ? " clickable" : ""}`}
+                       title={lag ? `点击看 ${label} 落后的 ${lag} 个节点` : undefined}
+                       onClick={lag ? () => { setBehindTier(t); setShowBehind(true); } : undefined}>
                     <em>{label}</em>
                     <span className="hp-tier-track"><span className="hp-tier-fill" style={{ width: `${d.pct}%` }} /></span>
                     <b>{d.ok}/{d.total}</b>
@@ -267,18 +276,22 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
           </div>
         )}
 
-        {showBehind && (
-          <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowBehind(false); }}>
+        {showBehind && (() => {
+          const TIER_CN = { cabinet: "Cabinet", candidate: "Candidate", inactive: "Inactive" };
+          const list = behindTier ? ver.behindList.filter((b) => b.tier === behindTier) : ver.behindList;
+          const close = () => { setShowBehind(false); setBehindTier(null); };
+          return (
+          <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
             <div className="ai-modal hp-modal">
               <div className="ai-modal-head">
-                <span className="hp-modal-title">落后版本节点 · {ver.behind}</span>
-                <span className="ai-modal-meta">落后 = 低于主流 v{ver.mainstream} · 风险排序:Cabinet → Candidate → Inactive → 未知版本</span>
-                <button className="robot-close" onClick={() => setShowBehind(false)}>×</button>
+                <span className="hp-modal-title">{behindTier ? TIER_CN[behindTier] + " 落后节点" : "落后版本节点"} · {list.length}</span>
+                <span className="ai-modal-meta">落后 = 低于基准 v{ver.mainstream}{behindTier ? "" : " · 风险排序:Cabinet → Candidate → Inactive → 未知版本"} · 有名称显示 validator 名,否则显示 IP</span>
+                <button className="robot-close" onClick={close}>×</button>
               </div>
               <div className="hpd-list">
-                {ver.behindList.map((b, i) => (
+                {list.map((b, i) => (
                   <div key={i} className="hp-behind-row">
-                    <span className="hp-behind-ip">{b.ip}</span>
+                    <span className="hp-behind-name">{b.name || b.ip}{b.instanceName && <em>{b.instanceName}</em>}</span>
                     <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : b.ver === "unknown" ? "?" : "—"}</span>
                     <span className="hp-behind-ver">{b.ver === "unknown" ? "未知版本" : "v" + b.ver}</span>
                   </div>
@@ -286,7 +299,8 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

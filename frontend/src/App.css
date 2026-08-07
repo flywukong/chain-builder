@@ -529,6 +529,10 @@ body::before {
 .hp-behind-ip { color: var(--muted); }
 .hp-behind-tier { justify-self: center; }
 .hp-behind-ver { color: var(--orange); text-align: right; }
+.hp-behind-name { display: flex; flex-direction: column; min-width: 0; color: var(--text); }
+.hp-behind-name em { font-style: normal; font-size: 8px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp-tier-row.clickable { cursor: pointer; border-radius: 4px; transition: background .12s; }
+.hp-tier-row.clickable:hover { background: rgba(255,255,255,.05); }
 
 /* ── AI analysis panel ── */
 .ai-panel { min-height: 0; }

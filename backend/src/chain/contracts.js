@@ -48,16 +48,18 @@ export class ChainContracts {
     return Number(await this.validatorSet.turnLength());
   }
 
-  // Validator tiers: cabinet = 当前 epoch 出块集(mining), candidate = 当选未出块, 其余 inactive
+  // Validator tiers:cabinet = getValidators() 按权重排序的前 numOfCabinets 名(稳定身份),
+  // candidate = 当选但排在名额之外(靠 shuffle 偶尔轮值出块), 其余 inactive。
+  // 注意:不能用 getMiningValidators() 判身份 —— 那是每 epoch shuffle 后的临时出块集
+  // (最多 maxNumOfWorkingCandidates 个候补被换入、同数量 cabinet 轮空),会让 tier 在 CAB/CAND 间来回跳。
   async getValidatorTiers() {
-    const [elected, mining] = await Promise.all([
+    const [elected, numCabRaw] = await Promise.all([
       this.validatorSet.getValidators(),
-      this.validatorSet.getMiningValidators(),
+      this.validatorSet.numOfCabinets().catch(() => 0n),
     ]);
-    return {
-      elected: elected.map((a) => a.toLowerCase()),
-      mining:  mining.map((a) => a.toLowerCase()),
-    };
+    const numCab = Number(numCabRaw) || 21;   // 合约在 0 时回退 INIT_NUM_OF_CABINETS = 21
+    const all = elected.map((a) => a.toLowerCase());
+    return { elected: all, cabinet: all.slice(0, numCab) };
   }
 
   // Returns slash counts for all living validators

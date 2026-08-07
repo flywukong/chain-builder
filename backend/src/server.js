@@ -257,12 +257,12 @@ async function pollKeter() {
       fetchSyncErrors(cfg.keterConfigPath),
       contracts.getValidatorTiers().catch((e) => { console.error("[tiers]", e.message); return null; }),
     ]);
-    // 节点分层:cabinet(当前出块) / candidate(当选未出块) / inactive
+    // 节点分层:cabinet(当选前 21 名,稳定身份) / candidate(当选但在名额外) / inactive
     if (tiers) {
-      const mining = new Set(tiers.mining), elected = new Set(tiers.elected);
+      const cabinet = new Set(tiers.cabinet), elected = new Set(tiers.elected);
       for (const n of nodeStats) {
         const eb = (n.etherbase || "").toLowerCase();
-        n.tier = mining.has(eb) ? "cabinet" : elected.has(eb) ? "candidate" : "inactive";
+        n.tier = cabinet.has(eb) ? "cabinet" : elected.has(eb) ? "candidate" : "inactive";
       }
     }
     const now = Date.now();

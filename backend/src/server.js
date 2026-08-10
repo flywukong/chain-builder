@@ -257,12 +257,12 @@ async function pollKeter() {
       fetchSyncErrors(cfg.keterConfigPath),
       contracts.getValidatorTiers().catch((e) => { console.error("[tiers]", e.message); return null; }),
     ]);
-    // 节点分层:cabinet(当选前 21 名,稳定身份) / candidate(当选但在名额外) / backup(备机) / inactive
+    // 节点分层:cabinet(当选前 21 名,稳定身份) / candidate(当选但在名额外) / inactive
     if (tiers) {
       const cabinet = new Set(tiers.cabinet), elected = new Set(tiers.elected);
-      // 主备识别:同一 etherbase 会有多台机器(主 + 热备),链上只能看到实际签名的那台。
-      // 判据是 miningFeatures —— 服役中的机器带 MEV|FFVoting,待命备机没有。
-      // 保守起见:只有当同组内确有一台在挖矿时,才把没挖矿的判为 backup;
+      // 同一 etherbase 会有多台机器(主 + 热备),链上只能看到实际签名的那台,
+      // 备机会跟着继承 validator 身份。判据是 miningFeatures —— 服役中的机器带 MEV|FFVoting,
+      // 待命备机没有;待命机不服役,按 inactive 计。保守起见只在同组内确有一台在挖矿时才降级,
       // 整组都没上报该字段时按原样分层(避免 keter 指标缺失导致误降级)。
       const serving = (n) => /MEV|FFVoting|Mining/i.test(n.miningFeatures || "");
       const groupServes = new Set();
@@ -272,8 +272,8 @@ async function pollKeter() {
       }
       for (const n of nodeStats) {
         const eb = (n.etherbase || "").toLowerCase();
-        const isBackup = eb && groupServes.has(eb) && !serving(n);
-        n.tier = isBackup ? "backup"
+        const standby = eb && groupServes.has(eb) && !serving(n);
+        n.tier = standby ? "inactive"
                : cabinet.has(eb) ? "cabinet"
                : elected.has(eb) ? "candidate" : "inactive";
       }

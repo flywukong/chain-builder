@@ -51,12 +51,12 @@ function versionInfo(nodeStats) {
     nodes.forEach((n) => behindList.push({ ip: n.ip, name: n.name, instanceName: n.instanceName, ver: v, tier: n.tier }));
   });
   // 风险排序:Cabinet 落后 > Candidate 落后 > Inactive 落后 > unknown 版本;组内版本越旧越靠前
-  const TIER_RANK = { cabinet: 0, candidate: 1, backup: 2, inactive: 3 };
+  const TIER_RANK = { cabinet: 0, candidate: 1, inactive: 2 };
   const risk = (b) => (b.ver === "unknown" ? 3 : TIER_RANK[b.tier] ?? 2);
   behindList.sort((a, b) => risk(a) - risk(b) || (a.ver === "unknown" ? 0 : cmpVer(a.ver, b.ver)));
   // 分层升级覆盖率:ok = 版本 ≥ 主流(在主流或更新);cabinet(出块中) / candidate(当选) 是重点,inactive 参考
   const tiers = {};
-  for (const t of ["cabinet", "candidate", "backup", "inactive"]) tiers[t] = { total: 0, ok: 0 };
+  for (const t of ["cabinet", "candidate", "inactive"]) tiers[t] = { total: 0, ok: 0 };
   Object.entries(map).forEach(([v, nodes]) => {
     nodes.forEach((n) => {
       const t = tiers[n.tier] ?? tiers.inactive;
@@ -154,7 +154,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
   const keyOk = ver.tiers.cabinet.ok + ver.tiers.candidate.ok;
   const keyTot = ver.tiers.cabinet.total + ver.tiers.candidate.total;
   const verTone = keyTot && (keyTot - keyOk) / keyTot > 0.2 ? "warn" : "ok";
-  const TIER_LABELS = [["cabinet", "Cabinet"], ["candidate", "Candidate"], ["backup", "Backup"], ["inactive", "Inactive"]];
+  const TIER_LABELS = [["cabinet", "Cabinet"], ["candidate", "Candidate"], ["inactive", "Inactive"]];
 
   return (
     <div className="panel health-panel">
@@ -277,7 +277,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
         )}
 
         {showBehind && (() => {
-          const TIER_CN = { cabinet: "Cabinet", candidate: "Candidate", backup: "Backup 备机", inactive: "Inactive" };
+          const TIER_CN = { cabinet: "Cabinet", candidate: "Candidate", inactive: "Inactive" };
           const list = behindTier ? ver.behindList.filter((b) => b.tier === behindTier) : ver.behindList;
           const close = () => { setShowBehind(false); setBehindTier(null); };
           return (
@@ -292,7 +292,7 @@ export default function HealthPanel({ windowStats, nodeStats, txpool, reorgStats
                 {list.map((b, i) => (
                   <div key={i} className="hp-behind-row">
                     <span className="hp-behind-name">{b.name || b.ip}{b.instanceName && <em>{b.instanceName}</em>}</span>
-                    <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : b.tier === "backup" ? "BAK" : b.ver === "unknown" ? "?" : "—"}</span>
+                    <span className={`hp-behind-tier ht-${b.tier}`}>{b.tier === "cabinet" ? "CAB" : b.tier === "candidate" ? "CAND" : b.ver === "unknown" ? "?" : "—"}</span>
                     <span className="hp-behind-ver">{b.ver === "unknown" ? "未知版本" : "v" + b.ver}</span>
                   </div>
                 ))}

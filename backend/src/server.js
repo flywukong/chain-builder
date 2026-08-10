@@ -22,6 +22,7 @@ import { EmptyBlockStore } from "./metrics/emptyStore.js";
 import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
+import { applyLiveVersions } from "./mev/liveVersions.js";
 import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
@@ -228,9 +229,12 @@ streamer.on("status", (s) => console.log("[streamer] status", s));
 streamer.on("error", (err) => console.error("[streamer]", err.message));
 streamer.start().catch(console.error);
 
+// 出块 extraData 的版本会滞后(candidate 偶尔才出块),用 keter 实时版本校正
+const mevStatsLive = () => applyLiveVersions(mevAgg.getStats(), latest.nodeStats);
+
 // ── MEV stats broadcast (aggregated from the live block stream, every 5s) ──
 setInterval(() => {
-  const s = mevAgg.getStats();
+  const s = mevStatsLive();
   if (s) broadcast("mevStats", s);
 }, 5000);
 
@@ -711,7 +715,7 @@ app.get("/api/disk",      async (req) => {
 });
 app.get("/api/window",    async () => windowStatsPlus());
 app.get("/api/blocks",    async () => streamer.window.slice(-120));   // recent blocks for ring/river polling
-app.get("/api/mev",       async () => mevAgg.getStats());
+app.get("/api/mev",       async () => mevStatsLive());
 
 // ── AI analyses (on-demand claude -p calls) ─────────────────────────────────
 const aiJobs = {};   // key → { text, at, running, error }
@@ -864,7 +868,7 @@ async function buildAiData(days = 7) {
     })(),
     // 全网 geth 版本升级情况(24h 内出过块的 validator 去重)——首页巡检四段之一
     versionUpgrade: (() => {
-      const m = mevAgg.getStats();
+      const m = mevStatsLive();
       const vers = m?.versions ?? [];
       if (!vers.length) return null;
       const cmp = (a, b) => { const pa = a.split(".").map(Number), pb = b.split(".").map(Number); for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; } return 0; };

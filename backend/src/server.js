@@ -591,7 +591,7 @@ app.get("/api/reorg-timeline", async () => latest.reorgTimeline ?? safe(fetchReo
 let blockGasWinCache = { at: 0, minutes: 0, data: null };
 // 流量高峰段:gasused > 45M 的连续区间(相邻 ≤2 个采样点的间隙合并),附区块高度区间
 const PEAK_GAS = 45e6;
-async function gasPeaks(gasused) {
+async function gasPeaks(gasused, gasused1m = null) {
   const ts = gasused?.times ?? [], vs = gasused?.values ?? [];
   const segs = [];
   let cur = null, gap = 0;
@@ -605,9 +605,20 @@ async function gasPeaks(gasused) {
   }
   if (cur) segs.push(cur);
   const recent = segs.slice(-3);
-  // 打满段(≥90% 上限):与首页大流量卡同一口径,供流量页打满率卡对齐
+  // 打满段(≥90% 上限):必须走 1m 均值序列 —— 裸 gasused 是整点瞬时值,BSC 每小时都有单块打满,
+  // 用它计数会把「单块 96% 但整分钟均值仅 49%」也算成一次打满,与流量页事件列表(须持续 ≥1 分钟)对不上。
   const fullGas = liveGasLimitM() * 1e6 * 0.9;
-  const fullSegs = segs.filter((s) => s.peak >= fullGas);
+  const fts = gasused1m?.times ?? ts, fvs = gasused1m?.values ?? vs;
+  const fullSegs = [];
+  let fcur = null, fgap = 0;
+  for (let i = 0; i < fvs.length; i++) {
+    if (typeof fvs[i] === "number" && fvs[i] >= fullGas) {
+      if (!fcur) fcur = { startT: fts[i], endT: fts[i], peak: fvs[i] };
+      else { fcur.endT = fts[i]; fcur.peak = Math.max(fcur.peak, fvs[i]); }
+      fgap = 0;
+    } else if (fcur && ++fgap > 2) { fullSegs.push(fcur); fcur = null; }
+  }
+  if (fcur) fullSegs.push(fcur);
   const lastFullSeg = fullSegs.at(-1) ?? null;
   const lastFull = lastFullSeg ? {
     startT: lastFullSeg.startT, peakM: +(lastFullSeg.peak / 1e6).toFixed(1),
@@ -625,13 +636,13 @@ app.get("/api/block-gas", async (req) => {
   if (minutes === 30) {
     const data = latest.blockGas ?? await safe(fetchBlockGas(cfg.keterConfigPath));
     if (!data) return data;
-    const p = await gasPeaks(data.gasused).catch(() => null);
+    const p = await gasPeaks(data.gasused, data.gasused1m).catch(() => null);
     return { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6, fullCount: p?.fullCount ?? 0, lastFull: p?.lastFull ?? null };
   }
   if (blockGasWinCache.data && blockGasWinCache.minutes === minutes && Date.now() - blockGasWinCache.at < 60_000) return blockGasWinCache.data;
   let data = await safe(fetchBlockGas(cfg.keterConfigPath, minutes));
   if (data) {
-    const p = await gasPeaks(data.gasused).catch(() => null);
+    const p = await gasPeaks(data.gasused, data.gasused1m).catch(() => null);
     data = { ...data, peaks: p?.peaks ?? [], peakTotal: p?.total ?? 0, peakThresholdM: PEAK_GAS / 1e6, fullCount: p?.fullCount ?? 0, lastFull: p?.lastFull ?? null };
     blockGasWinCache = { at: Date.now(), minutes, data };
   }
@@ -1190,7 +1201,7 @@ aiJobPool("/api/ai/traffic", async (body) => {
       try {
         const bg = (blockGasWinCache.minutes === 1440 && blockGasWinCache.data && Date.now() - blockGasWinCache.at < 60_000)
           ? blockGasWinCache.data : await fetchBlockGas(cfg.keterConfigPath, 1440);
-        const p = await gasPeaks(bg.gasused);
+        const p = await gasPeaks(bg.gasused, bg.gasused1m);
         peaks24h = {
           thresholdM: PEAK_GAS / 1e6, total: p.total,
           segments: p.peaks.map((s) => ({

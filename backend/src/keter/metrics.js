@@ -54,9 +54,11 @@ const GAS_SAMPLE_IPS = (process.env.GAS_SAMPLE_IPS ?? "10.213.32.160,10.213.32.7
 
 export async function fetchGasUsed(configPath, from = "now-30m") {
   const ips = GAS_SAMPLE_IPS.join("|");
+  // 1m 平滑:裸 avg() 是整点瞬时值(单个块),BSC 每小时都有单块打满,直接拿它数「打满次数」会全是噪声。
+  // 取 1 分钟均值后,≥90% 才代表真的持续打满,与流量页事件列表同口径。
   const raw = await rangeQuery(
     DATASOURCES["dex-prod"],
-    `avg(chain_insert_gasused{instance=~"${ips}"})`,   // 2-IP average gas used (GasPanel scales to util%)
+    `avg(avg_over_time(chain_insert_gasused{instance=~"${ips}"}[1m]))`,
     { from, configPath }
   );
   return { avg: extractSeries(raw) };
@@ -74,10 +76,16 @@ export async function fetchBlockGas(configPath, minutes = 30) {
         const s = extractSeries(raw)[0] ?? { times: [], values: [] };
         return { times: s.times, values: s.values };
       });
-  const [mgasps, gasused, txsize] = await Promise.all([
-    q("chain_insert_mgasps"), q("chain_insert_gasused"), q("chain_insert_txsize"),
+  // gasused 是整点瞬时值(单个块),画图保留细节;判「打满」须用 1m 均值,否则单块打满就会计一次
+  const gasused1mQ = rangeQuery(
+    DATASOURCES["dex-prod"],
+    `avg(avg_over_time(chain_insert_gasused{instance=~"${ips}"}[1m]))`,
+    { from, configPath }
+  ).then((raw) => extractSeries(raw)[0] ?? { times: [], values: [] }).catch(() => null);
+  const [mgasps, gasused, txsize, gasused1m] = await Promise.all([
+    q("chain_insert_mgasps"), q("chain_insert_gasused"), q("chain_insert_txsize"), gasused1mQ,
   ]);
-  return { mgasps, gasused, txsize };
+  return { mgasps, gasused, txsize, gasused1m };
 }
 
 // ── Gas utilization % (range) ───────────────────────────────────────────────
@@ -359,9 +367,11 @@ export async function fetchTrafficTimeline(configPath, days = 30, hotPct = 90, t
   const opts = { from: `now-${days}d`, intervalMs: 3600_000, maxDataPoints: 24 * days + 12, configPath };
   // avg = 小时均值(持续负载);smooth-max = 1m 平滑后的小时峰值(事件检测:须持续 ≥1 分钟);
   // raw-max = 不平滑的小时峰值(仅视觉包络:单块打满也显形,但不算事件——BSC 每小时都有单块打满)
+  // 注意 avg() 只跨节点聚合、不跨时间:step=1h 的 range query 取的是整点那一瞬的值(某一个块),
+  // 当成「小时均值」会把单块打满误判成持续高负载(峰值反而低于均值),必须显式 avg_over_time[1h]。
   const [pendRaw, gasRaw, pendMaxRaw, gasMaxRaw, gasRawMaxRaw] = await Promise.all([
-    rangeQuery(DATASOURCES["dex-prod"], `avg(txpool_pending{job=~"${DATASEED_JOBS}"})`, opts),
-    rangeQuery(DATASOURCES["dex-prod"], `avg(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"})`, opts),
+    rangeQuery(DATASOURCES["dex-prod"], `avg(avg_over_time(txpool_pending{job=~"${DATASEED_JOBS}"}[1h]))`, opts),
+    rangeQuery(DATASOURCES["dex-prod"], `avg(avg_over_time(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"}[1h]))`, opts),
     // 跨节点 max 会被卡死节点(恒 25k pending)污染,一律每节点先算再跨节点平均
     rangeQuery(DATASOURCES["dex-prod"], `avg(max_over_time(avg_over_time(txpool_pending{job=~"${DATASEED_JOBS}"}[1m])[1h:1m]))`, opts).catch(() => null),
     rangeQuery(DATASOURCES["dex-prod"], `avg(max_over_time(avg_over_time(chain_insert_gasused{instance=~"${GAS_SAMPLE_IPS.join("|")}"}[1m])[1h:1m]))`, opts).catch(() => null),
@@ -414,7 +424,8 @@ export async function fetchTrafficTimeline(configPath, days = 30, hotPct = 90, t
       if (hotP || hotG) cur.sustained = true;
       const pPeak = typeof pM === "number" ? pM : p;
       if (Math.round(pPeak) > cur.peakPending) { cur.peakPending = Math.round(pPeak); cur.peakT = t; }
-      const gPeak = typeof gM === "number" ? gM : g;
+      // 峰值不可能低于均值:两条序列的对齐/平滑口径不同,取两者较大者兜底
+      const gPeak = Math.max(typeof gM === "number" ? gM : -Infinity, typeof g === "number" ? g : -Infinity);
       if (typeof gPeak === "number" && gPeak / 1e6 > cur.peakGasM) { cur.peakGasM = +(gPeak / 1e6).toFixed(1); cur.peakGasPct = Math.round((gPeak / GAS_LIMIT) * 100); }
     } else if (cur) { cur.trigger = [...cur.trigger].join("+"); cur.kind = cur.sustained ? "sustained" : "burst"; episodes.push(cur); cur = null; }
   });

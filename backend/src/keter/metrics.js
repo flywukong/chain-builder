@@ -11,9 +11,11 @@ export async function fetchNodeStats(configPath) {
   const nodes = [];
   for (const [dsName, dsUid] of Object.entries(DATASOURCES)) {
     const jobs = DS_JOBS[dsName];
-    const raw = await grafanaQuery(dsUid, `node_stats{job=~"${jobs}"}`, { configPath });
-    const labels = extractLabels(raw);
-    for (const l of labels) {
+    // timestamp() 包一层:标签原样保留,值变成该 series 的真实样本时间(秒),供下面去重用。
+    // 不能拿返回帧自带的时间戳判新旧 —— 那是统一的查询时刻,所有 series 都一样。
+    const raw = await grafanaQuery(dsUid, `timestamp(node_stats{job=~"${jobs}"})`, { configPath });
+    for (const s of extractSeries(raw)) {
+      const l = s.labels;
       nodes.push({
         datasource:      dsName,
         instance:        l.instance,
@@ -24,10 +26,25 @@ export async function fetchNodeStats(configPath) {
         dbFeatures:      l.DBFeatures,   // "PBSS|MultiDB|PruneBlocks"
         miningFeatures:  l.MiningFeatures, // "MEV|FFVoting"
         netFeatures:     l.NetFeatures,
+        sampledAt:       (s.values?.[s.values.length - 1] ?? 0) * 1000,
       });
     }
   }
-  return nodes;
+  return dedupeLatestPerInstance(nodes);
+}
+
+/**
+ * 同一实例可能同时命中新旧两条 series:节点重启换版本后,旧 series 仍停留在 instant 查询的
+ * 5m 回看窗口里。不去重会把一台机器算成两台,并虚报一个「落后」版本(升级期间尤其明显)。
+ * 停止上报的那条样本时间不再前进,取最新的一条即可。
+ */
+export function dedupeLatestPerInstance(nodes) {
+  const byInstance = new Map();
+  for (const n of nodes) {
+    const prev = byInstance.get(n.instance);
+    if (!prev || (n.sampledAt ?? 0) > (prev.sampledAt ?? 0)) byInstance.set(n.instance, n);
+  }
+  return [...byInstance.values()];
 }
 
 // ── Gas-used ratio of 2 typical validators (avg) ────────────────────────────

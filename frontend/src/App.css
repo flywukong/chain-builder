@@ -1405,6 +1405,31 @@ body::before {
 .eb-listcol .eb-list { max-height: 240px; }
 .eb-miners .re-title { margin-bottom: 2px; }
 .eb-hot { color: var(--orange) !important; font-weight: 700; }
+/* 连续空块:同 validator 连续 ≥3 个空块压成一条,橙框醒目 + 单段 AI 解读 */
+.eb-streak-tag { font-style: normal; margin-left: 8px; font-size: 9.5px; font-family: var(--mono); color: var(--orange);
+  background: rgba(249,115,22,.12); border: 1px solid rgba(249,115,22,.45); border-radius: 4px; padding: 1px 6px; }
+.eb-streak-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 10.5px; padding: 5px 8px; border-radius: 5px;
+  background: rgba(249,115,22,.09); border: 1px solid rgba(249,115,22,.5); }
+.eb-sk-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.eb-sk-main b { color: var(--orange); font-weight: 700; font-size: 11.5px; white-space: nowrap; }
+.eb-sk-range { color: var(--text-dim); font-size: 9.5px; white-space: nowrap; }
+.eb-sk-miner { color: var(--text); font-weight: 600; white-space: nowrap; }
+.eb-sk-t { color: var(--muted); font-size: 9.5px; white-space: nowrap; }
+.eb-sk-ai { font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--bg); cursor: pointer;
+  background: var(--gold); border: none; border-radius: 4px; padding: 3px 8px; white-space: nowrap; }
+.eb-sk-ai:hover { filter: brightness(1.12); }
+.eb-sk-ai:disabled { opacity: .55; cursor: default; }
+.eb-sk-loading, .eb-sk-ai-out { margin-top: 8px; }
+/* 空块面板整体放大 20%(slash 面板也复用 .eb-panel,用 :not(.sl-panel) 排除,避免误伤) */
+.dash-monitor-v2 .eb-panel:not(.sl-panel) { font-size: 120%; }
+.dash-monitor-v2 .eb-panel:not(.sl-panel) .eb-cols { grid-template-columns: 180px 1fr 1.2fr; gap: 22px; }
+.dash-monitor-v2 .eb-panel:not(.sl-panel) .eb-count b { font-size: 31px; }
+.dash-monitor-v2 .eb-panel:not(.sl-panel) .eb-count span { font-size: 11.5px; }
+.dash-monitor-v2 .eb-panel:not(.sl-panel) .eb-list { max-height: 360px; }
+.dash-monitor-v2 .eb-panel:not(.sl-panel) .hpd-row { font-size: 11.5px; }
+.dash-monitor-v2 .eb-panel:not(.sl-panel) .eb-miner em { font-size: 12px; }
+.dash-monitor-v2 .eb-panel:not(.sl-panel) .re-title { font-size: 11.5px; }
 /* Slash 面板:validator 块数行放大、块数黄色带「块」、bar 固定较短不占满宽 */
 .sl-panel .eb-miner { font-size: 14px; gap: 12px; margin-bottom: 2px; }
 .sl-panel .eb-miner em { width: 170px; }

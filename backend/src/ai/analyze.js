@@ -335,6 +335,24 @@ export async function runEmptyAnalysis(data) {
   return spawnClaude(prompt, { mcp: true });
 }
 
+// ── 单次连续空块深析:针对某个 validator 的一段连续空块取证 ──
+export async function runEmptyStreakAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网运维分析师。分析一次「连续空块」事件:validator ${data.validator} 在 ${data.timeLocal} 连续产出 ${data.blocks} 个空块(区块 #${data.from}–#${data.to}),中文,150 字以内,直接正文。`,
+    "",
+    "空块判据 gasUsed<200k(仅系统交易,未打包任何用户交易)。零散 1-2 个空块属 mempool 时序波动;连续 3 个及以上指向该 validator 节点侧异常(txpool 空、builder bid 未到达、节点重启或性能抖动)。",
+    "输出两段:①**事件还原**:这段空块占该 validator 本轮(parlia 一轮 turnLength 个块)的多少、是整轮全空还是夹着正常块、前后轮次是否也异常、当时全网是否同时有其他 validator 空块(是则更像全网 mempool 短暂枯竭,不是单点故障);②**排查建议**:给运营方的具体核对项与时间点。",
+    "重要口径:监控侧没有 validator 节点日志,禁止断言根因;只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查。",
+    "称呼 validator 一律用名称,禁止报 0x 地址;引用块号写完整数字。",
+    MCP_GUIDE,
+    `本场景取证:用 bscops 的 get_block_miners 拉 #${data.from - 12}–#${data.to + 12}(step=1,含 gasUsedM)看该 validator 整轮情况与前后轮次,并确认同一时段是否有别的 validator 也在出空块;结论必须附块号证据。`,
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt, { mcp: true });
+}
+
 // ── 未知合约批量归类(交易分析子系统,结果进标签库)──
 export async function runContractLabeling(candidates) {
   const prompt = [

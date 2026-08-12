@@ -23,7 +23,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -1372,6 +1372,20 @@ aiRoutes("empty", "/api/ai/empty", async (body) => {
     return { ...b, validator: info.name ?? (b.miner || "").slice(0, 10), internal: info.internal };
   });
   return runEmptyAnalysis({ windowLabel: label, count: v.count, blocks });
+});
+
+// 单次连续空块深析:前端点某一段的 AI 按钮,按 from 定位该段
+aiRoutes("emptyStreak", "/api/ai/empty-streak", async (body) => {
+  const days = Math.min(Math.max(Number(body?.days) || 1, 1), 15);
+  const from = Number(body?.from);
+  const s = emptyStore.view(days * 86400e3).streaks.find((x) => x.from === from);
+  if (!s) throw new Error("该连续空块段已滚出窗口");
+  const info = validatorInfo(s.miner);
+  return runEmptyStreakAnalysis({
+    validator: info.name ?? (s.miner || "").slice(0, 10), internal: info.internal,
+    from: s.from, to: s.to, blocks: s.blocks, span: s.span, numbers: s.numbers,
+    t: s.t, timeLocal: new Date(s.t).toLocaleString("zh-CN", { hour12: false }),
+  });
 });
 
 // TxPool 拥堵诊断:当前 24h 形态 + 30d 基线 + gas 利用率

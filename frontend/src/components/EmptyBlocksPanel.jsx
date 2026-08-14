@@ -13,6 +13,7 @@ export default function EmptyBlocksPanel() {
   const [d, setD] = useState(null);
   const [ai, setAi] = useState({ loading: false, text: null, err: null });
   const [sAi, setSAi] = useState({ from: null, loading: false, text: null, err: null });   // 单段连续空块解读
+  const [mAi, setMAi] = useState({ name: null, loading: false, text: null, err: null });   // 单个 validator 空块画像
 
   useEffect(() => {
     let alive = true;
@@ -39,6 +40,14 @@ export default function EmptyBlocksPanel() {
     } catch (e) { setSAi({ from: s.from, loading: false, text: null, err: String(e) }); }
   };
 
+  const runMinerAi = async (name, miner) => {
+    setMAi({ name, loading: true, text: null, err: null });
+    try {
+      const j = await aiRequest("/api/ai/empty-miner", { days, miner });
+      setMAi({ name, loading: false, text: j.error ? null : j.text, err: j.error ?? null });
+    } catch (e) { setMAi({ name, loading: false, text: null, err: String(e) }); }
+  };
+
   // 连续空块段(后端判据:同 validator、块号相邻、≥3 个)压成一条,列表里其余块正常展开
   const streaks = d?.streaks ?? [];
   const inStreak = new Map();   // 块号 → 所属段
@@ -53,14 +62,15 @@ export default function EmptyBlocksPanel() {
     rows.push({ kind: "streak", s });
   }
 
-  // 按 validator 聚合,谁出的空块最多
+  // 按 validator 聚合,谁出的空块最多(保留地址,Top3 的 AI 解读按它定位)
   const byMiner = {};
   (d?.recent ?? []).forEach((b) => {
     const name = b.miner ? lookupValidator(b.miner).name : "未知";
-    byMiner[name] = (byMiner[name] ?? 0) + 1;
+    const e = (byMiner[name] ??= { n: 0, miner: b.miner ?? null });
+    e.n++;
   });
-  const miners = Object.entries(byMiner).sort((a, b) => b[1] - a[1]);
-  const maxM = miners[0]?.[1] ?? 1;
+  const miners = Object.entries(byMiner).sort((a, b) => b[1].n - a[1].n);
+  const maxM = miners[0]?.[1].n ?? 1;
 
   const top3 = miners.slice(0, 3).map(([name]) => name).join("/");
 
@@ -99,13 +109,28 @@ export default function EmptyBlocksPanel() {
             <div className="re-title">Top validator</div>
             {miners.length === 0
               ? <div className="eb-none">✓ 近 {winLabel} 无空块</div>
-              : miners.slice(0, 6).map(([name, n]) => (
+              : miners.slice(0, 6).map(([name, m], i) => (
                   <div key={name} className="eb-miner">
-                    <em className={n >= 3 ? "eb-hot" : ""}>{name}{n >= 3 ? " ⚠" : ""}</em>
-                    <span className="eb-mbar"><i style={{ width: `${(n / maxM) * 100}%` }} /></span>
-                    <b>{n}</b>
+                    <em className={m.n >= 3 ? "eb-hot" : ""}>{name}{m.n >= 3 ? " ⚠" : ""}</em>
+                    <span className="eb-mbar"><i style={{ width: `${(m.n / maxM) * 100}%` }} /></span>
+                    <b>{m.n}</b>
+                    {i < 3 && m.miner && (
+                      <button className="eb-mn-ai" title={`AI 分析 ${name} 的空块成因`}
+                              onClick={() => runMinerAi(name, m.miner)}
+                              disabled={mAi.loading && mAi.name === name}>
+                        {mAi.loading && mAi.name === name ? "解读中…" : "⚡ AI"}
+                      </button>
+                    )}
                   </div>
                 ))}
+            {mAi.loading && (
+              <div className="tf-ai-loading eb-sk-loading">
+                <span className="tf-ai-spin" />
+                <span>claude 分析 {mAi.name} 的空块形态…链上取证约 30–40s</span>
+              </div>
+            )}
+            {mAi.err && <div className="ai-err">⚠ {mAi.err}</div>}
+            {mAi.text && <div className="hpd-ai eb-sk-ai-out"><AiText text={mAi.text} /></div>}
           </div>
           <div className="eb-listcol">
             <div className="re-title">最近空块

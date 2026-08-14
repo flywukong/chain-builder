@@ -353,6 +353,25 @@ export async function runEmptyStreakAnalysis(data) {
   return spawnClaude(prompt, { mcp: true });
 }
 
+// ── 单个 validator 的空块画像:它为什么频繁出空块 ──
+export async function runEmptyMinerAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网运维分析师。分析 validator ${data.validator} 在近 ${data.windowLabel} 的空块表现:共 ${data.count} 个空块(占全网空块 ${data.sharePct}%),中文,150 字以内,直接正文。`,
+    "",
+    "空块判据 gasUsed<200k(仅系统交易,未打包任何用户交易)。",
+    "输出两段:①**形态判断**:这些空块是集中在少数几个时段(节点异常/重启)还是长期均匀散布(常态,更像该节点 txpool 或 builder 链路一直不健康);有没有连续段(streaks 字段,连续 ≥3 个指向明确故障);空块占其出块量的比例是否异常。②**排查建议**:给出该 validator 的具体核对项与时间点。",
+    "对比口径:othersTop 是同窗口其他 validator 的空块数,用于判断该 validator 是明显离群还是与同行相当 —— 若与同行相当,应说明这是全网普遍现象而非该节点问题。",
+    "重要口径:监控侧没有 validator 节点日志,禁止断言根因;只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查;外部 validator 只陈述事实,不输出联系运营方之类的操作建议。",
+    "称呼 validator 一律用名称,禁止报 0x 地址;引用块号写完整数字。",
+    MCP_GUIDE,
+    "本场景取证:用 bscops 的 get_block_miners 抽 1-2 个空块附近的连续区间(step=1,gasUsedM<0.2 即空块),看该 validator 的整轮(parlia turnLength 个块)是全空还是夹着正常块,并确认同一时段别的 validator 是否也在出空块;结论附块号证据。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt, { mcp: true });
+}
+
 // ── 未知合约批量归类(交易分析子系统,结果进标签库)──
 export async function runContractLabeling(candidates) {
   const prompt = [

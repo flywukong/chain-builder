@@ -669,7 +669,14 @@ body::before {
 .eb-miner { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; }
 .eb-miner em { font-style: normal; color: var(--text); width: 108px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eb-miner b { width: 26px; text-align: right; color: var(--orange); flex-shrink: 0; }
-.eb-mbar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
+/* 条幅:填满剩余但封顶 190px(原来 flex:1 会把整行撑满);min-width 防止行内元素多时被挤成 0 */
+.eb-mbar { flex: 1 1 auto; max-width: 190px; min-width: 70px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
+/* Top3 validator 的空块成因 AI 解读 */
+.eb-mn-ai { font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--gold); cursor: pointer;
+  background: rgba(240,185,11,.1); border: 1px solid rgba(240,185,11,.45); border-radius: 4px;
+  padding: 1px 6px; margin-left: 4px; white-space: nowrap; flex-shrink: 0; }
+.eb-mn-ai:hover { background: rgba(240,185,11,.2); }
+.eb-mn-ai:disabled { opacity: .55; cursor: default; }
 .eb-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
 .eb-none { font-size: 11px; color: #43d089; }
 .eb-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }

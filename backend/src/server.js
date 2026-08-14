@@ -23,7 +23,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -1383,6 +1383,32 @@ aiRoutes("empty", "/api/ai/empty", async (body) => {
     return { ...b, validator: info.name ?? (b.miner || "").slice(0, 10), internal: info.internal };
   });
   return runEmptyAnalysis({ windowLabel: label, count: v.count, blocks });
+});
+
+// 单个 validator 空块画像:Top validator 行的 AI 按钮
+aiRoutes("emptyMiner", "/api/ai/empty-miner", async (body) => {
+  const days = Math.min(Math.max(Number(body?.days) || 1, 1), 15);
+  const label = days === 1 ? "24h" : `${days} 天`;
+  const miner = String(body?.miner || "").toLowerCase();
+  const v = emptyStore.view(days * 86400e3);
+  const mine = v.recent.filter((b) => (b.miner || "").toLowerCase() === miner);
+  if (!mine.length) throw new Error("该 validator 在窗口内无空块记录");
+  const info = validatorInfo(miner);
+  // 同窗口其他 validator 的空块数:用于判断是离群还是与同行相当
+  const byMiner = {};
+  v.recent.forEach((b) => { const m = (b.miner || "").toLowerCase(); byMiner[m] = (byMiner[m] || 0) + 1; });
+  const othersTop = Object.entries(byMiner).filter(([m]) => m !== miner)
+    .sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([m, n]) => ({ validator: validatorInfo(m).name ?? m.slice(0, 10), count: n }));
+  return runEmptyMinerAnalysis({
+    validator: info.name ?? miner.slice(0, 10), internal: info.internal,
+    windowLabel: label, count: mine.length, windowTotal: v.count,
+    sharePct: v.count ? Math.round((mine.length / v.count) * 100) : 0,
+    blocks: mine.slice(0, 40).map((b) => ({ number: b.number, timeLocal: new Date(b.t).toLocaleString("zh-CN", { hour12: false }) })),
+    streaks: (v.streaks ?? []).filter((s) => (s.miner || "").toLowerCase() === miner)
+      .map((s) => ({ from: s.from, to: s.to, blocks: s.blocks, timeLocal: new Date(s.t).toLocaleString("zh-CN", { hour12: false }) })),
+    othersTop,
+  });
 });
 
 // 单次连续空块深析:前端点某一段的 AI 按钮,按 from 定位该段

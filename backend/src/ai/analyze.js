@@ -620,7 +620,8 @@ function pickEnv(extra = []) {
   for (const k of [...BASE_ENV_KEYS, ...extra]) if (process.env[k] != null) out[k] = process.env[k];
   return out;
 }
-const CLAUDE_ENV = () => pickEnv(["ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "CLAUDE_CLI_MODEL", "CLAUDE_CLI_FALLBACK_MODEL", "BSC_RPC_URL"]);   // BSC_RPC_URL 供 bscops 取证
+// CLAUDE_CODE_OAUTH_TOKEN:claude setup-token 生成的长期 OAuth token(CLI 登录态过期后的免交互认证方式),放 .env
+const CLAUDE_ENV = () => pickEnv(["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "CLAUDE_CLI_MODEL", "CLAUDE_CLI_FALLBACK_MODEL", "BSC_RPC_URL"]);   // BSC_RPC_URL 供 bscops 取证
 const CODEX_ENV  = () => pickEnv(["OPENAI_API_KEY", "OPENAI_MODEL", "CODEX_MODEL", "CODEX_HOME"]);
 
 function cliOnce(prompt, timeoutMs, model = null, mcp = false) {

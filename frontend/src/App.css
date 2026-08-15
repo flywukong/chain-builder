@@ -677,6 +677,13 @@ body::before {
   padding: 1px 6px; margin-left: 4px; white-space: nowrap; flex-shrink: 0; }
 .eb-mn-ai:hover { background: rgba(240,185,11,.2); }
 .eb-mn-ai:disabled { opacity: .55; cursor: default; }
+/* BID-BLOCK (v2) 观测面板 */
+.bb-cols { display: grid; grid-template-columns: 260px 1fr; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .bb-cols { grid-template-columns: 1fr; } }
+.bb-list { max-height: 260px; }
+.bb-addrs { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: var(--muted); }
+.bb-addrs em { font-style: normal; color: var(--text-dim); }
+.bb-addrs code { font-family: var(--mono); font-size: 8.5px; word-break: break-all; }
 .eb-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
 .eb-none { font-size: 11px; color: #43d089; }
 .eb-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }

@@ -77,7 +77,7 @@ const BUILDER_MAP = new Map([
   ["0xA8caEc0D68a90Ac971EA1aDEFA1747447e1f9871", "blockroute"],
 ]);
 
-function getBuilderName(address) {
+export function getBuilderName(address) {
   if (!address) return null;
   try {
     const norm = ethers.getAddress(address);

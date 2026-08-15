@@ -12,7 +12,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { ethers } from "ethers";
-import { BlockStreamer } from "./block/streamer.js";
+import { BlockStreamer, getBuilderName } from "./block/streamer.js";
+import { BidBlockStore, decodeMevTag } from "./mev/bidBlockStore.js";
 import { ChainContracts } from "./chain/contracts.js";
 import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts, sampleFullGasEvent } from "./ai/evidence.js";
@@ -49,6 +50,7 @@ const mevAgg    = new MevAggregator({ file: path.join(dataDir, "mev-day.json") }
 const latencyStore = new LatencyStore(path.join(dataDir, "latency-24h-v2.json"));
 const txpoolStore  = new TxpoolStore(path.join(dataDir, "txpool-24h.json"));
 const emptyStore   = new EmptyBlockStore(path.join(dataDir, "empty-24h.json"));
+const bidBlockStore = new BidBlockStore(path.join(dataDir, "bidblock-15d.json"));
 const reorgObs     = new ReorgObsStore(path.join(dataDir, "reorg-obs-24h.json"));
 const slashEvents  = new SlashEventStore(path.join(dataDir, "slash-events-15d-v2.json"));   // v2:15d 窗口 + filler/gapMs enrich,换文件触发全量回填
 // 交易分析子系统:1min/块 采样 → 规则分类 → AI 归类未知热门合约(标签库滚雪球)
@@ -191,7 +193,45 @@ streamer.on("block", (block) => {
   }
 });
 // MEV aggregator fed by enriched blocks (async, off the tip path)
-streamer.on("blockMev", (block) => { mevAgg.add(block); scanLargeTxs(block); });
+streamer.on("blockMev", (block) => {
+  mevAgg.add(block);
+  scanLargeTxs(block);
+  // v2(SendBidBlock)标记块:主网 Pasteur 未激活,来自个别 builder 的提前灰度,单独观测
+  if (block.mev?.source === "bidblock") {
+    bidBlockStore.add({
+      t: block.timestampMs ?? Date.now(), number: block.number, miner: block.miner,
+      builder: block.mev.builder ?? null,
+      builderName: block.mev.builderName ?? getBuilderName(block.mev.builder) ?? null,
+    });
+  }
+});
+
+// 启动回扫:实时流只覆盖进程存活期,回扫近 N 块的 header 把重启空窗里的 v2 块补上(去重,幂等)
+const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "3000", 10);
+(async () => {
+  try {
+    const tip = await provider.getBlockNumber();
+    const from = Math.max(1, tip - BIDBLOCK_BACKFILL);
+    let found = 0;
+    for (let n = from; n <= tip; n += 20) {
+      const batch = [];
+      for (let k = n; k < Math.min(n + 20, tip + 1); k++)
+        batch.push(provider.send("eth_getHeaderByNumber", [ethers.toQuantity(k)]).then((hd) => ({ k, hd })).catch(() => null));
+      for (const r of await Promise.all(batch)) {
+        if (!r?.hd) continue;
+        const tag = decodeMevTag(r.hd.requestsHash);
+        if (tag?.v !== 2) continue;
+        found++;
+        bidBlockStore.add({
+          t: parseInt(r.hd.timestamp, 16) * 1000, number: r.k, miner: r.hd.miner,
+          builder: tag.builder, builderName: getBuilderName(tag.builder) ?? null,
+        });
+      }
+    }
+    bidBlockStore.flush();
+    if (found) console.log(`[bidblock] backfill ${from}-${tip}: ${found} v2 blocks`);
+  } catch (e) { console.error("[bidblock] backfill", e.message); }
+})();
 
 // 大额单笔 tx:对 streamer 标记的候选(gasLimit≥阈值,通常每块 0~几笔)拉 receipt 确认真实 gasUsed
 async function scanLargeTxs(block) {
@@ -727,6 +767,17 @@ app.get("/api/disk",      async (req) => {
 app.get("/api/window",    async () => windowStatsPlus());
 app.get("/api/blocks",    async () => streamer.window.slice(-120));   // recent blocks for ring/river polling
 app.get("/api/mev",       async () => mevStatsLive());
+// v2(SendBidBlock)观测:谁在走 bid-block、区块区间与数量(主网 Pasteur 未激活,来自提前灰度)
+app.get("/api/bidblock",  async () => {
+  const v = bidBlockStore.view();
+  return {
+    ...v,
+    sessions: v.sessions.map((s) => ({
+      ...s,
+      minerNames: s.miners.map((m) => { const i = validatorInfo(m); return i.name ?? (m || "").slice(0, 10); }),
+    })),
+  };
+});
 
 // ── AI analyses (on-demand claude -p calls) ─────────────────────────────────
 const aiJobs = {};   // key → { text, at, running, error }

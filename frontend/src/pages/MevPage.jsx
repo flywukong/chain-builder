@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
 import { AiText } from "../components/PanelAi.jsx";
 import { lookupValidator } from "../data/validators.js";
@@ -32,9 +32,20 @@ const FAMILY_COLORS = {
   local: "#6d675a",
 };
 
+const fmtBbT = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
 export default function MevPage({ state }) {
   const mev = state.mevStats;
   const { s: ai, run: runAi } = MevAiBox();
+  // v2(SendBidBlock)观测:主网未激活,出现即代表有 builder 在提前灰度
+  const [bb, setBb] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + "/api/bidblock").then((r) => r.json()).then((j) => { if (alive) setBb(j); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   if (!mev) {
     return (
@@ -167,6 +178,55 @@ export default function MevPage({ state }) {
           </div>
         </div>
 
+        {/* BID-BLOCK (v2) 观测:走 BEP-675 路径的 builder + 区块区间与数量(Pasteur 未激活,提前灰度) */}
+        <div className="panel" style={{ maxWidth: 720 }}>
+          <div className="panel-header">
+            <span>BID-BLOCK (v2) 观测
+              {bb && (
+                <em className={`panel-verdict pv-${bb.count ? "mid" : "ok"}`}>
+                  {bb.count ? `${bb.count} 块 · ${bb.builders.length} builder · ${bb.sessions.length} 段` : "未观测到 v2 块"}
+                </em>
+              )}
+            </span>
+            <span className="sub">判据 header.RequestsHash version=2 (BEP-675) · 主网未激活 · 实时 + 启动回扫 · 窗口 15d</span>
+          </div>
+          <div className="panel-body">
+            {!bb || bb.count === 0 ? (
+              <div className="ph-note">窗口内无 bid-block 标记块。Pasteur 分叉未激活,此处一旦出现,代表有 builder+validator 在主网提前灰度 SendBidBlock 路径。</div>
+            ) : (
+              <div className="bb-cols">
+                <div>
+                  <div className="re-title">BUILDER</div>
+                  {bb.builders.map((b) => (
+                    <div key={b.addr} className="eb-miner" title={b.addr}>
+                      <em>{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
+                      <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
+                      <b>{b.count}</b>
+                    </div>
+                  ))}
+                  <div className="bb-addrs">
+                    {bb.builders.slice(0, 4).map((b) => (
+                      <div key={b.addr}><em>{b.name ?? "?"}</em> <code>{b.addr}</code></div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="re-title">灰度区间(块距 ≤1200 归一段)</div>
+                  <div className="eb-list bb-list">
+                    {bb.sessions.map((s) => (
+                      <div key={s.from} className="hpd-row">
+                        <span className="hpd-num">#{s.from.toLocaleString()} – #{s.to.toLocaleString()}</span>
+                        <span className="hpd-mid">{s.count} 块 · {s.builders.join("/")} · {s.minerNames.slice(0, 3).join("/")}{s.minerNames.length > 3 ? ` 等${s.minerNames.length}个` : ""}</span>
+                        <span className="hpd-end">{fmtBbT(s.tStart)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* instance 拆分:定位某地区/实例异常,而非只看 family */}
         {insts.length > 0 && (
           <div className="panel" style={{ maxWidth: 720 }}>
@@ -230,7 +290,7 @@ export default function MevPage({ state }) {
         <BidMetricsPanel />
         <GreedyMergePanel />
 
-        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。当前主网 ~99% 是 mev_v1，v2 bidblock 尚未起量。</div>
+        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算;归因切换到 header 精确口径后从零重计),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。v2 标记来自个别 builder 在 Pasteur 分叉前的提前灰度(48club/puissant),协议层尚未激活。</div>
       </div>
     </div>
   );

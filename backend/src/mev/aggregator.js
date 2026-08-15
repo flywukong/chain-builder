@@ -34,6 +34,15 @@ export class MevAggregator extends EventEmitter {
     if (file) {
       try { if (fs.existsSync(file)) this.day = { ...this.day, ...JSON.parse(fs.readFileSync(file, "utf8")) }; } catch {}
     }
+    // 一次性迁移:早期累计混入了大量误记 local(RPC 抖动记成 local + 启发式认不出名录外 builder),
+    // 且 builderTotals 只增不减、无法回溯修正 —— 归因已切到 header 标记精确口径,旧累计弃用、从零重计。
+    // buckets(25h 自滚动)与 minerVers(24h)会自愈,保留。
+    if (!this.day.totalsAccurate) {
+      try { if (file && fs.existsSync(file)) fs.copyFileSync(file, file + ".pre-reset.bak"); } catch {}
+      this.day.builderTotals = {};
+      this.day.since = Date.now();
+      this.day.totalsAccurate = true;
+    }
     this._dirty = 0;
     this._lastSave = 0;
   }

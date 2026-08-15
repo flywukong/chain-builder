@@ -223,7 +223,7 @@ export default function BlockGasPanel({ blockGas, gasLimit }) {
   const f1 = (v) => (v == null ? "--" : m.scale === 1e6 ? v.toFixed(1) : Math.round(v));
 
   return (
-    <div className="panel">
+    <div className="panel bg-panel">
       <div className="panel-header">
         <span>Block Gas · 执行视角
           {verdict && guStat && (

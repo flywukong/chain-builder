@@ -1497,6 +1497,17 @@ body::before {
   font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--dim);
   background: rgba(240,185,11,.05); border: 1px solid rgba(240,185,11,.35); border-radius: 6px; padding: 3px 10px; }
 .bg-peak-tag.hot { color: var(--gold); background: rgba(240,185,11,.1); border-color: var(--gold); }
+/* BLOCK GAS 面板整体放大 ~30%(监控页):执行视角信息密度高,原图表高度偏小 */
+.dash-monitor-v2 .bg-panel .bg-canvas-wrap,
+.dash-monitor-v2 .bg-panel .bg-canvas { height: 340px; }
+.dash-monitor-v2 .bg-panel .bg-strip { font-size: 13.5px; padding: 10px 14px; gap: 6px 26px; }
+.dash-monitor-v2 .bg-panel .bg-legend { font-size: 12px; }
+.dash-monitor-v2 .bg-panel .bg-src { font-size: 11px; }
+.dash-monitor-v2 .bg-panel .bg-chart-tag { font-size: 14px; }
+.dash-monitor-v2 .bg-panel .bg-peak-tag { font-size: 13.5px; }
+.dash-monitor-v2 .bg-panel .bg-ai-line { font-size: 13.5px; }
+.dash-monitor-v2 .bg-panel .bg-leo-text { font-size: 14px; min-height: 130px; }
+.dash-monitor-v2 .bg-panel .bg-leo-hint { font-size: 13.5px; }
 
 /* 侧栏 logo:LEO 机器人头像 */
 

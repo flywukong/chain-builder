@@ -90,7 +90,7 @@ export default function MevPage({ state }) {
       <div className="subpage-head">
         <div>
           <h1>💎 MEV 分析</h1>
-          <p>Builder 出块格局 · MEV 占比 · v1/v2 (BEP-675) 路径 · 指标窗口 24 小时</p>
+          <p>Builder 出块格局 · MEV 占比 · v1/v2 路径(BEP-675 主网未激活)· 指标窗口 24 小时</p>
         </div>
         <div className="ai-bar">
           <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading}>
@@ -109,9 +109,11 @@ export default function MevPage({ state }) {
         )}
         <div className="stat-cards mev-cards">
           <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{cards.mevPct}%</div><div className="sc-l">MEV 占比 · 24h</div></div>
-          <div className="stat-card sc-card-v2">
+          {/* header.RequestsHash 的 version 字节 = 2。BEP-675 随 Pasteur 硬分叉激活,主网 PasteurTime 仍为 nil,
+              所以这不代表协议层已上线 —— 是个别 builder 自定义构建提前打的标记,标题据此措辞,勿写成 BEP-675 占比 */}
+          <div className="stat-card sc-card-v2" title="判据:header.RequestsHash 的 version 字节 = 2(BEP-675 SendBidBlock 编码)。Pasteur 硬分叉尚未在主网激活,此标记来自个别 builder 的自定义构建,不代表协议层已支持 bid-block。">
             <div className="sc-v" style={{ color: "#FF9F1C" }}><span className="sc-ico">⚡</span>{cards.v2Pct}%</div>
-            <div className="sc-l">mev-v2 (bid-block) 占比 · 24h<span className="sc-bep">BEP-675</span></div>
+            <div className="sc-l">header 标记 v2 (bid-block) · 24h<span className="sc-bep">主网未激活</span></div>
           </div>
           <div className="stat-card">
             <div className="sc-v" style={{ color: "var(--green)" }}><span className="sc-ico">◇</span>{cards.v1.toLocaleString()}</div>

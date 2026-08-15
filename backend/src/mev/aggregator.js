@@ -41,6 +41,8 @@ export class MevAggregator extends EventEmitter {
   // Fed from streamer "block" events.
   add(block) {
     if (block == null || typeof block.number !== "number") return;
+    // unknown = 来源查不到(RPC 抖动),既不是 MEV 也不能算 local,整块跳过不计入任何口径
+    if (block.mev?.source === "unknown") return;
     const type = block.mev?.source === "bidblock" ? "mev_v2" : block.isMev ? "mev_v1" : "local";
     const fam = family(block.builder);
     this.window.push({

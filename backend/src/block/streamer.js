@@ -361,7 +361,7 @@ export class BlockStreamer extends EventEmitter {
       this._getMevInfo(block)
         .then((mev) => {
           block.mev = mev;
-          block.isMev = mev.source !== "local" && mev.source !== "pending";
+          block.isMev = mev.source !== "local" && mev.source !== "pending" && mev.source !== "unknown";
           block.builder = mev.builderName ?? mev.builder ?? null;
           this.emit("blockMev", block);
         })
@@ -372,7 +372,8 @@ export class BlockStreamer extends EventEmitter {
 
   async _getMevInfo(block) {
     const blockNumber = block.number;
-    // 1) eth_getBlockMevInfo — not yet on mainnet, but future-proof / works on updated nodes.
+    // 1) eth_getBlockMevInfo — 主网已可用(实测 nodereal v1.7.7 支持):直接解 header 的 MEV 标记,
+    //    能认出名录外的 builder。注意它只是解码标记,不代表该节点支持 BEP-675 出块路径。
     try {
       const info = await this.http.send("eth_getBlockMevInfo", [ethers.toQuantity(blockNumber)]);
       if (info?.builder) {
@@ -400,7 +401,9 @@ export class BlockStreamer extends EventEmitter {
       }
       return { source: "local" };
     } catch {
-      return { source: "local" };
+      // 拉不到块 ≠ 这块是 local。旧实现在此返回 local,于是每次 RPC 抖动都被记成「非 MEV 出块」,
+      // 历史累计里的 local 被长期高估(且累计只增不减、无法回溯修正)。unknown 不计入任何分母。
+      return { source: "unknown" };
     }
   }
 
@@ -439,7 +442,8 @@ export class BlockStreamer extends EventEmitter {
   getWindowStats() {
     const w = this.window;
     if (w.length === 0) return null;
-    const enriched  = w.filter((b) => b.mev.source !== "pending"); // exclude not-yet-enriched
+    // 未富化(pending)与查不到来源(unknown)都不能进分母,否则会被当成 local 拉低 MEV%
+    const enriched  = w.filter((b) => b.mev.source !== "pending" && b.mev.source !== "unknown");
     const mevBlocks = w.filter((b) => b.isMev);
     const v2Blocks  = w.filter((b) => b.mev.source === "bidblock");
     const empties = w.filter((b) => b.empty);

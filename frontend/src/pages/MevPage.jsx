@@ -62,8 +62,8 @@ export default function MevPage({ state }) {
   const d24 = mev.day24 ?? null;
   const tc = mev.typeCounts ?? {};
   const cards = d24
-    ? { mevPct: d24.mevPct, v2Pct: d24.v2Pct, v1: d24.v1Count, local: d24.localCount }
-    : { mevPct: mev.mevPct, v2Pct: mev.v2Pct, v1: tc.mev_v1 ?? 0, local: tc.local ?? 0 };
+    ? { mevPct: d24.mevPct, v2Pct: d24.v2Pct, v2: d24.v2Count ?? 0, v1: d24.v1Count, local: d24.localCount }
+    : { mevPct: mev.mevPct, v2Pct: mev.v2Pct, v2: tc.mev_v2 ?? 0, v1: tc.mev_v1 ?? 0, local: tc.local ?? 0 };
   // builder 分布:历史累计(重启续算);旧后端回退 2000 窗口
   const fams = mev.buildersAll ?? mev.builderFamilies ?? [];
   const maxFam = Math.max(1, ...fams.map((f) => f[1]));
@@ -123,8 +123,8 @@ export default function MevPage({ state }) {
           {/* header.RequestsHash 的 version 字节 = 2。BEP-675 随 Pasteur 硬分叉激活,主网 PasteurTime 仍为 nil,
               所以这不代表协议层已上线 —— 是个别 builder 自定义构建提前打的标记,标题据此措辞,勿写成 BEP-675 占比 */}
           <div className="stat-card sc-card-v2" title="判据:header.RequestsHash 的 version 字节 = 2(BEP-675 SendBidBlock 编码)。Pasteur 硬分叉尚未在主网激活,此标记来自个别 builder 的自定义构建,不代表协议层已支持 bid-block。">
-            <div className="sc-v" style={{ color: "#FF9F1C" }}><span className="sc-ico">⚡</span>{cards.v2Pct}%</div>
-            <div className="sc-l">header 标记 v2 (bid-block) · 24h<span className="sc-bep">主网未激活</span></div>
+            <div className="sc-v" style={{ color: "#FF9F1C" }}><span className="sc-ico">⚡</span>{cards.v2.toLocaleString()}<span className="sc-sub-pct">({cards.v2Pct}% MEV)</span></div>
+            <div className="sc-l">header 标记 v2 (bid-block) 块 · 24h<span className="sc-bep">主网未激活</span></div>
           </div>
           <div className="stat-card">
             <div className="sc-v" style={{ color: "var(--green)" }}><span className="sc-ico">◇</span>{cards.v1.toLocaleString()}</div>

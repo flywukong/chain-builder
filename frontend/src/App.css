@@ -684,6 +684,21 @@ body::before {
 .bb-addrs { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: var(--muted); }
 .bb-addrs em { font-style: normal; color: var(--text-dim); }
 .bb-addrs code { font-family: var(--mono); font-size: 8.5px; word-break: break-all; }
+/* 会话卡片:状态 + 时间/时长 + 区间 + builder/validator/渗透率 三行 */
+.bb-sess { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: 6px;
+  background: rgba(255,255,255,.03); border: 1px solid #23211a; font-family: var(--mono); font-size: 11px; }
+.bb-sess.live { border-color: rgba(240,185,11,.5); background: rgba(240,185,11,.05); }
+.bb-sess-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.bb-sess-st { font-style: normal; font-size: 9.5px; font-weight: 700; color: var(--muted);
+  border: 1px solid #3a372c; border-radius: 4px; padding: 1px 6px; }
+.bb-sess-st.on { color: var(--gold); border-color: rgba(240,185,11,.5); background: rgba(240,185,11,.1); }
+.bb-sess-top b { color: var(--text); font-weight: 700; }
+.bb-sess-top span { color: var(--muted); }
+.bb-sess-n { font-style: normal; margin-left: auto; color: #FF9F1C; font-weight: 800; font-size: 12.5px; white-space: nowrap; }
+.bb-sess-mid { color: var(--text-dim); }
+.bb-sess-mid em { font-style: normal; color: var(--dim); font-size: 9.5px; margin-left: 6px; }
+.bb-sess-low { display: flex; flex-wrap: wrap; gap: 4px 6px; color: var(--muted); font-size: 10px; }
+.bb-sess-low b { color: var(--text); }
 .eb-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
 .eb-none { font-size: 11px; color: #43d089; }
 .eb-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }

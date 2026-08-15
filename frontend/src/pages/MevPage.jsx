@@ -182,13 +182,16 @@ export default function MevPage({ state }) {
         <div className="panel" style={{ maxWidth: 720 }}>
           <div className="panel-header">
             <span>BID-BLOCK (v2) 观测
-              {bb && (
-                <em className={`panel-verdict pv-${bb.count ? "mid" : "ok"}`}>
-                  {bb.count ? `${bb.count} 块 · ${bb.builders.length} builder · ${bb.sessions.length} 段` : "未观测到 v2 块"}
-                </em>
-              )}
+              {bb && (() => {
+                const live = bb.sessions.some((s) => Date.now() - s.tEnd < 5 * 60e3);
+                return (
+                  <em className={`panel-verdict pv-${live ? "warn" : bb.count ? "mid" : "ok"}`}>
+                    {bb.count ? `${live ? "⚡ 灰度进行中 · " : ""}${bb.count.toLocaleString()} 块 · ${bb.sessions.length} 段` : "未观测到 v2 块"}
+                  </em>
+                );
+              })()}
             </span>
-            <span className="sub">判据 header.RequestsHash version=2 (BEP-675) · 主网未激活 · 实时 + 启动回扫 · 窗口 15d</span>
+            <span className="sub">判据 header.RequestsHash version=2 · BEP-675 主网未激活,出现即为提前灰度 · 窗口 15d</span>
           </div>
           <div className="panel-body">
             {!bb || bb.count === 0 ? (
@@ -211,15 +214,33 @@ export default function MevPage({ state }) {
                   </div>
                 </div>
                 <div>
-                  <div className="re-title">灰度区间(块距 ≤1200 归一段)</div>
+                  <div className="re-title">灰度会话(相邻 v2 块距 ≤1200 归同一段)</div>
                   <div className="eb-list bb-list">
-                    {bb.sessions.map((s) => (
-                      <div key={s.from} className="hpd-row">
-                        <span className="hpd-num">#{s.from.toLocaleString()} – #{s.to.toLocaleString()}</span>
-                        <span className="hpd-mid">{s.count} 块 · {s.builders.join("/")} · {s.minerNames.slice(0, 3).join("/")}{s.minerNames.length > 3 ? ` 等${s.minerNames.length}个` : ""}</span>
-                        <span className="hpd-end">{fmtBbT(s.tStart)}</span>
-                      </div>
-                    ))}
+                    {bb.sessions.map((s) => {
+                      const live = Date.now() - s.tEnd < 5 * 60e3;
+                      const span = s.to - s.from + 1;
+                      const durMin = Math.max(1, Math.round((s.tEnd - s.tStart) / 60e3));
+                      const dur = durMin >= 60 ? `${(durMin / 60).toFixed(1)}h` : `${durMin}m`;
+                      // 渗透率:v2 块数 ÷ 该批 validator 在区间内的预期出块(出块集 21 席口径)
+                      const expect = span * (s.minerNames.length / 21);
+                      const pen = expect > 0 ? Math.min(100, Math.round((s.count / expect) * 100)) : null;
+                      return (
+                        <div key={s.from} className={`bb-sess ${live ? "live" : ""}`}>
+                          <div className="bb-sess-top">
+                            <em className={`bb-sess-st ${live ? "on" : ""}`}>{live ? "⚡ 进行中" : "已结束"}</em>
+                            <b>{fmtBbT(s.tStart)} → {live ? "现在" : fmtBbT(s.tEnd)}</b>
+                            <span>· 持续 {dur}</span>
+                            <i className="bb-sess-n">v2 {s.count.toLocaleString()} 块</i>
+                          </div>
+                          <div className="bb-sess-mid">区块 #{s.from.toLocaleString()} – #{s.to.toLocaleString()}<em>(区间共 {span.toLocaleString()} 块,v2 只出现在下列 validator 的轮次内)</em></div>
+                          <div className="bb-sess-low">
+                            <span>builder <b>{s.builders.join(" / ")}</b></span>
+                            <span>· validator {s.minerNames.length} 个:{s.minerNames.join("/")}</span>
+                            {pen != null && <span title="该批 validator 轮次内被 bid-block 赢下的比例;按 21 席出块集估算">· 轮次渗透率 ≈<b>{pen}%</b></span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

@@ -48,8 +48,8 @@ export default function ErrLogsPage() {
   const winLabel = RANGES.find(([m]) => m === minutes)?.[1] ?? `${minutes}m`;
   const maxC = d?.clusters?.[0]?.count ?? 1;
   // 定级:P0 致命 / P1 影响 / P2 轻微 / noise 噪声;worst 决定顶部风险卡
-  const LV = { P0: ["P0 致命", "p0"], P1: ["P1 影响", "p1"], P2: ["P2 轻微", "p2"], noise: ["P4 噪声", "noise"] };
-  const ORDER = ["P0", "P1", "P2", "noise"];
+  const LV = { P0: ["P0 致命", "p0"], P1: ["P1 影响", "p1"], P2: ["P2 轻微", "p2"], P4: ["P4 留意", "p4"], noise: ["P5 噪声", "noise"] };
+  const ORDER = ["P0", "P1", "P2", "P4", "noise"];
   const worst = d?.worstEffective ?? null;   // 按节点角色调整后(data-seed 降 2 档)的全局最坏等级
   // 展示一律用 effLevel(角色调整后:只出现在非 validator 节点的模式降 2 档),hover 提示原级
   const lvOf = (c) => c.effLevel ?? c.grade?.level ?? null;
@@ -149,7 +149,7 @@ export default function ErrLogsPage() {
                         : h.tier === "candidate" ? ["candidate", "candidate"]
                         : h.tier === "inactive" ? ["inactive", "inactive"]
                         : [h.subtype ?? h.role ?? "未知", "seed"];
-                      const effCn = (l) => (l === "noise" ? "P4" : l);
+                      const effCn = (l) => (l === "noise" ? "P5" : l);
                       return (
                         <div key={h.host} className="el-host">
                           <div className="eb-miner" title={h.host}>
@@ -240,7 +240,8 @@ export default function ErrLogsPage() {
                   ["P0 致命", "p0", "威胁共识/出块/数据完整性 —— seal 失败、状态库损坏、无法同步、panic/OOM、分叉冲突", "立即处理"],
                   ["P1 影响", "p1", "服务质量受损或有恶化趋势 —— 持续广播失败、peer 大面积断连、磁盘/内存压力、RPC 大面积超时", "当天排查"],
                   ["P2 轻微", "p2", "局部/偶发功能错误,可自愈、影响面小,或对外部坏输入的正确拒绝", "观察"],
-                  ["P4 噪声", "noise", "业务常态,不是故障 —— 如 bid 内单笔 nonce too low(builder 竞价常态,整份 bid 作废,不影响共识)", "忽略"],
+                  ["P4 留意", "p4", "基本无害但值得偶尔扫一眼 —— 低频外部异常、量级可能积累的小问题;角色降档(data-seed 降 2 档)的下限也是这里", "留意量级"],
+                  ["P5 噪声", "noise", "业务常态,不是故障,完全可忽略 —— 如 bid 内单笔 nonce too low(builder 竞价常态,整份 bid 作废,不影响共识)", "忽略"],
                 ].map(([label, cls, def, act]) => (
                   <div key={cls} className="el-legend-row">
                     <em><span className={`el-lv el-lv-${cls}`}>{label}</span></em>

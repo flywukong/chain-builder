@@ -7,7 +7,7 @@
 import fs from "fs";
 import path from "path";
 
-export const ERR_LEVELS = ["P0", "P1", "P2", "noise"];
+export const ERR_LEVELS = ["P0", "P1", "P2", "P4", "noise"];   // noise 展示为 P5 噪声(完全忽略);P4 = 留意
 
 // 专家钉死的定级(优先于 AI 学习结果,add() 不可覆盖)。键 = clusterMessages 归并后的 pattern
 export const STATIC_GRADES = {

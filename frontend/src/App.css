@@ -729,7 +729,8 @@ body::before {
 .el-lv-p0    { color: #fff; background: #E5484D; }
 .el-lv-p1    { color: var(--bg); background: var(--orange); }
 .el-lv-p2    { color: var(--bg); background: var(--gold); }
-.el-lv-noise { color: var(--gold); background: rgba(240,185,11,.07); border: 1px solid rgba(240,185,11,.5); }
+.el-lv-p4    { color: var(--gold); background: rgba(240,185,11,.07); border: 1px solid rgba(240,185,11,.5); }
+.el-lv-noise { color: var(--muted); background: rgba(255,255,255,.05); border: 1px solid #3a3a3a; }
 .el-lv-none  { color: var(--dim); border: 1px dashed #3a372c; }
 .el-cluster.lv-p0, .el-sev.lv-p0 { border-color: rgba(229,72,77,.55); background: rgba(229,72,77,.06); }
 .el-cluster.lv-p1, .el-sev.lv-p1 { border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.05); }
@@ -766,6 +767,7 @@ body::before {
 .el-worst-p0 .sc-v { color: #E5484D; }
 .el-worst-p1 .sc-v { color: var(--orange); }
 .el-worst-p2 .sc-v { color: var(--gold); }
+.el-worst-p4 .sc-v { color: var(--gold); opacity: .85; }
 .el-worst-noise .sc-v { color: var(--muted); }
 .el-worst-none .sc-v { color: var(--dim); }
 .eb-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }

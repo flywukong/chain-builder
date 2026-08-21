@@ -851,8 +851,9 @@ async function buildErrLogs(minutes) {
   });
   // 日志字段展开:number/hash/peer/err 等全部带出(geth log.Error 的 kv 对)
   const fieldsStr = (f) => f ? Object.entries(f).slice(0, 10).map(([k, v]) => `${k}=${v}`).join(" ") : "";
-  const LVO = ["P0", "P1", "P2", "noise"];
-  const downgrade = (l, s) => LVO[Math.min(LVO.indexOf(l) + s, LVO.length - 1)];
+  const LVO = ["P0", "P1", "P2", "P4", "noise"];
+  // 角色降档下限是 P4(仍值得扫一眼):自动降档不产生"完全忽略",noise 只能由定级本身给出
+  const downgrade = (l, s) => (l === "noise" ? "noise" : LVO[Math.min(LVO.indexOf(l) + s, 3)]);
   // effLevel = 角色调整后的展示等级:模式只出现在非 validator 节点上时按 data-seed 口径降 2 档
   const clusters = clusterMessages(rows).slice(0, 20).map((c, i) => {
     const grade = errGrades.get(c.pattern);

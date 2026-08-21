@@ -12,6 +12,7 @@ export default function ErrLogsPage() {
   const [d, setD] = useState(null);
   const [loadErr, setLoadErr] = useState(null);
   const [ai, setAi] = useState({ loading: false, text: null, err: null });
+  const [showLegend, setShowLegend] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -95,7 +96,9 @@ export default function ErrLogsPage() {
                       </em>
                     )}
                   </span>
-                  <span className="sub">去参归并 · AI 定级(模式级,一次定级持久复用)</span>
+                  <span className="sub">去参归并 · AI 定级(模式级,一次定级持久复用)
+                    <button className="el-legend-btn" onClick={() => setShowLegend(true)}>定级说明</button>
+                  </span>
                 </div>
                 <div className="panel-body el-list">
                   {d.clusters.length === 0 && <div className="ph-note">窗口内无 ERROR 日志 ✓</div>}
@@ -161,6 +164,33 @@ export default function ErrLogsPage() {
               </div>
             </div>
           </>
+        )}
+        {showLegend && (
+          <div className="ai-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowLegend(false); }}>
+            <div className="ai-modal hp-modal el-legend-modal">
+              <div className="ai-modal-head">
+                <span className="hp-modal-title">ERROR 定级说明</span>
+                <span className="ai-modal-meta">AI 按「模式」定级(一次定级持久复用)· 专家钉死的条目 AI 不可覆盖</span>
+                <button className="robot-close" onClick={() => setShowLegend(false)}>×</button>
+              </div>
+              <div className="el-legend">
+                <div className="el-legend-row el-legend-head"><em>等级</em><span>定义</span><b>处置</b></div>
+                {[
+                  ["P0 致命", "p0", "威胁共识/出块/数据完整性 —— seal 失败、状态库损坏、无法同步、panic/OOM、分叉冲突", "立即处理"],
+                  ["P1 影响", "p1", "服务质量受损或有恶化趋势 —— 持续广播失败、peer 大面积断连、磁盘/内存压力、RPC 大面积超时", "当天排查"],
+                  ["P2 轻微", "p2", "局部/偶发功能错误,可自愈、影响面小,或对外部坏输入的正确拒绝", "观察"],
+                  ["噪声", "noise", "业务常态,不是故障 —— 如 bid 内单笔 nonce too low(builder 竞价常态,整份 bid 作废,不影响共识)", "忽略"],
+                ].map(([label, cls, def, act]) => (
+                  <div key={cls} className="el-legend-row">
+                    <em><span className={`el-lv el-lv-${cls}`}>{label}</span></em>
+                    <span>{def}</span>
+                    <b>{act}</b>
+                  </div>
+                ))}
+                <div className="el-legend-note">判断要点:区分「节点自身故障」与「对外部坏输入的正确处理」(后者顶多 P2);validator 与 data-seed 的同一错误敏感度不同;定级针对模式本身,量级异常激增时噪声也可能量变引起质变(总览 AI 会单独提示)。</div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

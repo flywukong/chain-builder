@@ -729,11 +729,23 @@ body::before {
 .el-lv-p0    { color: #fff; background: #E5484D; }
 .el-lv-p1    { color: var(--bg); background: var(--orange); }
 .el-lv-p2    { color: var(--bg); background: var(--gold); }
-.el-lv-noise { color: var(--muted); background: rgba(255,255,255,.06); border: 1px solid #2c2c2c; }
+.el-lv-noise { color: var(--gold); background: rgba(240,185,11,.07); border: 1px solid rgba(240,185,11,.5); }
 .el-lv-none  { color: var(--dim); border: 1px dashed #3a372c; }
 .el-cluster.lv-p0 { border-color: rgba(229,72,77,.55); background: rgba(229,72,77,.06); }
 .el-cluster.lv-p1 { border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.05); }
-.el-cluster.lv-noise { opacity: .75; }
+/* 定级说明按钮 + 弹窗表格 */
+.el-legend-btn { margin-left: 8px; font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--gold); cursor: pointer;
+  background: rgba(240,185,11,.08); border: 1px solid rgba(240,185,11,.4); border-radius: 4px; padding: 1px 7px; letter-spacing: 0; }
+.el-legend-btn:hover { background: rgba(240,185,11,.16); }
+.el-legend-modal { max-width: 760px; }
+.el-legend { display: flex; flex-direction: column; gap: 6px; padding: 6px 2px; }
+.el-legend-row { display: grid; grid-template-columns: 96px 1fr 82px; gap: 12px; align-items: baseline;
+  font-size: 11px; color: var(--text-dim); line-height: 1.55; padding: 7px 9px;
+  background: rgba(255,255,255,.02); border: 1px solid #23211a; border-radius: 6px; }
+.el-legend-head { background: none; border: none; padding: 0 9px; color: var(--muted); font-family: var(--mono); font-size: 9.5px; }
+.el-legend-row em { font-style: normal; }
+.el-legend-row b { color: var(--text); font-weight: 700; font-family: var(--mono); font-size: 10.5px; }
+.el-legend-note { font-size: 9.5px; color: var(--muted); line-height: 1.6; padding: 4px 9px; }
 .el-cl-grade { display: flex; flex-direction: column; gap: 2px; font-size: 9.5px; color: var(--text-dim);
   border-top: 1px dashed #26231b; padding-top: 4px; line-height: 1.5; }
 .el-cl-grade em { font-style: normal; color: var(--muted); margin-right: 6px; }

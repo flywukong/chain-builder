@@ -699,6 +699,25 @@ body::before {
 .bb-sess-mid em { font-style: normal; color: var(--dim); font-size: 9.5px; margin-left: 6px; }
 .bb-sess-low { display: flex; flex-wrap: wrap; gap: 4px 6px; color: var(--muted); font-size: 10px; }
 .bb-sess-low b { color: var(--text); }
+/* ERR 日志子系统 */
+.el-cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .el-cols { grid-template-columns: 1fr; } }
+.el-side { display: flex; flex-direction: column; gap: 14px; }
+.el-list { display: flex; flex-direction: column; gap: 7px; max-height: 560px; overflow: auto; }
+.el-cluster { display: flex; flex-direction: column; gap: 3px; padding: 7px 10px; border-radius: 6px;
+  background: rgba(255,255,255,.03); border: 1px solid #23211a; }
+.el-cl-top { display: flex; align-items: baseline; gap: 10px; }
+.el-cl-pattern { font-family: var(--mono); font-size: 10.5px; color: var(--text); word-break: break-all; flex: 1; }
+.el-cl-n { color: var(--orange); font-family: var(--mono); font-size: 13px; font-weight: 800; flex-shrink: 0; }
+.el-cl-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; }
+.el-cl-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
+.el-cl-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.el-recent { max-height: 300px; }
+.el-row { display: grid; grid-template-columns: 92px 96px 1fr; gap: 8px; font-family: var(--mono); font-size: 9.5px;
+  padding: 3px 6px; border-radius: 4px; background: #141414; border: 1px solid #222; align-items: baseline; }
+.el-row-t { color: var(--muted); }
+.el-row-h { color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.el-row-m { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eb-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
 .eb-none { font-size: 11px; color: #43d089; }
 .eb-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }

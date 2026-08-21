@@ -14,6 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer, getBuilderName } from "./block/streamer.js";
 import { BidBlockStore, decodeMevTag } from "./mev/bidBlockStore.js";
+import { searchLogs, fetchHostLogs, fmtLine, clusterMessages } from "./keter/logs.js";
 import { ChainContracts } from "./chain/contracts.js";
 import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts, sampleFullGasEvent } from "./ai/evidence.js";
@@ -24,7 +25,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -285,6 +286,23 @@ function keterMark(field, err) {
   if (err) keterHealth.error = err.message;
   else { keterHealth[field] = Date.now(); keterHealth.error = null; }
   broadcast("keterHealth", { ...keterHealth });
+}
+
+// validator 地址 → 自营节点 IP(仅 AP 自营;同 etherbase 多台时取在役那台)。外部 validator 返回 null → 无日志可查
+function validatorHostIp(addr) {
+  const a = (addr || "").toLowerCase();
+  if (!a) return null;
+  const rows = (latest.nodeStats ?? []).filter((n) => (n.etherbase || "").toLowerCase() === a);
+  if (!rows.length) return null;
+  const serving = rows.find((n) => /MEV|FFVoting|Mining/i.test(n.miningFeatures || ""));
+  return ((serving ?? rows[0]).instance || "").split(":")[0] || null;
+}
+// 节点 IP → validator 名称(或 instanceName),ERR 日志页归属列用
+function validatorNameForIp(ip) {
+  const n = (latest.nodeStats ?? []).find((x) => (x.instance || "").split(":")[0] === ip);
+  if (!n) return null;
+  if (n.etherbase) { const i = validatorInfo(n.etherbase); if (i.name) return i.name; }
+  return n.instanceName || null;
 }
 
 let lastLatSnap = { mid: [], tail: [] };   // 每节点 q0.5 / q0.95 即时快照(点名慢节点用)
@@ -767,6 +785,34 @@ app.get("/api/disk",      async (req) => {
 app.get("/api/window",    async () => windowStatsPlus());
 app.get("/api/blocks",    async () => streamer.window.slice(-120));   // recent blocks for ring/river polling
 app.get("/api/mev",       async () => mevStatsLive());
+// ── ERR 级日志分析(keter ES,AP 区域)──
+// 采样口径:total 为窗口真实总数;聚类/分布基于最近 ≤1000 条采样
+let errLogsCache = { at: 0, key: "", data: null };
+async function buildErrLogs(minutes) {
+  const now = Date.now();
+  const { total, rows } = await searchLogs(cfg.keterConfigPath, {
+    query: "level:ERROR", fromMs: now - minutes * 60e3, toMs: now,
+  });
+  const byHost = {};
+  rows.forEach((r) => { byHost[r.host] = (byHost[r.host] || 0) + 1; });
+  return {
+    minutes, total, sampled: rows.length, at: now,
+    clusters: clusterMessages(rows).slice(0, 20),
+    hosts: Object.entries(byHost).sort((a, b) => b[1] - a[1]).slice(0, 14)
+      .map(([host, n]) => ({ host, n, validator: validatorNameForIp(host) })),
+    recent: rows.slice(0, 40).map((r) => ({ t: r.t, host: r.host, validator: validatorNameForIp(r.host), msg: (r.msg || "").slice(0, 160), logFile: r.logFile })),
+  };
+}
+app.get("/api/errlogs", async (req) => {
+  const minutes = Math.min(Math.max(parseInt(req.query?.minutes, 10) || 30, 5), 1440);
+  const key = String(minutes);
+  if (errLogsCache.data && errLogsCache.key === key && Date.now() - errLogsCache.at < 60_000) return errLogsCache.data;
+  try {
+    const data = await buildErrLogs(minutes);
+    errLogsCache = { at: Date.now(), key, data };
+    return data;
+  } catch (e) { return { error: e.message }; }
+});
 // v2(SendBidBlock)观测:谁在走 bid-block、区块区间与数量(主网 Pasteur 未激活,来自提前灰度)
 app.get("/api/bidblock",  async () => {
   const v = bidBlockStore.view();
@@ -1313,7 +1359,17 @@ aiJobPool("/api/ai/traffic", async (body) => {
       evidence = await sampleBlockContracts(provider, sampleFrom, { samples: 8, labelBook }).catch((e) => ({ error: e.message }));
     }
   }
+  // 高峰窗口内自营节点的 WARN/ERROR 聚类:看大流量是否压出节点侧异常(超时/落后/txpool 溢出)
+  let nodeLogs = null;
+  if (ep?.peakT) {
+    const w0 = (ep.refined?.precise ? ep.refined.startT : ep.start ?? ep.peakT) - 60e3;
+    const w1 = Math.min((ep.refined?.precise ? ep.refined.endT : (ep.end ?? ep.peakT)) + 60e3, Date.now());
+    nodeLogs = await searchLogs(cfg.keterConfigPath, { query: "level:ERROR OR level:WARN", fromMs: w0, toMs: w1 })
+      .then(({ total, rows }) => ({ total, clusters: clusterMessages(rows).slice(0, 8) }))
+      .catch(() => null);
+  }
   return runTrafficAnalysis({
+    nodeLogs,
     hotPct: tl.hotPct ?? 90,
     pendingThreshold: tl.threshold ?? 4000,
     gasLimitM: liveGasLimitM(),
@@ -1416,10 +1472,20 @@ aiRoutes("slash", "/api/ai/slash", async (body) => {
   const label = days === 1 ? "24h" : `${days} 天`;
   const v = slashEvents.view(days * 86400e3);
   if (!v.count) throw new Error(`近 ${label} 无 slash 事件`);
+  const episodes = slashEpisodes(v.items).slice(0, 20);
+  // 自营 validator 被 slash:拉事件时刻 ±90s 的节点日志断因(最多取最近 2 个自营事件,控制体量)
+  const validatorLogs = [];
+  for (const e of episodes.filter((x) => x.internal).slice(0, 2)) {
+    const ip = validatorHostIp(e.validator);
+    if (!ip) continue;
+    const lg = await fetchHostLogs(cfg.keterConfigPath, ip, e.t - 90e3, e.t + 90e3, { max: 100 }).catch(() => null);
+    if (lg) validatorLogs.push({ validator: e.name, blocks: `${e.startBlock}-${e.endBlock}`, timeLocal: e.timeLocal, ...lg });
+  }
   return runSlashAnalysis({
     windowLabel: label,
     totalSlashBlocks: v.count,
-    episodes: slashEpisodes(v.items).slice(0, 20),
+    episodes,
+    validatorLogs: validatorLogs.length ? validatorLogs : null,
   });
 });
 
@@ -1451,6 +1517,12 @@ aiRoutes("emptyMiner", "/api/ai/empty-miner", async (body) => {
   const othersTop = Object.entries(byMiner).filter(([m]) => m !== miner)
     .sort((a, b) => b[1] - a[1]).slice(0, 5)
     .map(([m, n]) => ({ validator: validatorInfo(m).name ?? m.slice(0, 10), count: n }));
+  // 自营 validator:取最近一个空块 ±60s 的节点日志(该时刻它在轮次内,mining/txpool 行为都在)
+  const ip = validatorHostIp(miner);
+  const lastEmpty = mine[0];
+  const validatorLogs = ip && lastEmpty
+    ? await fetchHostLogs(cfg.keterConfigPath, ip, lastEmpty.t - 60e3, lastEmpty.t + 60e3, { max: 120 }).catch(() => null)
+    : null;
   return runEmptyMinerAnalysis({
     validator: info.name ?? miner.slice(0, 10), internal: info.internal,
     windowLabel: label, count: mine.length, windowTotal: v.count,
@@ -1459,6 +1531,21 @@ aiRoutes("emptyMiner", "/api/ai/empty-miner", async (body) => {
     streaks: (v.streaks ?? []).filter((s) => (s.miner || "").toLowerCase() === miner)
       .map((s) => ({ from: s.from, to: s.to, blocks: s.blocks, timeLocal: new Date(s.t).toLocaleString("zh-CN", { hour12: false }) })),
     othersTop,
+    validatorLogs: validatorLogs ? { ...validatorLogs, aroundBlock: lastEmpty.number } : null,
+  });
+});
+
+// ERR 日志 AI 解读:模式聚类 + 节点分布 + 原始样本
+aiRoutes("errlogs", "/api/ai/errlogs", async (body) => {
+  const minutes = Math.min(Math.max(Number(body?.minutes) || 30, 5), 1440);
+  const d = await buildErrLogs(minutes);
+  if (!d.total) throw new Error(`近 ${minutes} 分钟无 ERROR 日志`);
+  return runErrLogsAnalysis({
+    windowLabel: minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`,
+    total: d.total, sampled: d.sampled,
+    clusters: d.clusters.slice(0, 12),
+    hosts: d.hosts,
+    sampleLines: d.recent.slice(0, 20).map((r) => `${(r.t || "").slice(11, 19)} ${r.host}${r.validator ? "(" + r.validator + ")" : ""} ${r.msg}`),
   });
 });
 
@@ -1469,10 +1556,16 @@ aiRoutes("emptyStreak", "/api/ai/empty-streak", async (body) => {
   const s = emptyStore.view(days * 86400e3).streaks.find((x) => x.from === from);
   if (!s) throw new Error("该连续空块段已滚出窗口");
   const info = validatorInfo(s.miner);
+  // 自营 validator:拉事件时间窗 ±45s 的节点日志作为断因证据(外部 validator 拿不到,保持原口径)
+  const ip = validatorHostIp(s.miner);
+  const validatorLogs = ip
+    ? await fetchHostLogs(cfg.keterConfigPath, ip, s.t - 45e3, (s.tEnd ?? s.t) + 45e3, { max: 120 }).catch(() => null)
+    : null;
   return runEmptyStreakAnalysis({
     validator: info.name ?? (s.miner || "").slice(0, 10), internal: info.internal,
     from: s.from, to: s.to, blocks: s.blocks, span: s.span, numbers: s.numbers,
     t: s.t, timeLocal: new Date(s.t).toLocaleString("zh-CN", { hour12: false }),
+    validatorLogs,
   });
 });
 

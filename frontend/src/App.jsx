@@ -9,6 +9,7 @@ import TrafficPage  from "./pages/TrafficPage.jsx";
 import StoragePage  from "./pages/StoragePage.jsx";
 import TxnPage      from "./pages/TxnPage.jsx";
 import AlertsPage   from "./pages/AlertsPage.jsx";
+import ErrLogsPage  from "./pages/ErrLogsPage.jsx";
 import "./App.css";
 
 // fit-to-screen 基准画布:布局按此尺寸设计,任何视口按 min(宽比,高比) 连续缩放铺满,
@@ -64,6 +65,7 @@ export default function App() {
         {page === "traffic" && <TrafficPage state={state} />}
         {page === "storage" && <StoragePage />}
         {page === "txn"     && <TxnPage />}
+        {page === "logs"    && <ErrLogsPage />}
         {page === "alerts"  && (
           <AlertsPage
             slashStatus={state.slashStatus}

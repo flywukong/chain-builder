@@ -91,6 +91,7 @@ export async function runTrafficAnalysis(data) {
     "",
     "已提供事件时间线(北京时间)、30 天基线,以及事件峰值时段链上采样(若有):sampledBlocks 为采样区块,topContracts 按交易 gasLimit 份额聚合。",
     "事件区块区间的取值优先级(重要):若 chainEvidence.fullGasRange 存在(gas 打满事件的精定位结果),事件区间**一律以它为准**——from~to 是真正 gasUsed ≥ hotPct% 的连续块段(共 blocks 块),sampledBlocks / topContracts 也只统计这些真正打满的块,归因据此才准;没有 fullGasRange 时,才退用 refined 的 startBlock~endBlock(那是 5m 时间换算、偏宽,会把大量未打满块算进来)。结论里引用最终确定的这个区间;sampledBlocks 里的 pct 是各块 gas 利用率。",
+    "节点侧日志(可选):nodeLogs 是高峰窗口内全体自营节点的 WARN/ERROR 日志聚类(total 为窗口总条数,clusters 为去参归并的消息模式,含次数与涉及节点数)。若存在明显异常模式(导入超时、txpool 溢出、同步落后等),在影响评估里结合解读并点名模式;若量级属背景噪声或为 null,一句「节点侧平稳」带过,不要放大。",
     MCP_GUIDE,
     "本场景取证建议:topContracts 里未识别的高份额地址,用 read_contract(name/symbol)或 get_erc20_token_info 识别实体;可疑发送方用 get_native_balance / get_transaction 抽查 1-2 个,余额仅够 gas + nonce 密集 = 脚本集群。",
     "",
@@ -310,7 +311,8 @@ export async function runSlashAnalysis(data) {
     "输出结构:",
     "1. 结论:严重程度。判据——偶发单块(blocks=1)的 slash 属主网常见抖动(出块超时/网络毛刺);同一 validator 连续多块(blocks≥3)或短期内反复出现 = 节点持续故障信号;internal 的问题要重点点名。",
     "2. 逐段盘点(episodes,每段一行):timeLocal / validator(标注自营或外部)/ 连续 N 块(块号区间)/ 替代者 fillers / 间隔 gapMsMax。",
-    "3. 排查建议:internal 有 slash 时,建议核对该时段节点侧——出块超时、与 sentry/网络连通、是否落后追块;外部 validator 仅陈述事实,不必给建议。手头没有节点日志,禁止断言根因。",
+    "3. 排查建议:internal 有 slash 时,建议核对该时段节点侧——出块超时、与 sentry/网络连通、是否落后追块;外部 validator 仅陈述事实,不必给建议。",
+    "日志口径:若 validatorLogs 非空(自营被 slash 节点在事件时刻 ±90s 的原始日志,每项含 validator/blocks/lines),**应当据日志直接断因**并引用具体日志行(重启、追块、超时报错等);为 null 或某事件无对应日志时,该事件禁止断言根因,只给排查方向。",
     "全窗口无自营 slash 且均为偶发单块时,一句话说明属正常水位即可,不要制造风险。",
     "",
     "数据(JSON):",
@@ -342,7 +344,7 @@ export async function runEmptyStreakAnalysis(data) {
     "",
     "空块判据 gasUsed<200k(仅系统交易,未打包任何用户交易)。零散 1-2 个空块属 mempool 时序波动;连续 3 个及以上指向该 validator 节点侧异常(txpool 空、builder bid 未到达、节点重启或性能抖动)。",
     "输出两段:①**事件还原**:这段空块占该 validator 本轮(parlia 一轮 turnLength 个块)的多少、是整轮全空还是夹着正常块、前后轮次是否也异常、当时全网是否同时有其他 validator 空块(是则更像全网 mempool 短暂枯竭,不是单点故障);②**排查建议**:给运营方的具体核对项与时间点。",
-    "重要口径:监控侧没有 validator 节点日志,禁止断言根因;只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查。",
+    "日志口径:若 validatorLogs 非空(自营节点,事件时间窗 ±45s 的原始日志,lines 按时间升序,total 为窗口总条数),**应当据日志直接断因**并引用具体日志行(如 txpool 空、bid 未到、重启、同步落后、异常报错);若为 null(外部 validator 或日志不可达),维持原口径:禁止断言根因,只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查。",
     "称呼 validator 一律用名称,禁止报 0x 地址;引用块号写完整数字。",
     MCP_GUIDE,
     `本场景取证:用 bscops 的 get_block_miners 拉 #${data.from - 12}–#${data.to + 12}(step=1,含 gasUsedM)看该 validator 整轮情况与前后轮次,并确认同一时段是否有别的 validator 也在出空块;结论必须附块号证据。`,
@@ -353,6 +355,21 @@ export async function runEmptyStreakAnalysis(data) {
   return spawnClaude(prompt, { mcp: true });
 }
 
+// ── ERR 级日志分析(keter ES,AP 区域自营节点)──
+export async function runErrLogsAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网运维分析师。分析自营节点近 ${data.windowLabel} 的 ERROR 级日志,中文,220 字以内,直接正文。`,
+    "",
+    "数据口径:total 为窗口内 ERROR 总数(真实值);clusters 是最近 ≤1000 条采样去参归并的消息模式(pattern 中 N=数字、0x…=hash),count/hostCount 为采样内次数与涉及节点数;hosts 为节点分布(validator 字段非空 = 自营 validator 节点,null = fullnode/其他);sampleLines 为原始样本。",
+    "输出三段:①**总体判断**:错误量级(对比常态是激增还是背景噪声)、集中在哪几类模式、集中在个别节点还是全网;②**逐模式解读**:对 Top 3-5 个模式各一句 —— 这是什么错误、可能含义、影响面(点名涉及的 validator);③**处置建议**:哪些需要立即排查(点名节点)、哪些是已知噪声可忽略。",
+    "纪律:只依据给到的日志判断,不要编造模式;无法确定含义的模式如实写「含义待查」;validator 名称直接引用,禁止报 IP 之外再编名字。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt);
+}
+
 // ── 单个 validator 的空块画像:它为什么频繁出空块 ──
 export async function runEmptyMinerAnalysis(data) {
   const prompt = [
@@ -361,7 +378,7 @@ export async function runEmptyMinerAnalysis(data) {
     "空块判据 gasUsed<200k(仅系统交易,未打包任何用户交易)。",
     "输出两段:①**形态判断**:这些空块是集中在少数几个时段(节点异常/重启)还是长期均匀散布(常态,更像该节点 txpool 或 builder 链路一直不健康);有没有连续段(streaks 字段,连续 ≥3 个指向明确故障);空块占其出块量的比例是否异常。②**排查建议**:给出该 validator 的具体核对项与时间点。",
     "对比口径:othersTop 是同窗口其他 validator 的空块数,用于判断该 validator 是明显离群还是与同行相当 —— 若与同行相当,应说明这是全网普遍现象而非该节点问题。",
-    "重要口径:监控侧没有 validator 节点日志,禁止断言根因;只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查;外部 validator 只陈述事实,不输出联系运营方之类的操作建议。",
+    "日志口径:若 validatorLogs 非空(自营节点,最近一个空块 aroundBlock ±60s 的原始日志),**应当据日志直接断因**并引用具体日志行;若为 null(外部 validator 或日志不可达),维持原口径:禁止断言根因,只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查;外部 validator 只陈述事实,不输出联系运营方之类的操作建议。",
     "称呼 validator 一律用名称,禁止报 0x 地址;引用块号写完整数字。",
     MCP_GUIDE,
     "本场景取证:用 bscops 的 get_block_miners 抽 1-2 个空块附近的连续区间(step=1,gasUsedM<0.2 即空块),看该 validator 的整轮(parlia turnLength 个块)是全空还是夹着正常块,并确认同一时段别的 validator 是否也在出空块;结论附块号证据。",

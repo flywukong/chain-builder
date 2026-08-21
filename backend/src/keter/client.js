@@ -111,6 +111,18 @@ export async function grafanaQuery(datasourceUid, expr, opts = {}) {
 }
 
 /**
+ * keterPost — 通用 keter API POST(日志检索等非 grafana 端点复用同一套鉴权/Host 路由)
+ */
+export async function keterPost(pathname, body, { configPath, timeoutMs = 45000 } = {}) {
+  const token = loadToken(configPath);
+  const headers = { "Authorization": `Bearer ${token}` };
+  if (KETER_HOST_HEADER) headers["Host"] = KETER_HOST_HEADER;
+  const { status, text } = await httpPostJson(`${KETER_API_BASE}${pathname}`, body, headers, timeoutMs);
+  if (status < 200 || status >= 300) throw new Error(`Keter API ${status}: ${text.slice(0, 300)}`);
+  return JSON.parse(text);
+}
+
+/**
  * rangeQuery — for time-series charts (block insert latency, gas used)
  */
 export async function rangeQuery(datasourceUid, expr, opts = {}) {

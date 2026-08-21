@@ -7,6 +7,7 @@ const ICONS = {
   storage: "M4 6c0-1.6 3.6-2.8 8-2.8s8 1.2 8 2.8-3.6 2.8-8 2.8S4 7.6 4 6zM4 6v12c0 1.6 3.6 2.8 8 2.8s8-1.2 8-2.8V6M4 12c0 1.6 3.6 2.8 8 2.8s8-1.2 8-2.8",
   txn:     "M4 8h13l-3.2-3.2M20 16H7l3.2 3.2",
   alerts:  "M18 8.5a6 6 0 10-12 0c0 5.5-2.5 7.5-2.5 7.5h17s-2.5-2-2.5-7.5M10 20a2 2 0 004 0",
+  logs:    "M6 3h9l4 4v14H6zM15 3v4h4M9 11h6M9 15h6M9 7h2",   // 日志文件
 };
 
 const ITEMS = [
@@ -15,6 +16,7 @@ const ITEMS = [
   { id: "traffic", label: "流量",   tip: "Gas 利用率 · TxPool 深度 · 大流量检测" },
   { id: "mev",     label: "MEV",    tip: "Builder 格局 · v1/v2 占比 · Validator 出块榜" },
   { id: "txn",     label: "TXN分析", tip: "TXN 分析 · 链上流量特征 · meme/DeFi/bot 归类 · AI 标签库" },
+  { id: "logs",    label: "日志",   tip: "ERR 级日志聚类 · 节点归属 · AI 解读", tag: "AP" },
   { id: "storage", label: "存储",   tip: "db inspect 全表 · state 增长环比 · 趋势投影", tag: "自动化 v1.1" },
   { id: "alerts",  label: "告警",   tip: "slash / 磁盘 / 大流量 告警汇总", tag: "v1.1" },
 ];

@@ -38,10 +38,7 @@ export default function ErrLogsPage() {
   // 定级:P0 致命 / P1 影响 / P2 轻微 / noise 噪声;worst 决定顶部风险卡
   const LV = { P0: ["P0 致命", "p0"], P1: ["P1 影响", "p1"], P2: ["P2 轻微", "p2"], noise: ["噪声", "noise"] };
   const ORDER = ["P0", "P1", "P2", "noise"];
-  const worst = d?.clusters?.reduce((w, c) => {
-    const l = c.grade?.level;
-    return l && (w == null || ORDER.indexOf(l) < ORDER.indexOf(w)) ? l : w;
-  }, null) ?? null;
+  const worst = d?.worstEffective ?? null;   // 按节点角色调整后(data-seed 降 2 档)的全局最坏等级
   const lvCounts = ORDER.map((l) => [l, (d?.clusters ?? []).filter((c) => c.grade?.level === l).length]).filter(([, n]) => n > 0);
 
   return (
@@ -78,7 +75,7 @@ export default function ErrLogsPage() {
               </div>
               <div className={`stat-card el-worst-${worst ? LV[worst][1] : "none"}`}>
                 <div className="sc-v">{worst ? LV[worst][0] : d.grading?.pending ? "定级中…" : "—"}</div>
-                <div className="sc-l">最高定级 · AI 评估稳定性影响{d.grading?.pending ? ` · ${d.grading.pending} 个待定级` : ""}</div>
+                <div className="sc-l">最高定级 · 按节点角色调整(data-seed 降2档){d.grading?.pending ? ` · ${d.grading.pending} 个待定级` : ""}</div>
               </div>
             </div>
 
@@ -105,6 +102,7 @@ export default function ErrLogsPage() {
                   {d.clusters.map((c) => (
                     <div key={c.pattern} className={`el-cluster ${c.grade ? "lv-" + LV[c.grade.level][1] : ""}`} title={c.sample}>
                       <div className="el-cl-top">
+                        <i className="el-cl-idx">#{c.idx}</i>
                         <span className={`el-lv ${c.grade ? "el-lv-" + LV[c.grade.level][1] : "el-lv-none"}`}>
                           {c.grade ? LV[c.grade.level][0] : (d.grading?.running || d.grading?.pending ? "定级中…" : "未定级")}
                         </span>
@@ -124,8 +122,7 @@ export default function ErrLogsPage() {
                   ))}
                 </div>
               </div>
-              <div className="el-side">
-                <div className="panel">
+              <div className="panel">
                   <div className="panel-header"><span>节点分布</span><span className="sub">有名称 = 自营 validator</span></div>
                   <div className="panel-body el-list">
                     {d.hosts.map((h) => {
@@ -134,12 +131,26 @@ export default function ErrLogsPage() {
                         : h.tier === "inactive" ? ["inactive", "inactive"]
                         : h.role === "data-seed" ? ["data-seed", "seed"]
                         : h.role ? [h.role, "seed"] : ["未知", "seed"];
+                      const effCn = (l) => (l === "noise" ? "噪声" : l);
                       return (
-                        <div key={h.host} className="eb-miner" title={h.host}>
-                          <em>{h.validator ?? h.host}</em>
-                          <span className={`hp-behind-tier ht-${badge[1]}`}>{badge[0]}</span>
-                          <span className="eb-mbar"><i style={{ width: `${(h.n / (d.hosts[0]?.n || 1)) * 100}%` }} /></span>
-                          <b>{h.n}</b>
+                        <div key={h.host} className="el-host">
+                          <div className="eb-miner" title={h.host}>
+                            <em>{h.validator ?? h.host}{h.validator && <i className="el-host-ip">{h.host}</i>}</em>
+                            <span className={`hp-behind-tier ht-${badge[1]}`}>{badge[0]}</span>
+                            <span className="eb-mbar"><i style={{ width: `${(h.n / (d.hosts[0]?.n || 1)) * 100}%` }} /></span>
+                            <b>{h.n}</b>
+                          </div>
+                          {(h.patterns ?? []).length > 0 && (
+                            <div className="el-host-pats">
+                              {h.patterns.map((p) => (
+                                <span key={p.idx}
+                                      className={`el-lv el-hp ${p.eff ? "el-lv-" + LV[p.eff][1] : "el-lv-none"}`}
+                                      title={p.level && p.eff !== p.level ? `模式 #${p.idx} 原级 ${p.level},data-seed 自动降 2 档` : `模式 #${p.idx}`}>
+                                  #{p.idx}×{p.n}{p.eff ? ` ${effCn(p.eff)}` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -161,7 +172,6 @@ export default function ErrLogsPage() {
                     ))}
                   </div>
                 </div>
-              </div>
             </div>
           </>
         )}

@@ -390,6 +390,7 @@ export async function runErrLogsAnalysis(data) {
     "",
     "数据口径:total 为窗口内 ERROR 总数(真实值);clusters 是最近 ≤1000 条采样去参归并的消息模式(pattern 中 N=数字、0x…=hash),count/hostCount 为采样内次数与涉及节点数;hosts 为节点分布(validator 字段非空 = 自营 validator 节点,tier 为 cabinet/candidate/inactive,role=data-seed 为全节点);sampleLines 为原始样本。",
     "定级口径:clusters[].grade 是既有的模式级 AI 定级(level:P0 致命/P1 影响/P2 轻微/noise 噪声,附 cause/impact/action)——总体判断以它为基准,重点讲 P0/P1;grade 为 null 的模式按你的判断补充定性。但定级针对模式本身,若某个 noise/P2 模式在本窗口量级异常激增(count 相对 total 占比极高),要单独指出量变可能引起质变。",
+    "角色调整:hosts[].patterns[].eff 是按节点角色调整后的实际影响等级(data-seed 全节点自动降 2 档:P0→P2、P1/P2→噪声;validator 不降),worstEff 为该节点最坏调整级 —— 总体严重度按调整后等级判断,同一模式出现在 validator 上才按原级对待。",
     "输出三段:①**总体判断**:错误量级(对比常态是激增还是背景噪声)、集中在哪几类模式、集中在个别节点还是全网;②**逐模式解读**:对 Top 3-5 个模式各一句 —— 这是什么错误、可能含义、影响面(点名涉及的 validator);③**处置建议**:哪些需要立即排查(点名节点)、哪些是已知噪声可忽略。",
     "纪律:只依据给到的日志判断,不要编造模式;无法确定含义的模式如实写「含义待查」;validator 名称直接引用,禁止报 IP 之外再编名字。",
     "",

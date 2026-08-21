@@ -45,9 +45,12 @@ export function fmtLine(r) {
   return `${(r.t || "").slice(11, 23)} ${r.level} ${r.msg}${f ? " · " + f : ""}`;
 }
 
-// 消息聚类:去掉 hash/数字等参数后归并成模式,带出现次数、涉及节点、样本字段与角色(供 AI 定级)
+// 消息去参归并:数字/hash 抹平后作为「模式」键(聚类与定级库共用)
+export const normalizeMsg = (m) => (m || "").replace(/0x[0-9a-fA-F]{6,}/g, "0x…").replace(/\d[\d.,]*/g, "N").slice(0, 140);
+
+// 消息聚类:带出现次数、涉及节点、样本字段与角色(供 AI 定级)
 export function clusterMessages(rows) {
-  const norm = (m) => (m || "").replace(/0x[0-9a-fA-F]{6,}/g, "0x…").replace(/\d[\d.,]*/g, "N").slice(0, 140);
+  const norm = normalizeMsg;
   const kv = (f) => f ? Object.entries(f).slice(0, 10).map(([k, v]) => `${k}=${v}`).join(" ") : "";
   const map = new Map();
   for (const r of rows) {

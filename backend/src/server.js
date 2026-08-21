@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer, getBuilderName } from "./block/streamer.js";
 import { BidBlockStore, decodeMevTag } from "./mev/bidBlockStore.js";
-import { searchLogs, fetchHostLogs, fmtLine, clusterMessages } from "./keter/logs.js";
+import { searchLogs, fetchHostLogs, fmtLine, clusterMessages, normalizeMsg } from "./keter/logs.js";
 import { ErrGradeBook } from "./ai/errGradeBook.js";
 import { ChainContracts } from "./chain/contracts.js";
 import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
@@ -823,17 +823,37 @@ async function buildErrLogs(minutes) {
     query: "level:ERROR", fromMs: now - minutes * 60e3, toMs: now,
   });
   const byHost = {};
-  rows.forEach((r) => { const e = (byHost[r.host] ??= { n: 0, role: null }); e.n++; if (!e.role && r.role) e.role = r.role; });
+  rows.forEach((r) => {
+    const e = (byHost[r.host] ??= { n: 0, role: null, pats: {} });
+    e.n++;
+    if (!e.role && r.role) e.role = r.role;
+    const k = normalizeMsg(r.msg);
+    e.pats[k] = (e.pats[k] || 0) + 1;
+  });
   // 日志字段展开:number/hash/peer/err 等全部带出(geth log.Error 的 kv 对)
   const fieldsStr = (f) => f ? Object.entries(f).slice(0, 10).map(([k, v]) => `${k}=${v}`).join(" ") : "";
-  const clusters = clusterMessages(rows).slice(0, 20).map((c) => ({ ...c, grade: errGrades.get(c.pattern) }));
+  const clusters = clusterMessages(rows).slice(0, 20).map((c, i) => ({ ...c, idx: i + 1, grade: errGrades.get(c.pattern) }));
   const pending = scheduleErrGrading(clusters, minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`);
+  // 节点视角:命中的模式索引 + 定级;data-seed 的同一错误影响远小于 validator,展示等级自动降 2 档
+  const cByPat = new Map(clusters.map((c) => [c.pattern, c]));
+  const LVO = ["P0", "P1", "P2", "noise"];
+  const downgrade = (l, s) => LVO[Math.min(LVO.indexOf(l) + s, LVO.length - 1)];
+  const hosts = Object.entries(byHost).sort((a, b) => b[1].n - a[1].n).slice(0, 14).map(([host, e]) => {
+    const isSeed = e.role === "data-seed";
+    const patterns = Object.entries(e.pats)
+      .map(([k, n]) => { const c = cByPat.get(k); if (!c) return null;
+        const raw = c.grade?.level ?? null;
+        return { idx: c.idx, n, level: raw, eff: raw ? (isSeed ? downgrade(raw, 2) : raw) : null }; })
+      .filter(Boolean).sort((a, b) => b.n - a.n);
+    const worstEff = patterns.reduce((w, p) => p.eff && (w == null || LVO.indexOf(p.eff) < LVO.indexOf(w)) ? p.eff : w, null);
+    return { host, n: e.n, role: e.role, tier: nodeTierForIp(host), validator: validatorNameForIp(host), patterns, worstEff };
+  });
+  const worstEffective = hosts.reduce((w, h) => h.worstEff && (w == null || LVO.indexOf(h.worstEff) < LVO.indexOf(w)) ? h.worstEff : w, null);
   return {
     minutes, total, sampled: rows.length, at: now,
     grading: { known: errGrades.count(), pending, running: errGradeRun.running },
-    clusters,
-    hosts: Object.entries(byHost).sort((a, b) => b[1].n - a[1].n).slice(0, 14)
-      .map(([host, e]) => ({ host, n: e.n, role: e.role, tier: nodeTierForIp(host), validator: validatorNameForIp(host) })),
+    clusters, worstEffective,
+    hosts,
     recent: rows.slice(0, 40).map((r) => ({
       t: r.t, host: r.host, validator: validatorNameForIp(r.host), role: r.role,
       msg: (r.msg || "").slice(0, 200), extra: fieldsStr(r.fields).slice(0, 420), logFile: r.logFile,

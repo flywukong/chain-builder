@@ -17,7 +17,7 @@ import { BidBlockStore, decodeMevTag } from "./mev/bidBlockStore.js";
 import { searchLogs, fetchHostLogs, fmtLine, clusterMessages, normalizeMsg } from "./keter/logs.js";
 import { ErrGradeBook } from "./ai/errGradeBook.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
+import { fetchNodeStats, fetchNodeJobs, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts, sampleFullGasEvent } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -817,11 +817,30 @@ function nodeTierForIp(ip) {
   const n = (latest.nodeStats ?? []).find((x) => (x.instance || "").split(":")[0] === ip);
   return n?.etherbase ? (n.tier ?? null) : null;
 }
+// 非 validator 节点的细分类型:由 keter 全量 node_stats 的 job 名推断(10 分钟缓存)。
+// 同一 IP 可同属多个 job(如 dataseed + sentry-p2p),细分优先 sentry > bridge > public p2p > p2p > data-seed
+let nodeJobsCache = { at: 0, map: {} };
+async function refreshNodeJobs() {
+  if (Date.now() - nodeJobsCache.at < 10 * 60e3) return;
+  try { nodeJobsCache = { at: Date.now(), map: await fetchNodeJobs(cfg.keterConfigPath) }; }
+  catch { nodeJobsCache.at = Date.now() - 9 * 60e3; }   // 失败 1 分钟后重试
+}
+function ipSubtype(ip) {
+  const s = (nodeJobsCache.map[ip] ?? []).join(" ");
+  if (!s) return null;
+  if (/sentry/.test(s)) return "sentry p2p";
+  if (/bridge/.test(s)) return "bridge p2p";
+  if (/public/.test(s)) return "public p2p";
+  if (/p2p/.test(s)) return "p2p";
+  if (/dataseed/.test(s)) return "data-seed";
+  return null;
+}
 async function buildErrLogs(minutes) {
   const now = Date.now();
-  const { total, rows } = await searchLogs(cfg.keterConfigPath, {
-    query: "level:ERROR", fromMs: now - minutes * 60e3, toMs: now,
-  });
+  const [{ total, rows }] = await Promise.all([
+    searchLogs(cfg.keterConfigPath, { query: "level:ERROR", fromMs: now - minutes * 60e3, toMs: now }),
+    refreshNodeJobs(),
+  ]);
   const byHost = {};
   rows.forEach((r) => {
     const e = (byHost[r.host] ??= { n: 0, role: null, pats: {} });
@@ -832,12 +851,17 @@ async function buildErrLogs(minutes) {
   });
   // 日志字段展开:number/hash/peer/err 等全部带出(geth log.Error 的 kv 对)
   const fieldsStr = (f) => f ? Object.entries(f).slice(0, 10).map(([k, v]) => `${k}=${v}`).join(" ") : "";
-  const clusters = clusterMessages(rows).slice(0, 20).map((c, i) => ({ ...c, idx: i + 1, grade: errGrades.get(c.pattern) }));
+  const LVO = ["P0", "P1", "P2", "noise"];
+  const downgrade = (l, s) => LVO[Math.min(LVO.indexOf(l) + s, LVO.length - 1)];
+  // effLevel = 角色调整后的展示等级:模式只出现在非 validator 节点上时按 data-seed 口径降 2 档
+  const clusters = clusterMessages(rows).slice(0, 20).map((c, i) => {
+    const grade = errGrades.get(c.pattern);
+    const seedOnly = c.roles.length > 0 && c.roles.every((r) => r !== "validator");
+    return { ...c, idx: i + 1, grade, effLevel: grade ? (seedOnly ? downgrade(grade.level, 2) : grade.level) : null };
+  });
   const pending = scheduleErrGrading(clusters, minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`);
   // 节点视角:命中的模式索引 + 定级;data-seed 的同一错误影响远小于 validator,展示等级自动降 2 档
   const cByPat = new Map(clusters.map((c) => [c.pattern, c]));
-  const LVO = ["P0", "P1", "P2", "noise"];
-  const downgrade = (l, s) => LVO[Math.min(LVO.indexOf(l) + s, LVO.length - 1)];
   const hosts = Object.entries(byHost).sort((a, b) => b[1].n - a[1].n).slice(0, 14).map(([host, e]) => {
     const isSeed = e.role === "data-seed";
     const patterns = Object.entries(e.pats)
@@ -846,7 +870,7 @@ async function buildErrLogs(minutes) {
         return { idx: c.idx, n, level: raw, eff: raw ? (isSeed ? downgrade(raw, 2) : raw) : null }; })
       .filter(Boolean).sort((a, b) => b.n - a.n);
     const worstEff = patterns.reduce((w, p) => p.eff && (w == null || LVO.indexOf(p.eff) < LVO.indexOf(w)) ? p.eff : w, null);
-    return { host, n: e.n, role: e.role, tier: nodeTierForIp(host), validator: validatorNameForIp(host), patterns, worstEff };
+    return { host, n: e.n, role: e.role, subtype: ipSubtype(host), tier: nodeTierForIp(host), validator: validatorNameForIp(host), patterns, worstEff };
   });
   const worstEffective = hosts.reduce((w, h) => h.worstEff && (w == null || LVO.indexOf(h.worstEff) < LVO.indexOf(w)) ? h.worstEff : w, null);
   return {

@@ -755,6 +755,7 @@ body::before {
 .el-legend-note { font-size: 9.5px; color: var(--muted); line-height: 1.6; padding: 4px 9px; }
 /* 模式编号 + 节点分布的模式/定级 chips */
 .el-cl-idx { font-style: normal; font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--muted); flex-shrink: 0; }
+.el-lv-orig { font-style: normal; font-family: var(--mono); font-size: 8.5px; color: var(--dim); flex-shrink: 0; }
 .el-host { display: flex; flex-direction: column; gap: 4px; padding: 5px 7px; border-radius: 5px; background: #141414; border: 1px solid #222; }
 .el-host-ip { font-style: normal; color: var(--dim); font-size: 8.5px; margin-left: 6px; font-weight: 400; }
 .el-host-pats { display: flex; flex-wrap: wrap; gap: 4px; }

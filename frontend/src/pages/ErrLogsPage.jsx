@@ -51,9 +51,11 @@ export default function ErrLogsPage() {
   const LV = { P0: ["P0 致命", "p0"], P1: ["P1 影响", "p1"], P2: ["P2 轻微", "p2"], noise: ["P4 噪声", "noise"] };
   const ORDER = ["P0", "P1", "P2", "noise"];
   const worst = d?.worstEffective ?? null;   // 按节点角色调整后(data-seed 降 2 档)的全局最坏等级
-  const lvCounts = ORDER.map((l) => [l, (d?.clusters ?? []).filter((c) => c.grade?.level === l).length]).filter(([, n]) => n > 0);
+  // 展示一律用 effLevel(角色调整后:只出现在非 validator 节点的模式降 2 档),hover 提示原级
+  const lvOf = (c) => c.effLevel ?? c.grade?.level ?? null;
+  const lvCounts = ORDER.map((l) => [l, (d?.clusters ?? []).filter((c) => lvOf(c) === l).length]).filter(([, n]) => n > 0);
   // 24h 按严重度排序(未定级排在 P2 之后);每个模式带出最新一条样本
-  const sevRank = (c) => (c.grade ? ORDER.indexOf(c.grade.level) : 2.5);
+  const sevRank = (c) => (lvOf(c) ? ORDER.indexOf(lvOf(c)) : 2.5);
   const severe = [...(d24?.clusters ?? [])].sort((a, b) => sevRank(a) - sevRank(b) || b.count - a.count).slice(0, 8);
   const latestSample = (pat) => (d24?.recent ?? []).find((r) => r.pat === pat) ?? null;
 
@@ -115,12 +117,14 @@ export default function ErrLogsPage() {
                 <div className="panel-body el-list">
                   {d.clusters.length === 0 && <div className="ph-note">窗口内无 ERROR 日志 ✓</div>}
                   {d.clusters.map((c) => (
-                    <div key={c.pattern} className={`el-cluster ${c.grade ? "lv-" + LV[c.grade.level][1] : ""}`} title={c.sample}>
+                    <div key={c.pattern} className={`el-cluster ${lvOf(c) ? "lv-" + LV[lvOf(c)][1] : ""}`} title={c.sample}>
                       <div className="el-cl-top">
                         <i className="el-cl-idx">#{c.idx}</i>
-                        <span className={`el-lv ${c.grade ? "el-lv-" + LV[c.grade.level][1] : "el-lv-none"}`}>
-                          {c.grade ? LV[c.grade.level][0] : (d.grading?.running || d.grading?.pending ? "定级中…" : "未定级")}
+                        <span className={`el-lv ${lvOf(c) ? "el-lv-" + LV[lvOf(c)][1] : "el-lv-none"}`}
+                              title={c.grade && c.effLevel !== c.grade.level ? `原级 ${c.grade.level};仅出现在非 validator 节点,自动降 2 档` : undefined}>
+                          {lvOf(c) ? LV[lvOf(c)][0] : (d.grading?.running || d.grading?.pending ? "定级中…" : "未定级")}
                         </span>
+                        {c.grade && c.effLevel !== c.grade.level && <i className="el-lv-orig">原级 {c.grade.level}</i>}
                         <span className="el-cl-pattern">{c.pattern}</span>
                         <b className="el-cl-n">{c.count}</b>
                       </div>
@@ -144,8 +148,7 @@ export default function ErrLogsPage() {
                       const badge = h.tier === "cabinet" ? ["cabinet", "cabinet"]
                         : h.tier === "candidate" ? ["candidate", "candidate"]
                         : h.tier === "inactive" ? ["inactive", "inactive"]
-                        : h.role === "data-seed" ? ["data-seed", "seed"]
-                        : h.role ? [h.role, "seed"] : ["未知", "seed"];
+                        : [h.subtype ?? h.role ?? "未知", "seed"];
                       const effCn = (l) => (l === "noise" ? "P4" : l);
                       return (
                         <div key={h.host} className="el-host">
@@ -206,10 +209,11 @@ export default function ErrLogsPage() {
                 {severe.map((c) => {
                   const s = latestSample(c.pattern);
                   return (
-                    <div key={c.pattern} className={`el-sev ${c.grade ? "lv-" + LV[c.grade.level][1] : ""}`} title={c.sample}>
+                    <div key={c.pattern} className={`el-sev ${lvOf(c) ? "lv-" + LV[lvOf(c)][1] : ""}`} title={c.sample}>
                       <div className="el-sev-top">
-                        <span className={`el-lv ${c.grade ? "el-lv-" + LV[c.grade.level][1] : "el-lv-none"}`}>
-                          {c.grade ? LV[c.grade.level][0] : "未定级"}
+                        <span className={`el-lv ${lvOf(c) ? "el-lv-" + LV[lvOf(c)][1] : "el-lv-none"}`}
+                              title={c.grade && c.effLevel !== c.grade.level ? `原级 ${c.grade.level};仅出现在非 validator 节点,自动降 2 档` : undefined}>
+                          {lvOf(c) ? LV[lvOf(c)][0] : "未定级"}
                         </span>
                         <span className="el-cl-pattern">{c.pattern}</span>
                         <span className="el-sev-meta">{c.count.toLocaleString()} 条 · {c.hostCount} 节点 · 最近 {fmtT(c.lastT)}</span>

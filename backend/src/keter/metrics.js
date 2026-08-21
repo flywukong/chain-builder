@@ -47,6 +47,19 @@ export function dedupeLatestPerInstance(nodes) {
   return [...byInstance.values()];
 }
 
+// ── 全量 node_stats 的 IP → job 集合(不过滤 job):用于 data-seed/p2p 细分标注 ──
+// 同一 IP 可能同属多个 job(如 dex-prod-s1-bsc-dataseed + s1-sentry-p2p),全部带回
+export async function fetchNodeJobs(configPath) {
+  const raw = await grafanaQuery(DATASOURCES["dex-prod"], `timestamp(node_stats)`, { configPath });
+  const map = {};
+  for (const s of extractSeries(raw)) {
+    const ip = (s.labels.instance || "").split(":")[0];
+    if (!ip || !s.labels.job) continue;
+    (map[ip] ??= new Set()).add(s.labels.job);
+  }
+  return Object.fromEntries(Object.entries(map).map(([ip, set]) => [ip, [...set]]));
+}
+
 // ── Gas-used ratio of 2 typical validators (avg) ────────────────────────────
 // Default to all-validator lines was too noisy; mirror the team's Grafana which
 // shows the average gas-used-ratio of 2 representative IPs.

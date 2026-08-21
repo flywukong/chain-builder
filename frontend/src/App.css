@@ -717,7 +717,31 @@ body::before {
   padding: 3px 6px; border-radius: 4px; background: #141414; border: 1px solid #222; align-items: baseline; }
 .el-row-t { color: var(--muted); }
 .el-row-h { color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.el-row-m { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.el-row-m { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 双行样本:首行 时间·节点·消息,次行 完整 kv 字段(number/hash/peer/err) */
+.el-row2 { display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: 9.5px;
+  padding: 4px 7px; border-radius: 4px; background: #141414; border: 1px solid #222; }
+.el-row2-top { display: grid; grid-template-columns: 92px 96px 1fr; gap: 8px; align-items: baseline; }
+.el-row2-x { color: var(--muted); font-size: 8.5px; line-height: 1.5; word-break: break-all; }
+.ht-seed { color: var(--dim); border: 1px solid #2c2c2c; }
+/* ERROR 模式 AI 定级:P0 红 / P1 橙 / P2 金 / 噪声灰 */
+.el-lv { flex-shrink: 0; font-size: 9px; font-weight: 800; letter-spacing: .3px; border-radius: 4px; padding: 1px 7px; white-space: nowrap; }
+.el-lv-p0    { color: #fff; background: #E5484D; }
+.el-lv-p1    { color: var(--bg); background: var(--orange); }
+.el-lv-p2    { color: var(--bg); background: var(--gold); }
+.el-lv-noise { color: var(--muted); background: rgba(255,255,255,.06); border: 1px solid #2c2c2c; }
+.el-lv-none  { color: var(--dim); border: 1px dashed #3a372c; }
+.el-cluster.lv-p0 { border-color: rgba(229,72,77,.55); background: rgba(229,72,77,.06); }
+.el-cluster.lv-p1 { border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.05); }
+.el-cluster.lv-noise { opacity: .75; }
+.el-cl-grade { display: flex; flex-direction: column; gap: 2px; font-size: 9.5px; color: var(--text-dim);
+  border-top: 1px dashed #26231b; padding-top: 4px; line-height: 1.5; }
+.el-cl-grade em { font-style: normal; color: var(--muted); margin-right: 6px; }
+.el-worst-p0 .sc-v { color: #E5484D; }
+.el-worst-p1 .sc-v { color: var(--orange); }
+.el-worst-p2 .sc-v { color: var(--gold); }
+.el-worst-noise .sc-v { color: var(--muted); }
+.el-worst-none .sc-v { color: var(--dim); }
 .eb-mbar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--orange), var(--gold)); }
 .eb-none { font-size: 11px; color: #43d089; }
 .eb-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }

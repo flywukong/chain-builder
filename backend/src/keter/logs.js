@@ -45,19 +45,22 @@ export function fmtLine(r) {
   return `${(r.t || "").slice(11, 23)} ${r.level} ${r.msg}${f ? " · " + f : ""}`;
 }
 
-// 消息聚类:去掉 hash/数字等参数后归并成模式,带出现次数与涉及节点
+// 消息聚类:去掉 hash/数字等参数后归并成模式,带出现次数、涉及节点、样本字段与角色(供 AI 定级)
 export function clusterMessages(rows) {
   const norm = (m) => (m || "").replace(/0x[0-9a-fA-F]{6,}/g, "0x…").replace(/\d[\d.,]*/g, "N").slice(0, 140);
+  const kv = (f) => f ? Object.entries(f).slice(0, 10).map(([k, v]) => `${k}=${v}`).join(" ") : "";
   const map = new Map();
   for (const r of rows) {
     const k = norm(r.msg);
-    const e = map.get(k) ?? { pattern: k, count: 0, hostSet: new Set(), sample: r.msg, lastT: r.t, level: r.level };
+    const e = map.get(k) ?? { pattern: k, count: 0, hostSet: new Set(), roleSet: new Set(),
+                              sample: r.msg, sampleExtra: kv(r.fields).slice(0, 300), lastT: r.t, level: r.level };
     e.count++;
     e.hostSet.add(r.host);
+    if (r.role) e.roleSet.add(r.role);
     if (r.t > e.lastT) e.lastT = r.t;
     map.set(k, e);
   }
-  return [...map.values()].sort((a, b) => b.count - a.count).map(({ hostSet, ...e }) => ({
-    ...e, hostCount: hostSet.size, hosts: [...hostSet].slice(0, 8),
+  return [...map.values()].sort((a, b) => b.count - a.count).map(({ hostSet, roleSet, ...e }) => ({
+    ...e, hostCount: hostSet.size, hosts: [...hostSet].slice(0, 8), roles: [...roleSet],
   }));
 }

@@ -15,6 +15,7 @@ import { ethers } from "ethers";
 import { BlockStreamer, getBuilderName } from "./block/streamer.js";
 import { BidBlockStore, decodeMevTag } from "./mev/bidBlockStore.js";
 import { searchLogs, fetchHostLogs, fmtLine, clusterMessages } from "./keter/logs.js";
+import { ErrGradeBook } from "./ai/errGradeBook.js";
 import { ChainContracts } from "./chain/contracts.js";
 import { fetchNodeStats, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
 import { sampleBlockContracts, sampleFullGasEvent } from "./ai/evidence.js";
@@ -25,7 +26,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -52,6 +53,7 @@ const latencyStore = new LatencyStore(path.join(dataDir, "latency-24h-v2.json"))
 const txpoolStore  = new TxpoolStore(path.join(dataDir, "txpool-24h.json"));
 const emptyStore   = new EmptyBlockStore(path.join(dataDir, "empty-24h.json"));
 const bidBlockStore = new BidBlockStore(path.join(dataDir, "bidblock-15d.json"));
+const errGrades = new ErrGradeBook(path.join(dataDir, "errlog-grades.json"));
 const reorgObs     = new ReorgObsStore(path.join(dataDir, "reorg-obs-24h.json"));
 const slashEvents  = new SlashEventStore(path.join(dataDir, "slash-events-15d-v2.json"));   // v2:15d 窗口 + filler/gapMs enrich,换文件触发全量回填
 // 交易分析子系统:1min/块 采样 → 规则分类 → AI 归类未知热门合约(标签库滚雪球)
@@ -788,19 +790,54 @@ app.get("/api/mev",       async () => mevStatsLive());
 // ── ERR 级日志分析(keter ES,AP 区域)──
 // 采样口径:total 为窗口真实总数;聚类/分布基于最近 ≤1000 条采样
 let errLogsCache = { at: 0, key: "", data: null };
+// 未定级模式的后台 AI 定级:fire-and-forget,同一时间只跑一个批次,批间隔 ≥10 分钟
+let errGradeRun = { at: 0, running: false };
+function scheduleErrGrading(clusters, windowLabel) {
+  const ungraded = clusters.filter((c) => !c.grade).slice(0, 10);
+  if (!ungraded.length) return 0;
+  if (errGradeRun.running || Date.now() - errGradeRun.at < 10 * 60e3) return ungraded.length;
+  errGradeRun = { at: Date.now(), running: true };
+  (async () => {
+    try {
+      const entries = await runErrGrading(ungraded.map((c) => ({
+        pattern: c.pattern, sample: c.sample, sampleExtra: c.sampleExtra,
+        count: c.count, hostCount: c.hostCount, roles: c.roles, windowLabel,
+      })));
+      const n = errGrades.add(entries);
+      console.log(`[errlogs] AI graded ${n}/${ungraded.length} patterns (book total ${errGrades.count()})`);
+      errLogsCache.at = 0;   // 失效缓存,下次刷新即带新定级
+    } catch (e) { console.error("[errlogs] grading failed:", e.message); }
+    finally { errGradeRun.running = false; }
+  })();
+  return ungraded.length;
+}
+
+// 节点 IP → validator 层级(cabinet/candidate/inactive;非 validator 节点返回 null)
+function nodeTierForIp(ip) {
+  const n = (latest.nodeStats ?? []).find((x) => (x.instance || "").split(":")[0] === ip);
+  return n?.etherbase ? (n.tier ?? null) : null;
+}
 async function buildErrLogs(minutes) {
   const now = Date.now();
   const { total, rows } = await searchLogs(cfg.keterConfigPath, {
     query: "level:ERROR", fromMs: now - minutes * 60e3, toMs: now,
   });
   const byHost = {};
-  rows.forEach((r) => { byHost[r.host] = (byHost[r.host] || 0) + 1; });
+  rows.forEach((r) => { const e = (byHost[r.host] ??= { n: 0, role: null }); e.n++; if (!e.role && r.role) e.role = r.role; });
+  // 日志字段展开:number/hash/peer/err 等全部带出(geth log.Error 的 kv 对)
+  const fieldsStr = (f) => f ? Object.entries(f).slice(0, 10).map(([k, v]) => `${k}=${v}`).join(" ") : "";
+  const clusters = clusterMessages(rows).slice(0, 20).map((c) => ({ ...c, grade: errGrades.get(c.pattern) }));
+  const pending = scheduleErrGrading(clusters, minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`);
   return {
     minutes, total, sampled: rows.length, at: now,
-    clusters: clusterMessages(rows).slice(0, 20),
-    hosts: Object.entries(byHost).sort((a, b) => b[1] - a[1]).slice(0, 14)
-      .map(([host, n]) => ({ host, n, validator: validatorNameForIp(host) })),
-    recent: rows.slice(0, 40).map((r) => ({ t: r.t, host: r.host, validator: validatorNameForIp(r.host), msg: (r.msg || "").slice(0, 160), logFile: r.logFile })),
+    grading: { known: errGrades.count(), pending, running: errGradeRun.running },
+    clusters,
+    hosts: Object.entries(byHost).sort((a, b) => b[1].n - a[1].n).slice(0, 14)
+      .map(([host, e]) => ({ host, n: e.n, role: e.role, tier: nodeTierForIp(host), validator: validatorNameForIp(host) })),
+    recent: rows.slice(0, 40).map((r) => ({
+      t: r.t, host: r.host, validator: validatorNameForIp(r.host), role: r.role,
+      msg: (r.msg || "").slice(0, 200), extra: fieldsStr(r.fields).slice(0, 420), logFile: r.logFile,
+    })),
   };
 }
 app.get("/api/errlogs", async (req) => {
@@ -1545,7 +1582,7 @@ aiRoutes("errlogs", "/api/ai/errlogs", async (body) => {
     total: d.total, sampled: d.sampled,
     clusters: d.clusters.slice(0, 12),
     hosts: d.hosts,
-    sampleLines: d.recent.slice(0, 20).map((r) => `${(r.t || "").slice(11, 19)} ${r.host}${r.validator ? "(" + r.validator + ")" : ""} ${r.msg}`),
+    sampleLines: d.recent.slice(0, 20).map((r) => `${(r.t || "").slice(11, 19)} ${r.host}${r.validator ? "(" + r.validator + ")" : ""} ${r.msg}${r.extra ? " · " + r.extra : ""}`),
   });
 });
 

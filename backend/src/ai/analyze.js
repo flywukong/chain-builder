@@ -355,12 +355,41 @@ export async function runEmptyStreakAnalysis(data) {
   return spawnClaude(prompt, { mcp: true });
 }
 
+// ── ERROR 日志模式批量定级(结果进 ErrGradeBook,同模式只定一次)──
+export async function runErrGrading(candidates) {
+  const prompt = [
+    "你是 BSC(BNB Smart Chain)节点运维专家。对下面每个 ERROR 日志「模式」定级:评估它是否真的威胁线上稳定性 —— 同为 ERROR,影响天差地别。",
+    "",
+    "level 只能取:",
+    "- P0(致命):威胁共识/出块/数据完整性 —— seal 失败、状态库损坏/corruption、无法同步、panic/OOM、检测到分叉冲突。需立即处理。",
+    "- P1(影响):服务质量受损或有恶化趋势 —— 持续性的块广播失败、peer 大面积断连、磁盘/内存压力、RPC 大面积超时。当天排查。",
+    "- P2(轻微):局部/偶发功能错误,可自愈、影响面小 —— 单笔请求失败、偶发 peer 异常、对坏输入的正确拒绝。观察即可。",
+    "- noise(噪声):业务常态,不是故障 —— 例如 MEV bid 模拟中单笔 tx nonce too low / insufficient funds(builder 竞价常态,validator 正确拒绝);探测类无效请求。可忽略。",
+    "",
+    "判断要点:①这是节点自身故障,还是节点对外部坏输入的正确处理(后者顶多 P2);②影响的是共识/出块,还是仅辅助功能;③roles 里 validator 与 data-seed 的同一错误影响不同(validator 涉及出块,更敏感);④count/hostCount 只作参考 —— 定级针对模式本身,量级激增的判断交给别处。",
+    "定标样例(专家已定,照此尺度):「BidSimulator: failed to commit tx」虽为 ERROR,语义是该份 builder bid 里有一笔交易模拟失败、整份 bid 作废 —— 对同步与共识无影响,validator 只是少用这一份 MEV 包 → noise。MEV 竞价/bid 处理路径上的单份失败大多属此类;而同样的字眼出现在出块/导入/状态写入路径就完全不同。",
+    "每项给:cause(根因一句,依据 sample/sampleExtra 里的 err 字段)、impact(对线上稳定性的影响一句)、action(处置一句:立即排查/当天排查/观察/忽略)。",
+    "不确定含义的模式宁可给 P2 并在 cause 写明「含义待查」,禁止编造。",
+    "",
+    "只输出 JSON 数组,不要任何其他文字:",
+    '[{"pattern":"原样返回候选里的 pattern","level":"P0|P1|P2|noise","cause":"…","impact":"…","action":"…"}]',
+    "",
+    "候选模式(JSON):",
+    "```json", JSON.stringify(candidates, null, 1), "```",
+  ].join("\n");
+  const text = await spawnClaude(prompt, { timeoutMs: 180_000 });
+  const m = text.match(/\[[\s\S]*\]/);
+  if (!m) throw new Error("err grading: no JSON array in response");
+  return JSON.parse(m[0]);
+}
+
 // ── ERR 级日志分析(keter ES,AP 区域自营节点)──
 export async function runErrLogsAnalysis(data) {
   const prompt = [
     `你是 BSC 主网运维分析师。分析自营节点近 ${data.windowLabel} 的 ERROR 级日志,中文,220 字以内,直接正文。`,
     "",
-    "数据口径:total 为窗口内 ERROR 总数(真实值);clusters 是最近 ≤1000 条采样去参归并的消息模式(pattern 中 N=数字、0x…=hash),count/hostCount 为采样内次数与涉及节点数;hosts 为节点分布(validator 字段非空 = 自营 validator 节点,null = fullnode/其他);sampleLines 为原始样本。",
+    "数据口径:total 为窗口内 ERROR 总数(真实值);clusters 是最近 ≤1000 条采样去参归并的消息模式(pattern 中 N=数字、0x…=hash),count/hostCount 为采样内次数与涉及节点数;hosts 为节点分布(validator 字段非空 = 自营 validator 节点,tier 为 cabinet/candidate/inactive,role=data-seed 为全节点);sampleLines 为原始样本。",
+    "定级口径:clusters[].grade 是既有的模式级 AI 定级(level:P0 致命/P1 影响/P2 轻微/noise 噪声,附 cause/impact/action)——总体判断以它为基准,重点讲 P0/P1;grade 为 null 的模式按你的判断补充定性。但定级针对模式本身,若某个 noise/P2 模式在本窗口量级异常激增(count 相对 total 占比极高),要单独指出量变可能引起质变。",
     "输出三段:①**总体判断**:错误量级(对比常态是激增还是背景噪声)、集中在哪几类模式、集中在个别节点还是全网;②**逐模式解读**:对 Top 3-5 个模式各一句 —— 这是什么错误、可能含义、影响面(点名涉及的 validator);③**处置建议**:哪些需要立即排查(点名节点)、哪些是已知噪声可忽略。",
     "纪律:只依据给到的日志判断,不要编造模式;无法确定含义的模式如实写「含义待查」;validator 名称直接引用,禁止报 IP 之外再编名字。",
     "",

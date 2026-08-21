@@ -181,14 +181,18 @@ export default function TxnPage() {
     setOpenAddr((x) => (x === addr ? null : addr));
   };
 
+  // 热门合约独立时间窗(24h/7d/30d),与分布口径互不影响
+  const [hotDays, setHotDays] = useState(1);
+  const hotLabel = hotDays === 1 ? "24H" : `${hotDays}天`;
+
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + `/api/txn?days=${distDays}`).then((r) => r.json())
+    const pull = () => fetch(API + `/api/txn?days=${distDays}&hot=${hotDays}`).then((r) => r.json())
       .then((j) => { if (alive) setD(j); }).catch(() => {});
     pull();
     const t = setInterval(pull, 60_000);
     return () => { alive = false; clearInterval(t); };
-  }, [distDays]);
+  }, [distDays, hotDays]);
 
   const pct = (c) => d?.catPct24?.[c] ?? 0;
   const cnt = (c) => d?.catCount24?.[c] ?? 0;
@@ -284,7 +288,7 @@ export default function TxnPage() {
                     {at ? `自 ${sinceStr} · ${at.total.toLocaleString()} 笔累计` : `${d?.total24?.toLocaleString() ?? "…"} 笔 · 全量`}
                   </span>
                   <span className="tf-ranges">
-                    {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["all", "历史累计"]].map(([m, l]) => (
+                    {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"], ["all", "历史累计"]].map(([m, l]) => (
                       <button key={m} className={`tf-range ${distMode === m ? "on" : ""}`} onClick={() => setDistMode(m)}>{l}</button>
                     ))}
                   </span>
@@ -328,7 +332,16 @@ export default function TxnPage() {
         })()}
 
         <div className="panel" style={{ maxWidth: 900 }}>
-          <div className="panel-header"><span>24H 热门合约</span><span className="sub">标注(身份) · 分类(行为)+ 依据 · AI 标注带 ✦</span></div>
+          <div className="panel-header">
+            <span>{hotLabel} 热门合约</span>
+            <span className="sub">标注(身份) · 分类(行为)+ 依据 · AI 标注带 ✦
+              <span className="tf-ranges" style={{ marginLeft: 10 }}>
+                {[[1, "24H"], [7, "7天"], [30, "30天"]].map(([v, l]) => (
+                  <button key={v} className={`tf-range ${hotDays === v ? "on" : ""}`} onClick={() => setHotDays(v)}>{l}</button>
+                ))}
+              </span>
+            </span>
+          </div>
           <div className="panel-body txn-contracts">
             <div className="txn-crow txn-crow-head">
               <span>标注 / 地址线索</span>

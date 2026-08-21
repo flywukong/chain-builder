@@ -1674,8 +1674,9 @@ aiRoutes("txpool", "/api/ai/txpool", async () => {
 });
 // 交易分析:7 天分类趋势 + 24h 分布 + top 合约(附地址情报,已缓存直挂、未缓存后台预热)
 app.get("/api/txn", async (req) => {
-  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 7);
-  const v = txnStore.view(labelBook, days);
+  const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 30);
+  const hot = Math.min(Math.max(parseInt(req.query?.hot, 10) || 1, 1), 30);   // 热门合约独立窗口(24h/7d/30d)
+  const v = txnStore.view(labelBook, days, hot);
   for (const c of v.topContracts ?? []) {
     const it = getCachedIntel(c.addr);
     if (it) c.intel = { type: it.type, codeSize: it.codeSize, nonce: it.nonce, verifiedName: it.verifiedName };

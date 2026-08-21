@@ -1,5 +1,5 @@
 /**
- * TxnStore — 7-day rolling hourly buckets of classified tx samples.
+ * TxnStore — 30-day rolling hourly buckets of classified tx samples.
  * bucket: { t(hour-start ms), blocks, txs, cats: {cat:{n,gas}}, contracts: {addr:{n,gas}} }
  * Persisted as JSON; contracts trimmed to top 80 per bucket on save.
  */
@@ -8,7 +8,7 @@ import fs from "fs";
 import path from "path";
 import { CATS } from "./classifier.js";
 
-const WINDOW_MS = 7 * 24 * 3600 * 1000;
+const WINDOW_MS = 30 * 24 * 3600 * 1000;
 const HOUR = 3600 * 1000;
 
 export class TxnStore {
@@ -227,12 +227,12 @@ export class TxnStore {
   }
 
   // windowDays:分类分布统计窗口(1/3/7 天);趋势图与热门合约固定 24h
-  view(labelBook, windowDays = 1) {
+  view(labelBook, windowDays = 1, hotDays = 1) {
     const now = Date.now();
-    const winMs = Math.min(Math.max(Number(windowDays) || 1, 1), 7) * 24 * HOUR;
-    // 7d daily rollup
+    const winMs = Math.min(Math.max(Number(windowDays) || 1, 1), 30) * 24 * HOUR;
+    // 7d daily rollup(维持 7 天口径:图表与环比语义不随 30d 存储窗口改变)
     const days = {};
-    for (const b of this.buckets) {
+    for (const b of this.buckets.filter((x) => x.t >= now - 7 * 24 * HOUR)) {
       const d = new Date(b.t);
       const key = `${d.getMonth() + 1}/${d.getDate()}`;
       const day = (days[key] ??= { day: key, t: b.t, blocks: 0, txs: 0, cats: {} });
@@ -246,9 +246,10 @@ export class TxnStore {
     const h24 = this.buckets.filter((b) => b.t >= now - 24 * HOUR)
       .map((b) => ({ t: b.t, txs: b.txs, cats: Object.fromEntries(CATS.map((c) => [c, b.cats[c]?.n ?? 0])) }));
     // today's top contracts (24h) — 带证据字段(swap/transfer/topSel)供前端生成"依据"
+    const hotMs = Math.min(Math.max(Number(hotDays) || 1, 1), 30) * 24 * HOUR;
     const agg = {};
     for (const b of this.buckets) {
-      if (b.t < now - 24 * HOUR) continue;
+      if (b.t < now - hotMs) continue;
       for (const [addr, c] of Object.entries(b.contracts)) {
         const a = (agg[addr] ??= { addr, n: 0, gas: 0, cat: c.cat, swap: 0, xfer: 0, sels: {} });
         a.n += c.n; a.gas += c.gas; a.swap += c.swap || 0; a.xfer += c.xfer || 0;

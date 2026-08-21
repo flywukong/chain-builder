@@ -85,7 +85,7 @@ export default function ErrLogsPage() {
                 <div className="sc-v" style={{ color: d.total > 0 ? "var(--orange)" : "var(--green)" }}>{d.total.toLocaleString()}</div>
                 <div className="sc-l">ERROR 总数 · {winLabel}</div>
               </div>
-              <div className="stat-card"><div className="sc-v">{d.clusters.length}</div><div className="sc-l">消息模式(采样 {d.sampled} 条)</div></div>
+              <div className="stat-card"><div className="sc-v">{d.clusters.length}</div><div className="sc-l">日志模式(采样 {d.sampled} 条)</div></div>
               <div className="stat-card"><div className="sc-v">{d.hosts.length}</div><div className="sc-l">涉及节点</div></div>
               <div className="stat-card">
                 <div className="sc-v" style={{ fontSize: 16 }}>{d.hosts[0] ? (d.hosts[0].validator ?? d.hosts[0].host) : "—"}</div>
@@ -103,7 +103,7 @@ export default function ErrLogsPage() {
 
               <div className="panel">
                 <div className="panel-header">
-                  <span>消息模式聚类
+                  <span>日志模式聚类
                     {lvCounts.length > 0 && (
                       <em className="panel-verdict pv-mid" style={{ textTransform: "none" }}>
                         {lvCounts.map(([l, n]) => `${LV[l][0].split(" ")[0]}×${n}`).join(" · ")}
@@ -191,7 +191,7 @@ export default function ErrLogsPage() {
                   </div>
                 </div>
 
-            {/* 24H 最严重日志:固定 24h 窗口,按定级严重度排序;详情看上面的消息模式聚类 */}
+            {/* 24H 最严重日志:固定 24h 窗口,按定级严重度排序;详情看上面的日志模式聚类 */}
             <div className="panel">
               <div className="panel-header">
                 <span>24H 最严重日志

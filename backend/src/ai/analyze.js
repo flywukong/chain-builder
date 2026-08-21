@@ -91,7 +91,7 @@ export async function runTrafficAnalysis(data) {
     "",
     "已提供事件时间线(北京时间)、30 天基线,以及事件峰值时段链上采样(若有):sampledBlocks 为采样区块,topContracts 按交易 gasLimit 份额聚合。",
     "事件区块区间的取值优先级(重要):若 chainEvidence.fullGasRange 存在(gas 打满事件的精定位结果),事件区间**一律以它为准**——from~to 是真正 gasUsed ≥ hotPct% 的连续块段(共 blocks 块),sampledBlocks / topContracts 也只统计这些真正打满的块,归因据此才准;没有 fullGasRange 时,才退用 refined 的 startBlock~endBlock(那是 5m 时间换算、偏宽,会把大量未打满块算进来)。结论里引用最终确定的这个区间;sampledBlocks 里的 pct 是各块 gas 利用率。",
-    "节点侧日志(可选):nodeLogs 是高峰窗口内全体自营节点的 WARN/ERROR 日志聚类(total 为窗口总条数,clusters 为去参归并的消息模式,含次数与涉及节点数)。若存在明显异常模式(导入超时、txpool 溢出、同步落后等),在影响评估里结合解读并点名模式;若量级属背景噪声或为 null,一句「节点侧平稳」带过,不要放大。",
+    "节点侧日志(可选):nodeLogs 是高峰窗口内全体自营节点的 WARN/ERROR 日志聚类(total 为窗口总条数,clusters 为去参归并的日志模式,含次数与涉及节点数)。若存在明显异常模式(导入超时、txpool 溢出、同步落后等),在影响评估里结合解读并点名模式;若量级属背景噪声或为 null,一句「节点侧平稳」带过,不要放大。",
     MCP_GUIDE,
     "本场景取证建议:topContracts 里未识别的高份额地址,用 read_contract(name/symbol)或 get_erc20_token_info 识别实体;可疑发送方用 get_native_balance / get_transaction 抽查 1-2 个,余额仅够 gas + nonce 密集 = 脚本集群。",
     "",
@@ -389,7 +389,7 @@ export async function runErrLogsAnalysis(data) {
   const prompt = [
     `你是 BSC 主网运维分析师。分析自营节点近 ${data.windowLabel} 的 ERROR 级日志,中文,220 字以内,直接正文。`,
     "",
-    "数据口径:total 为窗口内 ERROR 总数(真实值);clusters 是最近 ≤1000 条采样去参归并的消息模式(pattern 中 N=数字、0x…=hash),count/hostCount 为采样内次数与涉及节点数;hosts 为节点分布(validator 字段非空 = 自营 validator 节点,tier 为 cabinet/candidate/inactive,role=data-seed 为全节点);sampleLines 为原始样本。",
+    "数据口径:total 为窗口内 ERROR 总数(真实值);clusters 是最近 ≤1000 条采样去参归并的日志模式(pattern 中 N=数字、0x…=hash),count/hostCount 为采样内次数与涉及节点数;hosts 为节点分布(validator 字段非空 = 自营 validator 节点,tier 为 cabinet/candidate/inactive,role=data-seed 为全节点);sampleLines 为原始样本。",
     "定级口径:clusters[].grade 是既有的模式级 AI 定级(level:P0 致命/P1 影响/P2 轻微/P4 留意/noise=P5 噪声,附 cause/impact/action)——总体判断以它为基准,重点讲 P0/P1;grade 为 null 的模式按你的判断补充定性。但定级针对模式本身,若某个 noise/P2 模式在本窗口量级异常激增(count 相对 total 占比极高),要单独指出量变可能引起质变。",
     "角色调整:hosts[].patterns[].eff 是按节点角色调整后的实际影响等级(data-seed 全节点自动降 2 档:P0→P2、P1/P2→噪声;validator 不降),worstEff 为该节点最坏调整级 —— 总体严重度按调整后等级判断,同一模式出现在 validator 上才按原级对待。",
     "输出三段:①**总体判断**:错误量级(对比常态是激增还是背景噪声)、集中在哪几类模式、集中在个别节点还是全网;②**逐模式解读**:对 Top 3-5 个模式各一句 —— 这是什么错误、可能含义、影响面(点名涉及的 validator);③**处置建议**:哪些需要立即排查(点名节点)、哪些是已知噪声可忽略。",

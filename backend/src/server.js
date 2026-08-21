@@ -855,7 +855,7 @@ async function buildErrLogs(minutes) {
     clusters, worstEffective,
     hosts,
     recent: rows.slice(0, 40).map((r) => ({
-      t: r.t, host: r.host, validator: validatorNameForIp(r.host), role: r.role,
+      t: r.t, host: r.host, validator: validatorNameForIp(r.host), role: r.role, pat: normalizeMsg(r.msg),
       msg: (r.msg || "").slice(0, 200), extra: fieldsStr(r.fields).slice(0, 420), logFile: r.logFile,
     })),
   };
@@ -983,6 +983,12 @@ async function buildAiData(days = 7) {
   const win = streamer.getWindowStats() || {};
   const tx = txpoolStore.getView();
   const lat = latencyStore.getView();
+  // 近 24h ERROR 日志概览(带 AI 定级),供问答/巡检引用;keter 不可达时置 null
+  const errLogs24h = await buildErrLogs(1440).then((d) => ({
+    total: d.total, worstEffective: d.worstEffective,
+    clusters: d.clusters.slice(0, 6).map((c) => ({ pattern: c.pattern, count: c.count, hostCount: c.hostCount, level: c.grade?.level ?? null, cause: c.grade?.cause ?? null })),
+    topHosts: d.hosts.slice(0, 5).map((h) => ({ node: h.validator ?? h.host, role: h.role, n: h.n, worstEff: h.worstEff })),
+  })).catch(() => null);
   // N 天窗口聚合;reorg 缓存 14d、traffic 缓存 30d,超出按需拉取
   const cut = Date.now() - days * 86400e3;
   let reorgTl = latest.reorgTimeline;
@@ -991,6 +997,7 @@ async function buildAiData(days = 7) {
   const trafficEp = (latest.trafficTimeline?.episodes ?? []).filter((e) => e.start >= cut);
   return {
     windowDays: days,
+    errLogs24h,
     block: streamer.lastNumber,
     avgBlockTimeMs: win.avgBlockTimeMs,
     gasUtilPct: win.avgGasUtilPct,

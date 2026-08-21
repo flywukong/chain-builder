@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
 import { AiText } from "../components/PanelAi.jsx";
+import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
 const RANGES = [[30, "30m"], [120, "2h"], [360, "6h"], [1440, "24h"]];
@@ -25,6 +26,17 @@ export default function ErrLogsPage() {
     return () => { alive = false; clearInterval(t); };
   }, [minutes]);
 
+  // 24H 最严重日志面板:固定 24h 窗口,与上面的选择窗口独立
+  const [d24, setD24] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(API + "/api/errlogs?minutes=1440").then((r) => r.json())
+      .then((j) => { if (alive && !j.error) setD24(j); }).catch(() => {});
+    pull();
+    const t = setInterval(pull, 120_000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
   const runAi = async () => {
     setAi({ loading: true, text: null, err: null });
     try {
@@ -40,6 +52,10 @@ export default function ErrLogsPage() {
   const ORDER = ["P0", "P1", "P2", "noise"];
   const worst = d?.worstEffective ?? null;   // 按节点角色调整后(data-seed 降 2 档)的全局最坏等级
   const lvCounts = ORDER.map((l) => [l, (d?.clusters ?? []).filter((c) => c.grade?.level === l).length]).filter(([, n]) => n > 0);
+  // 24h 按严重度排序(未定级排在 P2 之后);每个模式带出最新一条样本
+  const sevRank = (c) => (c.grade ? ORDER.indexOf(c.grade.level) : 2.5);
+  const severe = [...(d24?.clusters ?? [])].sort((a, b) => sevRank(a) - sevRank(b) || b.count - a.count).slice(0, 8);
+  const latestSample = (pat) => (d24?.recent ?? []).find((r) => r.pat === pat) ?? null;
 
   return (
     <div className="subpage">
@@ -83,7 +99,40 @@ export default function ErrLogsPage() {
             {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
             {ai.text && <div className="panel"><div className="panel-header"><span>🤖 AI 解读</span></div><div className="panel-body"><AiText text={ai.text} /></div></div>}
 
-            <div className="el-cols">
+            {/* 24H 最严重日志:固定 24h 窗口,按 AI 定级严重度排序,与上面的时间选择独立 */}
+            <div className="panel">
+              <div className="panel-header">
+                <span>24H 最严重日志
+                  {d24?.worstEffective && (
+                    <em className={`panel-verdict pv-${d24.worstEffective === "P0" || d24.worstEffective === "P1" ? "warn" : "mid"}`}>
+                      调整后最坏 {LV[d24.worstEffective][0]}
+                    </em>
+                  )}
+                </span>
+                <span className="sub">固定 24h 窗口 · 按定级严重度排序(角色调整前的原级)· 每模式附最新样本</span>
+              </div>
+              <div className="panel-body el-list">
+                {!d24 && <div className="ph-note">检索 24h 日志中…</div>}
+                {d24 && severe.length === 0 && <div className="ph-note">近 24h 无 ERROR 日志 ✓</div>}
+                {severe.map((c) => {
+                  const s = latestSample(c.pattern);
+                  return (
+                    <div key={c.pattern} className={`el-sev ${c.grade ? "lv-" + LV[c.grade.level][1] : ""}`} title={c.sample}>
+                      <div className="el-sev-top">
+                        <span className={`el-lv ${c.grade ? "el-lv-" + LV[c.grade.level][1] : "el-lv-none"}`}>
+                          {c.grade ? LV[c.grade.level][0] : "未定级"}
+                        </span>
+                        <span className="el-cl-pattern">{c.pattern}</span>
+                        <span className="el-sev-meta">{c.count.toLocaleString()} 条 · {c.hostCount} 节点 · 最近 {fmtT(c.lastT)}</span>
+                      </div>
+                      {c.grade && <div className="el-sev-impact"><em>影响</em>{c.grade.impact}</div>}
+                      {s && <div className="el-row2-x">最新样本 {fmtT(s.t)} · {s.validator ?? s.host} · {s.extra || s.msg}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
               <div className="panel">
                 <div className="panel-header">
                   <span>消息模式聚类
@@ -172,7 +221,6 @@ export default function ErrLogsPage() {
                     ))}
                   </div>
                 </div>
-            </div>
           </>
         )}
         {showLegend && (
@@ -203,6 +251,7 @@ export default function ErrLogsPage() {
           </div>
         )}
       </div>
+      <div className="mev-robot-anchor"><RobotWidget variant="logs" /></div>
     </div>
   );
 }

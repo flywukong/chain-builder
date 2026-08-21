@@ -30,6 +30,14 @@ const QA_PRESET = {
     bubbleLine: "reorg / slash / 空块 / commit 时延高…等相关问题都可以问我",
     summary: { title: "近 15 天 Reorg 总结", url: "/api/ai/reorg", body: { days: 15 } },
   },
+  logs: {
+    title: "🤖 LEO · 日志问答",
+    greet: "节点日志相关的都可以问:某条 ERROR 模式什么含义、定级为什么是噪声/P2、哪台节点在报错、data-seed 和 validator 的影响差异、某个时间段错误有没有激增…",
+    placeholder: "例:invalid sidecars 是什么问题?NodeReal 为什么报错?",
+    bubbleHead: "LEO · 日志问答",
+    bubbleLine: "ERROR 模式含义 / 定级依据 / 哪台节点在报错…都可以问",
+    summary: { title: "近 24h ERROR 概览", url: "/api/ai/errlogs", body: { minutes: 1440 } },
+  },
   txn: {
     title: "🤖 LEO · 交易问答",
     greet: "链上交易相关的都可以问:各类交易占比与趋势、meme/DeFi/bot 热度、某个热门合约是什么(我可以链上查它的 name/symbol)、某地址是合约还是钱包…",

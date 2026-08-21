@@ -4,12 +4,12 @@ import { AiText } from "../components/PanelAi.jsx";
 import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
-const RANGES = [[30, "30m"], [120, "2h"], [360, "6h"], [1440, "24h"]];
+const RANGES = [[30, "30m"], [240, "4h"], [720, "12h"], [1440, "24h"]];
 const fmtT = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 // ERR 级日志分析:keter ES(AP 区域自营节点)· 模式聚类 + 节点归属 + AI 解读
 export default function ErrLogsPage() {
-  const [minutes, setMinutes] = useState(30);
+  const [minutes, setMinutes] = useState(240);
   const [d, setD] = useState(null);
   const [loadErr, setLoadErr] = useState(null);
   const [ai, setAi] = useState({ loading: false, text: null, err: null });
@@ -48,7 +48,7 @@ export default function ErrLogsPage() {
   const winLabel = RANGES.find(([m]) => m === minutes)?.[1] ?? `${minutes}m`;
   const maxC = d?.clusters?.[0]?.count ?? 1;
   // 定级:P0 致命 / P1 影响 / P2 轻微 / noise 噪声;worst 决定顶部风险卡
-  const LV = { P0: ["P0 致命", "p0"], P1: ["P1 影响", "p1"], P2: ["P2 轻微", "p2"], noise: ["噪声", "noise"] };
+  const LV = { P0: ["P0 致命", "p0"], P1: ["P1 影响", "p1"], P2: ["P2 轻微", "p2"], noise: ["P4 噪声", "noise"] };
   const ORDER = ["P0", "P1", "P2", "noise"];
   const worst = d?.worstEffective ?? null;   // 按节点角色调整后(data-seed 降 2 档)的全局最坏等级
   const lvCounts = ORDER.map((l) => [l, (d?.clusters ?? []).filter((c) => c.grade?.level === l).length]).filter(([, n]) => n > 0);
@@ -91,47 +91,13 @@ export default function ErrLogsPage() {
               </div>
               <div className={`stat-card el-worst-${worst ? LV[worst][1] : "none"}`}>
                 <div className="sc-v">{worst ? LV[worst][0] : d.grading?.pending ? "定级中…" : "—"}</div>
-                <div className="sc-l">最高定级 · 按节点角色调整(data-seed 降2档){d.grading?.pending ? ` · ${d.grading.pending} 个待定级` : ""}</div>
+                <div className="sc-l" title="data-seed 节点的错误影响按角色自动下调两档">最高定级 · 按节点角色调整{d.grading?.pending ? ` · ${d.grading.pending} 个待定级` : ""}</div>
               </div>
             </div>
 
             {ai.loading && <div className="tf-ai-loading"><span className="tf-ai-spin" /><span>claude 分析 ERROR 模式与节点分布…约 30–40s</span></div>}
             {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
             {ai.text && <div className="panel"><div className="panel-header"><span>🤖 AI 解读</span></div><div className="panel-body"><AiText text={ai.text} /></div></div>}
-
-            {/* 24H 最严重日志:固定 24h 窗口,按 AI 定级严重度排序,与上面的时间选择独立 */}
-            <div className="panel">
-              <div className="panel-header">
-                <span>24H 最严重日志
-                  {d24?.worstEffective && (
-                    <em className={`panel-verdict pv-${d24.worstEffective === "P0" || d24.worstEffective === "P1" ? "warn" : "mid"}`}>
-                      调整后最坏 {LV[d24.worstEffective][0]}
-                    </em>
-                  )}
-                </span>
-                <span className="sub">固定 24h 窗口 · 按定级严重度排序(角色调整前的原级)· 每模式附最新样本</span>
-              </div>
-              <div className="panel-body el-list">
-                {!d24 && <div className="ph-note">检索 24h 日志中…</div>}
-                {d24 && severe.length === 0 && <div className="ph-note">近 24h 无 ERROR 日志 ✓</div>}
-                {severe.map((c) => {
-                  const s = latestSample(c.pattern);
-                  return (
-                    <div key={c.pattern} className={`el-sev ${c.grade ? "lv-" + LV[c.grade.level][1] : ""}`} title={c.sample}>
-                      <div className="el-sev-top">
-                        <span className={`el-lv ${c.grade ? "el-lv-" + LV[c.grade.level][1] : "el-lv-none"}`}>
-                          {c.grade ? LV[c.grade.level][0] : "未定级"}
-                        </span>
-                        <span className="el-cl-pattern">{c.pattern}</span>
-                        <span className="el-sev-meta">{c.count.toLocaleString()} 条 · {c.hostCount} 节点 · 最近 {fmtT(c.lastT)}</span>
-                      </div>
-                      {c.grade && <div className="el-sev-impact"><em>影响</em>{c.grade.impact}</div>}
-                      {s && <div className="el-row2-x">最新样本 {fmtT(s.t)} · {s.validator ?? s.host} · {s.extra || s.msg}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
 
               <div className="panel">
                 <div className="panel-header">
@@ -180,7 +146,7 @@ export default function ErrLogsPage() {
                         : h.tier === "inactive" ? ["inactive", "inactive"]
                         : h.role === "data-seed" ? ["data-seed", "seed"]
                         : h.role ? [h.role, "seed"] : ["未知", "seed"];
-                      const effCn = (l) => (l === "noise" ? "噪声" : l);
+                      const effCn = (l) => (l === "noise" ? "P4" : l);
                       return (
                         <div key={h.host} className="el-host">
                           <div className="eb-miner" title={h.host}>
@@ -221,6 +187,39 @@ export default function ErrLogsPage() {
                     ))}
                   </div>
                 </div>
+
+            {/* 24H 最严重日志:固定 24h 窗口,按定级严重度排序;详情看上面的消息模式聚类 */}
+            <div className="panel">
+              <div className="panel-header">
+                <span>24H 最严重日志
+                  {d24?.worstEffective && (
+                    <em className={`panel-verdict pv-${d24.worstEffective === "P0" || d24.worstEffective === "P1" ? "warn" : "mid"}`}>
+                      调整后最坏 {LV[d24.worstEffective][0]}
+                    </em>
+                  )}
+                </span>
+                <span className="sub">固定 24h 窗口 · 按定级严重度排序 · 每模式附最新样本</span>
+              </div>
+              <div className="panel-body el-list">
+                {!d24 && <div className="ph-note">检索 24h 日志中…</div>}
+                {d24 && severe.length === 0 && <div className="ph-note">近 24h 无 ERROR 日志 ✓</div>}
+                {severe.map((c) => {
+                  const s = latestSample(c.pattern);
+                  return (
+                    <div key={c.pattern} className={`el-sev ${c.grade ? "lv-" + LV[c.grade.level][1] : ""}`} title={c.sample}>
+                      <div className="el-sev-top">
+                        <span className={`el-lv ${c.grade ? "el-lv-" + LV[c.grade.level][1] : "el-lv-none"}`}>
+                          {c.grade ? LV[c.grade.level][0] : "未定级"}
+                        </span>
+                        <span className="el-cl-pattern">{c.pattern}</span>
+                        <span className="el-sev-meta">{c.count.toLocaleString()} 条 · {c.hostCount} 节点 · 最近 {fmtT(c.lastT)}</span>
+                      </div>
+                      {s && <div className="el-row2-x">最新样本 {fmtT(s.t)} · {s.validator ?? s.host} · {s.extra || s.msg}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </>
         )}
         {showLegend && (
@@ -237,7 +236,7 @@ export default function ErrLogsPage() {
                   ["P0 致命", "p0", "威胁共识/出块/数据完整性 —— seal 失败、状态库损坏、无法同步、panic/OOM、分叉冲突", "立即处理"],
                   ["P1 影响", "p1", "服务质量受损或有恶化趋势 —— 持续广播失败、peer 大面积断连、磁盘/内存压力、RPC 大面积超时", "当天排查"],
                   ["P2 轻微", "p2", "局部/偶发功能错误,可自愈、影响面小,或对外部坏输入的正确拒绝", "观察"],
-                  ["噪声", "noise", "业务常态,不是故障 —— 如 bid 内单笔 nonce too low(builder 竞价常态,整份 bid 作废,不影响共识)", "忽略"],
+                  ["P4 噪声", "noise", "业务常态,不是故障 —— 如 bid 内单笔 nonce too low(builder 竞价常态,整份 bid 作废,不影响共识)", "忽略"],
                 ].map(([label, cls, def, act]) => (
                   <div key={cls} className="el-legend-row">
                     <em><span className={`el-lv el-lv-${cls}`}>{label}</span></em>

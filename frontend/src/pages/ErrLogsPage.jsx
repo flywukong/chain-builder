@@ -126,9 +126,9 @@ export default function ErrLogsPage() {
                   <div className="panel-header"><span>节点分布</span><span className="sub">有名称 = 自营 validator</span></div>
                   <div className="panel-body el-list">
                     {d.hosts.map((h) => {
-                      const badge = h.tier === "cabinet" ? ["CAB 出块中", "cabinet"]
-                        : h.tier === "candidate" ? ["CAND 候选", "candidate"]
-                        : h.tier === "inactive" ? ["非活跃", "inactive"]
+                      const badge = h.tier === "cabinet" ? ["cabinet", "cabinet"]
+                        : h.tier === "candidate" ? ["candidate", "candidate"]
+                        : h.tier === "inactive" ? ["inactive", "inactive"]
                         : h.role === "data-seed" ? ["data-seed", "seed"]
                         : h.role ? [h.role, "seed"] : ["未知", "seed"];
                       return (

@@ -40,6 +40,33 @@ export async function fetchHostLogs(configPath, ip, fromMs, toMs, { query = "", 
   return { host: ip, total, lines: rows.slice(0, max).map(fmtLine) };
 }
 
+// 单节点「信号行」取证:出块/竞价/forkchoice/异常等关键消息,ES 端过滤 ——
+// 事件窗内 Served mev_* 每分钟刷数百条,若不过滤,升序行数上限会被窗口开头的噪声吃光,
+// 真正的断因行(密封、切链、重铸)根本进不了 AI 的上下文。
+const SIGNAL_QUERY = [
+  "level:ERROR",
+  "(level:WARN AND NOT message:Served)",
+  'message:"Chain find higher justifiedNumber"',   // fast-finality forkchoice 切链(被 reorg 的铁证)
+  'message:"Sealing block with"',
+  'message:"Successfully seal and write new block"',
+  'message:"Commit new sealing work"',
+  'message:"commitWork local building finished"',
+  'message:"BID RESULT"',
+  'message:"Signed recently"',
+  'message:"Not enough time for further transactions"',
+].join(" OR ");
+export async function fetchHostEvidence(configPath, ip, fromMs, toMs, { max = 200 } = {}) {
+  const q = `hostName:"${ip}" AND (${SIGNAL_QUERY})`;
+  const { total, rows } = await searchLogs(configPath, { query: q, fromMs, toMs, order: "asc" });
+  // 超限时保头 60 + 尾部其余:事件的断因行(切链/重铸)几乎总在窗口尾部,任何洪峰下都不能丢
+  let picked = rows;
+  if (rows.length > max) {
+    const head = rows.slice(0, 60), tail = rows.slice(-(max - 60));
+    picked = [...head, { t: "", level: "…", msg: `(中间省略 ${rows.length - max} 行)`, fields: null }, ...tail];
+  }
+  return { host: ip, total, note: "已过滤 Served mev_* / BID ARRIVED 等噪声,只含出块/竞价决策/forkchoice/告警信号行", lines: picked.map(fmtLine) };
+}
+
 export function fmtLine(r) {
   const f = r.fields ? Object.entries(r.fields).slice(0, 8).map(([k, v]) => `${k}=${v}`).join(" ") : "";
   return `${(r.t || "").slice(11, 23)} ${r.level} ${r.msg}${f ? " · " + f : ""}`;

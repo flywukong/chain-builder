@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer, getBuilderName } from "./block/streamer.js";
 import { BidBlockStore, decodeMevTag } from "./mev/bidBlockStore.js";
-import { searchLogs, fetchHostLogs, fmtLine, clusterMessages, normalizeMsg } from "./keter/logs.js";
+import { searchLogs, fetchHostLogs, fetchHostEvidence, fmtLine, clusterMessages, normalizeMsg } from "./keter/logs.js";
 import { ErrGradeBook } from "./ai/errGradeBook.js";
 import { ChainContracts } from "./chain/contracts.js";
 import { fetchNodeStats, fetchNodeJobs, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
@@ -1567,7 +1567,7 @@ aiRoutes("slash", "/api/ai/slash", async (body) => {
   for (const e of episodes.filter((x) => x.internal).slice(0, 2)) {
     const ip = validatorHostIp(e.validator);
     if (!ip) continue;
-    const lg = await fetchHostLogs(cfg.keterConfigPath, ip, e.t - 90e3, e.t + 90e3, { max: 100 }).catch(() => null);
+    const lg = await fetchHostEvidence(cfg.keterConfigPath, ip, e.t - 90e3, e.t + 90e3, { max: 150 }).catch(() => null);
     if (lg) validatorLogs.push({ validator: e.name, blocks: `${e.startBlock}-${e.endBlock}`, timeLocal: e.timeLocal, ...lg });
   }
   return runSlashAnalysis({
@@ -1588,7 +1588,7 @@ aiRoutes("slashEvent", "/api/ai/slash-event", async (body) => {
   // 自营节点:拉事件窗 ±90s 日志(覆盖被 slash 高度前后各若干块)
   const ip = validatorHostIp(e.validator);
   const validatorLogs = ip
-    ? await fetchHostLogs(cfg.keterConfigPath, ip, e.t - 90e3, e.t + e.blocks * 450 + 90e3, { max: 150 }).catch(() => null)
+    ? await fetchHostEvidence(cfg.keterConfigPath, ip, e.t - 90e3, e.t + e.blocks * 450 + 90e3, { max: 200 }).catch(() => null)
     : null;
   return runSlashEventAnalysis({
     validator: e.name ?? (e.validator || "").slice(0, 10), internal: e.internal,
@@ -1630,7 +1630,7 @@ aiRoutes("emptyMiner", "/api/ai/empty-miner", async (body) => {
   const ip = validatorHostIp(miner);
   const lastEmpty = mine[0];
   const validatorLogs = ip && lastEmpty
-    ? await fetchHostLogs(cfg.keterConfigPath, ip, lastEmpty.t - 60e3, lastEmpty.t + 60e3, { max: 120 }).catch(() => null)
+    ? await fetchHostEvidence(cfg.keterConfigPath, ip, lastEmpty.t - 60e3, lastEmpty.t + 60e3, { max: 180 }).catch(() => null)
     : null;
   return runEmptyMinerAnalysis({
     validator: info.name ?? miner.slice(0, 10), internal: info.internal,
@@ -1668,7 +1668,7 @@ aiRoutes("emptyStreak", "/api/ai/empty-streak", async (body) => {
   // 自营 validator:拉事件时间窗 ±45s 的节点日志作为断因证据(外部 validator 拿不到,保持原口径)
   const ip = validatorHostIp(s.miner);
   const validatorLogs = ip
-    ? await fetchHostLogs(cfg.keterConfigPath, ip, s.t - 45e3, (s.tEnd ?? s.t) + 45e3, { max: 120 }).catch(() => null)
+    ? await fetchHostEvidence(cfg.keterConfigPath, ip, s.t - 45e3, (s.tEnd ?? s.t) + 45e3, { max: 180 }).catch(() => null)
     : null;
   return runEmptyStreakAnalysis({
     validator: info.name ?? (s.miner || "").slice(0, 10), internal: info.internal,

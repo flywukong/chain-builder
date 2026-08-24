@@ -312,6 +312,7 @@ export async function runSlashAnalysis(data) {
     "1. 结论:严重程度。判据——偶发单块(blocks=1)的 slash 属主网常见抖动(出块超时/网络毛刺);同一 validator 连续多块(blocks≥3)或短期内反复出现 = 节点持续故障信号;internal 的问题要重点点名。",
     "2. 逐段盘点(episodes,每段一行):timeLocal / validator(标注自营或外部)/ 连续 N 块(块号区间)/ 替代者 fillers / 间隔 gapMsMax。",
     "3. 排查建议:internal 有 slash 时,建议核对该时段节点侧——出块超时、与 sentry/网络连通、是否落后追块;外部 validator 仅陈述事实,不必给建议。",
+    LOG_KEY_GUIDE,
     "日志口径:若 validatorLogs 非空(自营被 slash 节点在事件时刻 ±90s 的原始日志,每项含 validator/blocks/lines),**应当据日志直接断因**并引用具体日志行(重启、追块、超时报错等);为 null 或某事件无对应日志时,该事件禁止断言根因,只给排查方向。",
     "全窗口无自营 slash 且均为偶发单块时,一句话说明属正常水位即可,不要制造风险。",
     "",
@@ -344,6 +345,7 @@ export async function runEmptyStreakAnalysis(data) {
     "",
     "空块判据 gasUsed<200k(仅系统交易,未打包任何用户交易)。零散 1-2 个空块属 mempool 时序波动;连续 3 个及以上指向该 validator 节点侧异常(txpool 空、builder bid 未到达、节点重启或性能抖动)。",
     "输出两段:①**事件还原**:这段空块占该 validator 本轮(parlia 一轮 turnLength 个块)的多少、是整轮全空还是夹着正常块、前后轮次是否也异常、当时全网是否同时有其他 validator 空块(是则更像全网 mempool 短暂枯竭,不是单点故障);②**排查建议**:给运营方的具体核对项与时间点。",
+    LOG_KEY_GUIDE,
     "日志口径:若 validatorLogs 非空(自营节点,事件时间窗 ±45s 的原始日志,lines 按时间升序,total 为窗口总条数),**应当据日志直接断因**并引用具体日志行(如 txpool 空、bid 未到、重启、同步落后、异常报错);若为 null(外部 validator 或日志不可达),维持原口径:禁止断言根因,只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查。",
     "称呼 validator 一律用名称,禁止报 0x 地址;引用块号写完整数字。",
     MCP_GUIDE,
@@ -362,6 +364,7 @@ export async function runSlashEventAnalysis(data) {
     "",
     "背景:slash = 该 validator 的轮次块未被网络接受,备位 validator 越位补块(canonical 上该高度 difficulty=1),SlashIndicator 逐块记录。常见根因:①节点宕机/重启;②密封成功但广播失败/丢失竞争(日志特征:同高度出现两次 Sealing = 事后重铸,说明节点活着、块没传出去);③节点落后追块错过轮次。",
     "输出两段:①**事件还原**:节点当时是否存活、是否按时密封、哪一环断了;②**结论与处置**:单块偶发(网络毛刺)还是持续风险,自营节点给具体核对项。",
+    LOG_KEY_GUIDE,
     "日志口径:若 validatorLogs 非空(自营节点事件窗 ±90s 原始日志,lines 升序),**应当据日志直接断因并引用具体日志行**(找同高度二次 Sealing、Commit 中断、重启行、追块行);为 null(外部 validator 或日志不可达)则只按链上形态给方向,禁止断言根因。",
     "称呼 validator 一律用名称;引用块号写完整数字。",
     MCP_GUIDE,
@@ -427,6 +430,7 @@ export async function runEmptyMinerAnalysis(data) {
     "空块判据 gasUsed<200k(仅系统交易,未打包任何用户交易)。",
     "输出两段:①**形态判断**:这些空块是集中在少数几个时段(节点异常/重启)还是长期均匀散布(常态,更像该节点 txpool 或 builder 链路一直不健康);有没有连续段(streaks 字段,连续 ≥3 个指向明确故障);空块占其出块量的比例是否异常。②**排查建议**:给出该 validator 的具体核对项与时间点。",
     "对比口径:othersTop 是同窗口其他 validator 的空块数,用于判断该 validator 是明显离群还是与同行相当 —— 若与同行相当,应说明这是全网普遍现象而非该节点问题。",
+    LOG_KEY_GUIDE,
     "日志口径:若 validatorLogs 非空(自营节点,最近一个空块 aroundBlock ±60s 的原始日志),**应当据日志直接断因**并引用具体日志行;若为 null(外部 validator 或日志不可达),维持原口径:禁止断言根因,只给证据与排查方向。internal=true 是我方自营节点,需明确点名要求排查;外部 validator 只陈述事实,不输出联系运营方之类的操作建议。",
     "称呼 validator 一律用名称,禁止报 0x 地址;引用块号写完整数字。",
     MCP_GUIDE,
@@ -670,6 +674,9 @@ const MCP_RO_TOOLS = [
 const MCP_TIMEOUT_MS = 300_000;   // 工具循环比单轮生成慢
 
 // 注入到取证类 prompt 的通用工具指引
+// validator 节点日志关键行释义(slash/空块断因共用,随 validatorLogs 提供给模型)
+const LOG_KEY_GUIDE = "关键日志行释义:①「Chain find higher justifiedNumber」(fromHeight/fromHash→toHeight/toMiner/toJustified)= fast-finality forkchoice 切链 —— 本地分支被 justified 更高的对方分支替换,是「本地密封成功但块未被网络采纳」的铁证;toMiner 即接管出块者,引用 fromJustified 与 toJustified 的差说明投票落后。②同一高度出现两次「Sealing block with」= 本地被 reorg 后在新父块上重铸。③「BID RESULT win=true」= 该块采用了某 builder 的 bid;「[BID ARRIVED] accepted=false」只是竞价未中,不是异常。④「Signed recently, must wait」= parlia 防连签等待,正常行为。⑤WARN「stale block number」= builder bid 引用了过期高度,竞价时序噪声。断因时优先找 ①②,再看 ERROR/重启/追块行。";
+
 export const MCP_GUIDE = [
   "工具:你可以调用链上只读工具核实事实。bnbchain 系列(get_block_by_number / get_transaction / read_contract / is_contract / get_erc20_token_info / get_native_balance 等,network 参数一律 \"bsc\")查块/交易/合约/余额;查「某块是谁出的」用 bscops 系列 —— get_block_miner(单块)/ get_block_miners(区间批量,含 validator 名、gapMs、gasUsedM,一次最多 120 块,范围大用 step 抽样),bnbchain 的 get_block 不返回 miner。",
   "取证纪律:①先用给定上下文,关键疑点才查链,总工具调用 ≤8 次(get_block_miners 批量算 1 次,优先用它);②结论只引用可验证事实(块号/地址/数值);③工具失败或查不到就直说,不要编造。",

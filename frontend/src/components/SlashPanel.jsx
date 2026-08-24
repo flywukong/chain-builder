@@ -11,6 +11,15 @@ export default function SlashPanel() {
   const winLabel = days === 1 ? "24h" : `${days} 天`;
   const [d, setD] = useState(null);
   const [ai, setAi] = useState({ loading: false, text: null, err: null });
+  const [evAi, setEvAi] = useState({ key: null, loading: false, text: null, err: null });   // 单事件深析
+
+  const runEvAi = async (e) => {
+    setEvAi({ key: e.startBlock, loading: true, text: null, err: null });
+    try {
+      const j = await aiRequest("/api/ai/slash-event", { days, startBlock: e.startBlock });
+      setEvAi({ key: e.startBlock, loading: false, text: j.error ? null : j.text, err: j.error ?? null });
+    } catch (err) { setEvAi({ key: e.startBlock, loading: false, text: null, err: String(err) }); }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -43,7 +52,7 @@ export default function SlashPanel() {
   const internalHit = eps.some((e) => e.internal);
   const fmtGap = (ms) => (ms == null ? "--" : ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`);
   // 内容少时缩小 40%(compact);事件多 / validator 多 / 有 AI 结果时恢复完整尺寸,列表内部滚动
-  const expanded = eps.length > 8 || vRows.length > 4 || !!ai.text || ai.loading;
+  const expanded = eps.length > 8 || vRows.length > 4 || !!ai.text || ai.loading || !!evAi.text || evAi.loading;
 
   return (
     <div className={`panel eb-panel sl-panel ${expanded ? "" : "sl-compact"}`}>
@@ -94,6 +103,11 @@ export default function SlashPanel() {
                   <span className={`hpd-mid ${e.internal ? "sl-int" : ""}`}>{e.name}{e.internal ? "·自营" : ""}{e.blocks > 1 ? ` ×${e.blocks}块` : ""}</span>
                   <span className="sl-fill">→ {(e.fillers ?? [])[0] ?? "?"}</span>
                   <span className={`hpd-end ${e.gapMsMax > 800 ? "sl-gap-hot" : ""}`}>{fmtGap(e.gapMsMax)}</span>
+                  <button className="eb-mn-ai" onClick={() => runEvAi(e)}
+                          disabled={evAi.loading && evAi.key === e.startBlock}
+                          title={`深析这次 slash(${e.internal ? "自营节点将附日志断因" : "外部 validator,按链上形态分析"})`}>
+                    {evAi.loading && evAi.key === e.startBlock ? "解读中…" : "AI解读"}
+                  </button>
                 </div>
               ))}
               {eps.length === 0 && (
@@ -115,6 +129,15 @@ export default function SlashPanel() {
         )}
         {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
         {ai.text && <div className="hpd-ai"><AiText text={ai.text} /></div>}
+        {/* 单事件深析结果 */}
+        {evAi.loading && (
+          <div className="tf-ai-loading">
+            <span className="tf-ai-spin" />
+            <span>claude 深析该次 slash…链上取证 + 自营节点日志断因,约 30–40s</span>
+          </div>
+        )}
+        {evAi.err && <div className="ai-err">⚠ {evAi.err}</div>}
+        {evAi.text && <div className="hpd-ai"><AiText text={evAi.text} /></div>}
       </div>
     </div>
   );

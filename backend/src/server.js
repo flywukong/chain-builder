@@ -26,7 +26,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runSlashEventAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -1575,6 +1575,26 @@ aiRoutes("slash", "/api/ai/slash", async (body) => {
     totalSlashBlocks: v.count,
     episodes,
     validatorLogs: validatorLogs.length ? validatorLogs : null,
+  });
+});
+
+// 单次 slash 事件深析:事件行的「AI解读」按钮,按 startBlock 定位
+aiRoutes("slashEvent", "/api/ai/slash-event", async (body) => {
+  const days = Math.min(Math.max(Number(body?.days) || 15, 1), 15);
+  const startBlock = Number(body?.startBlock);
+  const v = slashEvents.view(days * 86400e3);
+  const e = slashEpisodes(v.items).find((x) => x.startBlock === startBlock);
+  if (!e) throw new Error("该 slash 事件已滚出窗口");
+  // 自营节点:拉事件窗 ±90s 日志(覆盖被 slash 高度前后各若干块)
+  const ip = validatorHostIp(e.validator);
+  const validatorLogs = ip
+    ? await fetchHostLogs(cfg.keterConfigPath, ip, e.t - 90e3, e.t + e.blocks * 450 + 90e3, { max: 150 }).catch(() => null)
+    : null;
+  return runSlashEventAnalysis({
+    validator: e.name ?? (e.validator || "").slice(0, 10), internal: e.internal,
+    startBlock: e.startBlock, endBlock: e.endBlock, blocks: e.blocks,
+    timeLocal: e.timeLocal, fillers: e.fillers, gapMs: e.gapMsMax ?? null,
+    validatorLogs,
   });
 });
 

@@ -355,6 +355,24 @@ export async function runEmptyStreakAnalysis(data) {
   return spawnClaude(prompt, { mcp: true });
 }
 
+// ── 单次 slash 事件深析:还原经过 + 有自营日志时直接断因 ──
+export async function runSlashEventAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网运维分析师。深析一次 slash 事件:validator ${data.validator} 在 ${data.timeLocal} 被 slash ${data.blocks} 块(#${data.startBlock}${data.blocks > 1 ? `~#${data.endBlock}` : ""}),替代出块者 ${data.fillers?.join("/") || "?"},链上间隔 ${data.gapMs != null ? data.gapMs + "ms" : "未知"}。中文,170 字以内,直接正文。`,
+    "",
+    "背景:slash = 该 validator 的轮次块未被网络接受,备位 validator 越位补块(canonical 上该高度 difficulty=1),SlashIndicator 逐块记录。常见根因:①节点宕机/重启;②密封成功但广播失败/丢失竞争(日志特征:同高度出现两次 Sealing = 事后重铸,说明节点活着、块没传出去);③节点落后追块错过轮次。",
+    "输出两段:①**事件还原**:节点当时是否存活、是否按时密封、哪一环断了;②**结论与处置**:单块偶发(网络毛刺)还是持续风险,自营节点给具体核对项。",
+    "日志口径:若 validatorLogs 非空(自营节点事件窗 ±90s 原始日志,lines 升序),**应当据日志直接断因并引用具体日志行**(找同高度二次 Sealing、Commit 中断、重启行、追块行);为 null(外部 validator 或日志不可达)则只按链上形态给方向,禁止断言根因。",
+    "称呼 validator 一律用名称;引用块号写完整数字。",
+    MCP_GUIDE,
+    `本场景取证:用 bscops 的 get_block_miners 拉 #${data.startBlock - 8}–#${(data.endBlock ?? data.startBlock) + 8}(step=1)看 canonical:被 slash 高度的实际出块者与 difficulty(=1 即越位补块)、该 validator 前后块是否正常;结论附块号证据。`,
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 2), "```",
+  ].join("\n");
+  return spawnClaude(prompt, { mcp: true });
+}
+
 // ── ERROR 日志模式批量定级(结果进 ErrGradeBook,同模式只定一次)──
 export async function runErrGrading(candidates) {
   const prompt = [

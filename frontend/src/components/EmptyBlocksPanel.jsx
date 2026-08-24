@@ -118,7 +118,7 @@ export default function EmptyBlocksPanel() {
                       <button className="eb-mn-ai" title={`AI 分析 ${name} 的空块成因`}
                               onClick={() => runMinerAi(name, m.miner)}
                               disabled={mAi.loading && mAi.name === name}>
-                        {mAi.loading && mAi.name === name ? "解读中…" : "⚡ AI"}
+                        {mAi.loading && mAi.name === name ? "解读中…" : "AI解读"}
                       </button>
                     )}
                   </div>
@@ -147,7 +147,7 @@ export default function EmptyBlocksPanel() {
                   <span className="eb-sk-t">{fmtT(r.s.t)}</span>
                   <button className="eb-sk-ai" onClick={() => runStreakAi(r.s)}
                           disabled={sAi.loading && sAi.from === r.s.from}>
-                    {sAi.loading && sAi.from === r.s.from ? "解读中…" : "⚡ AI"}
+                    {sAi.loading && sAi.from === r.s.from ? "解读中…" : "AI解读"}
                   </button>
                 </div>
               ) : (

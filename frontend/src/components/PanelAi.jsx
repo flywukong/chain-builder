@@ -33,9 +33,10 @@ export function AiButton({ ai, label = "AI 解读" }) {
 export function AiText({ text }) {
   if (!text) return null;
   return text.split("\n").map((line, i) => {
-    // 整行被 ** 包裹 = 段标题(如「**1) Slash 状况**」「**流量**」)→ 黄色小标题
+    // 整行被 ** 包裹 = 段标题(如「**1) Slash 状况**」「**流量**」)→ 黄色小标题独占一行
+    // (换行符必须在 inline-block 的 .ai-h 之外,否则被吞、外层不断行)
     const h = line.trim().match(/^\*\*(.+?)\*\*$/);
-    if (h) return <span key={i} className="ai-h">{h[1].replace(/[:：]\s*$/, "")}：{"\n"}</span>;
+    if (h) return <span key={i}><span className="ai-h">{h[1].replace(/[:：]\s*$/, "")}：</span>{"\n"}</span>;
     return (
       <span key={i}>
         {line.split(/\*\*(.+?)\*\*/g).map((p, j) => (j % 2 ? <b key={j}>{p}</b> : p))}

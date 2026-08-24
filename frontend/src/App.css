@@ -765,7 +765,7 @@ body::before {
 .sl-ev-head b { font-family: var(--mono); font-size: 11.5px; color: var(--gold); letter-spacing: .3px; }
 .sl-ev-src { font-size: 9px; color: var(--muted); }
 .sl-ev-head .robot-close { margin-left: auto; }
-.sl-ev-body { font-size: 11.5px; line-height: 1.8; color: var(--text-dim); }
+.sl-ev-body { font-size: 11.5px; line-height: 1.8; color: var(--text-dim); white-space: pre-wrap; }
 .sl-ev-body .ai-h { margin-top: 6px; }
 .el-host { display: flex; flex-direction: column; gap: 4px; padding: 5px 7px; border-radius: 5px; background: #141414; border: 1px solid #222; }
 .el-host-ip { font-style: normal; color: var(--dim); font-size: 8.5px; margin-left: 6px; font-weight: 400; }

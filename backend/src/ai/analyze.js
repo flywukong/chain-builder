@@ -363,16 +363,17 @@ export async function runSlashEventAnalysis(data) {
     `你是 BSC 主网运维分析师。深析一次 slash 事件:validator ${data.validator} 在 ${data.timeLocal} 被 slash ${data.blocks} 块(#${data.startBlock}${data.blocks > 1 ? `~#${data.endBlock}` : ""}),替代出块者 ${data.fillers?.join("/") || "?"},链上间隔 ${data.gapMs != null ? data.gapMs + "ms" : "未知"}。中文,直接正文。`,
     "",
     "读者是没跟过这次事件的工程师:重点是把「为什么会被 slash」的因果讲清楚,并解释背后的协议机制,禁止只复述日志行。",
-    "输出格式(严格四段,段标题用整行 **粗体**,总量 260 字内):",
-    "**结论** 一句话:谁、哪个高度、根因类型(宕机/密封成功但未被采纳/落后)。",
-    "**因果链** 编号步骤 1.~5.,每步一个短句(≤22 字)+ 括号内证据(日志时刻/块号),读者顺着编号就能看懂事件如何一步步发生。",
-    "**机制** 两句以内,把关键一步落到代码规则上:fast-finality forkchoice(core/forkchoice.go:146,对方分支 justifiedNumber 更高即直接胜出,与 difficulty 无关)为什么会把本地已密封的块切掉;SlashIndicator 只看规范链缺席,所以「密封成功但未被采纳」也记 missed turn。按事件实际情况引用,不适用的机制不要硬套。",
+    "输出格式(严格四段,总量 300 字内)。段标题独占一行、整行 **粗体**,正文从标题的下一行开始:",
+    "**结论** 一句话:谁、哪个高度、根因类型(宕机 / 出块成功但未被链采纳 / 同步落后)。",
+    "**因果链** 编号步骤 1.~5.,**每个编号独占一行**,每步一个短句(≤22 字)+ 括号内证据(日志时刻/块号),顺着编号读完就能看懂事件如何一步步发生。",
+    "**机制** 两句以内,把关键一步落到代码规则上:fast-finality forkchoice(core/forkchoice.go:146,对方分支 justifiedNumber 更高即直接胜出,与 difficulty 无关)为什么会 reorg 掉本地已出的 in-turn 块;SlashIndicator 只看规范链上该高度是否缺席,所以「出块成功但未被采纳」同样记 missed turn。按事件实际情况引用,不适用的机制不要硬套。",
     "**处置** 一句:单块偶发还是持续风险,自营节点给出最该核对的一项(如投票上行/出站带宽/peer 连通)。",
+    "术语纪律:只用链上标准术语——出块、打包、广播、传播、reorg、切链、规范链、in-turn、off-turn、justified、finality vote;禁止自造译名(如「密封」「越位」「重铸」);引用日志行保留英文原文(如 Sealing block with);拿不准的概念直接用英文术语或函数名。",
     LOG_KEY_GUIDE,
     "日志口径:若 validatorLogs 非空(自营节点事件窗 ±90s 原始日志,lines 升序),**应当据日志直接断因并引用具体日志行**(找同高度二次 Sealing、Commit 中断、重启行、追块行);为 null(外部 validator 或日志不可达)则只按链上形态给方向,禁止断言根因。",
     "称呼 validator 一律用名称;引用块号写完整数字。",
     MCP_GUIDE,
-    `本场景取证:用 bscops 的 get_block_miners 拉 #${data.startBlock - 8}–#${(data.endBlock ?? data.startBlock) + 8}(step=1)看 canonical:被 slash 高度的实际出块者与 difficulty(=1 即越位补块)、该 validator 前后块是否正常;结论附块号证据。`,
+    `本场景取证:用 bscops 的 get_block_miners 拉 #${data.startBlock - 8}–#${(data.endBlock ?? data.startBlock) + 8}(step=1)看 canonical:被 slash 高度的实际出块者与 difficulty(=1 即 off-turn 补块)、该 validator 前后块是否正常;结论附块号证据。`,
     "",
     "数据(JSON):",
     "```json", JSON.stringify(data, null, 2), "```",
@@ -679,7 +680,7 @@ const MCP_TIMEOUT_MS = 300_000;   // 工具循环比单轮生成慢
 
 // 注入到取证类 prompt 的通用工具指引
 // validator 节点日志关键行释义(slash/空块断因共用,随 validatorLogs 提供给模型)
-const LOG_KEY_GUIDE = "关键日志行释义:①「Chain find higher justifiedNumber」(fromHeight/fromHash→toHeight/toMiner/toJustified)= fast-finality forkchoice 切链 —— 本地分支被 justified 更高的对方分支替换,是「本地密封成功但块未被网络采纳」的铁证;toMiner 即接管出块者,引用 fromJustified 与 toJustified 的差说明投票落后。②同一高度出现两次「Sealing block with」= 本地被 reorg 后在新父块上重铸。③「BID RESULT win=true」= 该块采用了某 builder 的 bid;「[BID ARRIVED] accepted=false」只是竞价未中,不是异常。④「Signed recently, must wait」= parlia 防连签等待,正常行为。⑤WARN「stale block number」= builder bid 引用了过期高度,竞价时序噪声。断因时优先找 ①②,再看 ERROR/重启/追块行。";
+const LOG_KEY_GUIDE = "关键日志行释义:①「Chain find higher justifiedNumber」(fromHeight/fromHash→toHeight/toMiner/toJustified)= fast-finality forkchoice 切链 —— 本地分支被 justified 更高的对方分支替换,是「本地出块成功但未被网络采纳」的铁证;toMiner 即接管出块者,引用 fromJustified 与 toJustified 的差说明投票落后。②同一高度出现两次「Sealing block with」= 本地被 reorg 后在新父块上重新出块。③「BID RESULT win=true」= 该块采用了某 builder 的 bid;「[BID ARRIVED] accepted=false」只是竞价未中,不是异常。④「Signed recently, must wait」= parlia 防连签等待,正常行为。⑤WARN「stale block number」= builder bid 引用了过期高度,竞价时序噪声。断因时优先找 ①②,再看 ERROR/重启/追块行。";
 
 export const MCP_GUIDE = [
   "工具:你可以调用链上只读工具核实事实。bnbchain 系列(get_block_by_number / get_transaction / read_contract / is_contract / get_erc20_token_info / get_native_balance 等,network 参数一律 \"bsc\")查块/交易/合约/余额;查「某块是谁出的」用 bscops 系列 —— get_block_miner(单块)/ get_block_miners(区间批量,含 validator 名、gapMs、gasUsedM,一次最多 120 块,范围大用 step 抽样),bnbchain 的 get_block 不返回 miner。",

@@ -129,15 +129,24 @@ export default function SlashPanel() {
         )}
         {ai.err && <div className="ai-err">⚠ {ai.err}</div>}
         {ai.text && <div className="hpd-ai"><AiText text={ai.text} /></div>}
-        {/* 单事件深析结果 */}
-        {evAi.loading && (
-          <div className="tf-ai-loading">
-            <span className="tf-ai-spin" />
-            <span>claude 深析该次 slash…链上取证 + 自营节点日志断因,约 30–40s</span>
+        {/* 单事件深析:金色卡片,带标题与关闭 */}
+        {(evAi.loading || evAi.text || evAi.err) && (
+          <div className="sl-ev-card">
+            <div className="sl-ev-head">
+              <b>AI 深析 · {eps.find((x) => x.startBlock === evAi.key)?.name ?? ""} · #{evAi.key?.toLocaleString?.() ?? evAi.key}</b>
+              <span className="sl-ev-src">证据:链上取证 + 自营节点信号日志</span>
+              <button className="robot-close" onClick={() => setEvAi({ key: null, loading: false, text: null, err: null })}>×</button>
+            </div>
+            {evAi.loading && (
+              <div className="tf-ai-loading">
+                <span className="tf-ai-spin" />
+                <span>claude 深析该次 slash…链上取证 + 节点日志断因,约 30–40s</span>
+              </div>
+            )}
+            {evAi.err && <div className="ai-err">⚠ {evAi.err}</div>}
+            {evAi.text && <div className="sl-ev-body"><AiText text={evAi.text} /></div>}
           </div>
         )}
-        {evAi.err && <div className="ai-err">⚠ {evAi.err}</div>}
-        {evAi.text && <div className="hpd-ai"><AiText text={evAi.text} /></div>}
       </div>
     </div>
   );

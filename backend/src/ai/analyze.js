@@ -360,10 +360,14 @@ export async function runEmptyStreakAnalysis(data) {
 // ── 单次 slash 事件深析:还原经过 + 有自营日志时直接断因 ──
 export async function runSlashEventAnalysis(data) {
   const prompt = [
-    `你是 BSC 主网运维分析师。深析一次 slash 事件:validator ${data.validator} 在 ${data.timeLocal} 被 slash ${data.blocks} 块(#${data.startBlock}${data.blocks > 1 ? `~#${data.endBlock}` : ""}),替代出块者 ${data.fillers?.join("/") || "?"},链上间隔 ${data.gapMs != null ? data.gapMs + "ms" : "未知"}。中文,170 字以内,直接正文。`,
+    `你是 BSC 主网运维分析师。深析一次 slash 事件:validator ${data.validator} 在 ${data.timeLocal} 被 slash ${data.blocks} 块(#${data.startBlock}${data.blocks > 1 ? `~#${data.endBlock}` : ""}),替代出块者 ${data.fillers?.join("/") || "?"},链上间隔 ${data.gapMs != null ? data.gapMs + "ms" : "未知"}。中文,直接正文。`,
     "",
-    "背景:slash = 该 validator 的轮次块未被网络接受,备位 validator 越位补块(canonical 上该高度 difficulty=1),SlashIndicator 逐块记录。常见根因:①节点宕机/重启;②密封成功但广播失败/丢失竞争(日志特征:同高度出现两次 Sealing = 事后重铸,说明节点活着、块没传出去);③节点落后追块错过轮次。",
-    "输出两段:①**事件还原**:节点当时是否存活、是否按时密封、哪一环断了;②**结论与处置**:单块偶发(网络毛刺)还是持续风险,自营节点给具体核对项。",
+    "读者是没跟过这次事件的工程师:重点是把「为什么会被 slash」的因果讲清楚,并解释背后的协议机制,禁止只复述日志行。",
+    "输出格式(严格四段,段标题用整行 **粗体**,总量 260 字内):",
+    "**结论** 一句话:谁、哪个高度、根因类型(宕机/密封成功但未被采纳/落后)。",
+    "**因果链** 编号步骤 1.~5.,每步一个短句(≤22 字)+ 括号内证据(日志时刻/块号),读者顺着编号就能看懂事件如何一步步发生。",
+    "**机制** 两句以内,把关键一步落到代码规则上:fast-finality forkchoice(core/forkchoice.go:146,对方分支 justifiedNumber 更高即直接胜出,与 difficulty 无关)为什么会把本地已密封的块切掉;SlashIndicator 只看规范链缺席,所以「密封成功但未被采纳」也记 missed turn。按事件实际情况引用,不适用的机制不要硬套。",
+    "**处置** 一句:单块偶发还是持续风险,自营节点给出最该核对的一项(如投票上行/出站带宽/peer 连通)。",
     LOG_KEY_GUIDE,
     "日志口径:若 validatorLogs 非空(自营节点事件窗 ±90s 原始日志,lines 升序),**应当据日志直接断因并引用具体日志行**(找同高度二次 Sealing、Commit 中断、重启行、追块行);为 null(外部 validator 或日志不可达)则只按链上形态给方向,禁止断言根因。",
     "称呼 validator 一律用名称;引用块号写完整数字。",

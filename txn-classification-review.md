@@ -68,7 +68,7 @@ AI 补标(2h 一批):unknownHot = 24h 内 cat==other 的热合约 top30(≥5 才
 
 ### stable —— 高精度、低覆盖(8.8%)
 固定 5 个:USDT/USDC/BUSD/DAI/FRAX(`labels.js:69-73`)。
-- **缺 FDUSD(`0xc5f0f7b66764f6ec8c8dff7ba683102295e16409`)和 USD1(`0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d`)**——两地址均已 eth_call symbol() 链上核实;这两个是当前 BSC 稳定币盘子的大头,漏的量全落 token。BUSD 已退役仍占位(无害)。
+- **缺 FDUSD(`0xc5f0f7b66764f6ec8c8dff7ba683102295e16409`)和 USD1(`0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d`)**——两地址均已 eth_call symbol() 链上核实,漏的量全落 token。量级校准:两者均不在 24h 合约 top15(单个 <13 万笔/天,即 <0.8%),补齐约挪动 0.5~1.5pp,值得补但不改变大盘。BUSD 已退役仍占位(无害)。
 - 语义注意:stable = "调用稳定币合约"(transfer/approve 都算),不是"稳定币转账笔数"。
 
 ### cex —— 低覆盖(1.1%)
@@ -78,14 +78,14 @@ AI 补标(2h 一批):unknownHot = 24h 内 cat==other 的热合约 top30(≥5 才
 静态只有 four.meme 3 个地址(`labels.js:64-66`)。meme 的主战场是 Pancake 池子直接 swap → Swap 事件 → **defi**。3.0% 实际语义是"launchpad 内盘交易量",外盘 meme 买卖全在 defi 里。根因:分类只看 to 地址 + topic 计数,不看 swap 涉及的 token 是谁(见 S6/P2)。
 
 ### predict —— 范围内较准(3.3% 笔数,7.6% gas)
-30 个 predict.fun 全家桶地址(`labels.js:30-58`)。地址精确 → 范围内准确率高;本质是 predict.fun 地址统计,其他预测市场覆盖为零。
+30 个 predict.fun 全家桶地址(`labels.js:30-58`)。地址精确 → 范围内准确率高。二次校准:AI 雪球已把覆盖扩到静态表之外——24h top4 `0xdcffeb0c…`(CTF Exchange,40 万笔/天)是学得标签,「其他预测市场覆盖为零」不成立;学得部分的准确性归入 S4 审计。
 
 ### bridge —— 中(0.3%)
 静态仅 TokenHub `0x…1004`;其余靠 AI 学。主流桥端点(Stargate/LayerZero/cBridge/deBridge 等)未播种,0.3% 大概率低估。
 
-### infra —— 低覆盖且未经审计(5.3%)
-静态仅 BlockRazor Payment 1 个地址(`labels.js:61`),但 live 占 5.3% —— 几乎全部来自 AI 学得标签,构成未审计过。
-- **发现 labeler prompt 自相矛盾**(`ai/analyze.js` runContractLabeling):分类定义行写 infra=「MEV builder/relay 支付结算地址,如 BlockRazor Payment」,而地址情报判据行写「EOA 且 nonce 极高 + BNB 收支 → 支付/结算地址(如 builder payment,**归 bnb,不是 bot**)」。同一形态两处指向不同类,5.3% 里混着多少本应是 bnb/infra 的互串无法判断。
+### infra —— 量级已验证合理(5.3%)
+静态仅 BlockRazor Payment 1 个地址(`labels.js:61`),live 5.3% 主要来自 AI 学得标签。二次校准(见六):24h top15 里 `0x4848489f…4848`(48Club 支付,vanity EOA,AI 学得)44.2 万笔 + BlockRazor 21.1 万笔,仅两个支付地址即 ≈4%——**5.3% 量级合理,AI 在该类的标注方向正确**。
+- **labeler prompt 自相矛盾**(`ai/analyze.js` runContractLabeling):分类定义行写 infra=「MEV builder/relay 支付结算地址,如 BlockRazor Payment」,而地址情报判据行写「EOA 且 nonce 极高 + BNB 收支 → 支付/结算地址(如 builder payment,**归 bnb,不是 bot**)」。实际影响有限:纯 21000 支付流入库即 bnb、不进 contracts 追踪表,到不了 AI 队列;真到了队列的 0x4848 也被正确标为 infra。属文字瑕疵,顺手统一为 infra 即可。
 
 ### system —— 高(1.2%)
 14 个固定地址可靠(`classifier.js:18-26`);1.2% 与理论量级吻合(每块 1~2 笔 deposit/slash)。
@@ -118,7 +118,7 @@ AI 补标(2h 一批):unknownHot = 24h 内 cat==other 的热合约 top30(≥5 才
 
 ### P1(结构性,中等工作量)
 6. AI 复核扩容:除 other 外,每周抽 top20 高频 defi/token 合约重验(纠正规则误判);学得标签加 `reviewedAt`,>90 天的高频标签到期重验。—— 针对 S2/S4。
-7. 分布回写:小时桶里已存 `contracts[addr]{n,gas,cat}`,学得新标签时把该 addr 的 n/gas 从旧 cat 挪到新 cat(仅限被 top80 追踪的部分),让近期占比随标签修正。—— 针对 S1,数据结构已支持,成本低。
+7. 分布回写:小时桶里已存 `contracts[addr]{n,gas,cat}`,学得新标签时把该 addr 的 n/gas 从旧 cat 挪到新 cat(仅限被 top80 追踪的部分),让近期占比随标签修正。—— 针对 S1,数据结构已支持,成本低。**(二次校准后存疑,见六:监控面板回改历史 = 昨天的图今天变样,且只能修 top80 追踪到的部分,口径反而不一致;倾向不做)**
 8. bot 判定增强:①跨块滚动计数(EOA 每分钟 ≥N 笔);②无 verified 名 + 单一非标 selector 极高频的合约 → bot;③把带 Swap 日志但调用方单一的合约纳入 AI 复核样本。
 9. Swap 事件签名扩充:StableSwap TokenExchange、DODO 等主流非 UniV2/V3 事件。
 10. bridge/infra 静态播种:一次性把主流桥端点与各家 builder 支付地址(48club/BlockRazor/BlockRoute 等)核实后播进 STATIC_LABELS,不再依赖 AI 自学。
@@ -143,6 +143,37 @@ AI 补标(2h 一批):unknownHot = 24h 内 cat==other 的热合约 top30(≥5 才
 | meme | 低覆盖 | 外盘买卖全被算成 defi | labels.js:64-66 |
 | predict | 范围内较准 | 本质是 predict.fun 地址统计 | labels.js:30-58 |
 | bridge | 中 | 已知桥准,未知桥靠 AI | labels.js:90 |
-| infra | 低覆盖未审计 | 1 个静态地址 + prompt 自相矛盾的 AI 学得 | labels.js:61 |
+| infra | 中(量级已验证) | 48Club+BlockRazor 两个支付地址即 ≈4%,AI 标注方向正确 | labels.js:61 |
 | system | 高 | 固定地址可靠,缺 2006/3000 | classifier.js:18-26 |
 | other | 无语义 | 残差项,只需盯突增 | — |
+
+---
+
+## 六、二次校准(2026-08-24,对本 review 自身的数据验证)
+
+用线上 24h top15 合约 + eth_getCode 对 review 的结论做了一轮对抗验证,**以下按"是否真实问题"重新分层**;与上文冲突处以本节为准。
+
+### A. 确凿且值得动手(代码+数据双证)
+1. **学得标签库无审计(S4)+ 反馈回路只清洗 other(S2)** —— 本 review 唯一的结构级真问题。top15 里 8 条 ai=True 且多数 name=null(如 39 万笔/天的 `0x1de460f3…` 标 defi),对错无人复核;落 defi 的 bot 永不进队列(`store.js:124` 可证)。最高价值动作是 **top 学得标签抽审**,而非加规则。
+2. **cex ERC20 充值盲区** —— 代码可证(`classifier.js:71` 只看 tx.from/to)。但修复有语义代价:同一笔 USDT 充值只能记 cex 或 stable 之一,先定口径再动手。
+3. **meme 3.0% 的真实语义 = launchpad 内盘** —— 真问题;根治(P2 token 维度)贵,便宜且正确的第一步是面板口径注释,防止读成"全市场 meme 活跃度"。
+
+### B. 真实但影响小(卫生性,顺手修)
+4. 稳定币缺 FDUSD/USD1 —— 缺是真的,但**"大头"说重了**:均不在 top15(单个 <0.8%),补齐挪动 0.5~1.5pp。
+5. system 缺 `0x…2006`/`0x…3000` —— 真缺(对照 const.go),交易量≈0。
+6. receipts-only 失败无计数 —— 盲区真实,NodeReal 上应当罕见,加计数即可证实/证伪。
+7. bnb 不看金额 —— 真,极小。
+
+### C. 收回或降级(review 说过头的)
+8. **「infra 5.3% 可信度低」——收回**。构成已验证:48Club 支付 `0x4848489f…4848`(EOA)44.2 万 + BlockRazor 21.1 万 ≈4%,量级合理,AI 标对了。
+9. **prompt infra/bnb 矛盾——降级为文字瑕疵**。纯支付流到不了 AI 队列;到了队列的也没被带偏(0x4848 为证)。
+10. **「predict 范围外覆盖为零」——说错**。`0xdcffeb0c…` CTF Exchange(40 万笔/天)是 AI 学来的,雪球已自行扩圈。
+11. **bot ≥3 同块"误报批量分发"——说重了**。真正的批量分发是单笔 multisend,不触发该规则;450ms 内同 from ≥3 笔非转账合约调用基本就是自动化。bot 的真问题只在漏报侧(单发 MEV 落 defi)。
+12. **Swap 事件覆盖窄——紧迫性降级**。主流替代 AMM 的 router 多已有静态标签,直调 pool 落 other 后由 AI 队列自愈。
+13. **P1-7 分布回写——自我否决**(理由见上标注)。
+14. WBNB wrap→defi、EntryPoint→defi、NFT selector 撞车 —— 技术上对,但属口径选择或 BSC 上量级可忽略,不列为待修。
+
+### 收敛后的行动清单
+- **立刻**:top50 学得标签抽审;labeler prompt 统一 infra 措辞;补 4 个地址(FDUSD/USD1/2006/3000);sampler receipts 失败计数。
+- **定口径后**:cex 充值 `topics[2]` 识别;meme 面板口径注释。
+- **不做/缓做**:分布回写、Swap 签名扩充、bot ≥3 规则改动。

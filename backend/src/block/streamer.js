@@ -13,7 +13,10 @@ import { EventEmitter } from "events";
 import { ethers } from "ethers";
 import WebSocket from "ws";
 
-// Known MEV builders (from getchainstatus.js)
+// Known MEV builders。来源三层合并,只增不减:
+// 1) 现行官方名单 good-will-alliance/mev-info/bsc-mainnet/builder-list.toml(注册在案的 builder);
+// 2) 旧 bsc-mev-info builder-list.toml 与 bsc 仓库 getchainstatus.js(含已退役地址,历史块归因仍需要);
+// 3) 人工确认条目(如 48club u1-u4 vanity 0x48…BB48,官方未收录)——同步官方名单时不可删。
 const BUILDER_MAP = new Map([
   ["0x5532CdB3c0c4278f9848fc4560b495b70bA67455", "blockrazor dublin"],
   ["0xBA4233f6e478DB76698b0A5000972Af0196b7bE1", "blockrazor frankfurt"],
@@ -74,7 +77,10 @@ const BUILDER_MAP = new Map([
   ["0x95c8436143c82Ea4d3529A3ed8DDa9998F6daC5F", "blockrazor eu"],
   ["0xb71Ba9e570ee20E983De1d5aE01baf5dCB4e4299", "blockrazor us"],
   ["0x7b3ee856c98b1bb3689ef7f90477df2927fcbdb6", "trustnet"],
+  ["0x2d3cC0A25A05e6EB3D5d3Ea21d72C8D71B436a7f", "trustnet x"],
   ["0xA8caEc0D68a90Ac971EA1aDEFA1747447e1f9871", "blockroute"],
+  ["0x9C6b0870752CdD1b3f9aac28C0207e8126F8E1B8", "flashblock us"],
+  ["0x89b08890751B28511541F5FEd08D7d964CaAE911", "flashblock eu"],
 ]);
 
 export function getBuilderName(address) {

@@ -43,6 +43,13 @@ export function parseBadBlockMsg(msg) {
   };
 }
 
+// 错误原因归一化:截掉首个括号起的参数段,抹平 hex/数字 → 稳定的模式键
+// 如 "invalid merkle root (remote: d20e… local: ae7d…) dberr: …" → "invalid merkle root"
+export const normErrReason = (err) => {
+  const s = (err ?? "").replace(/\(.*$/s, "").replace(/0x[0-9a-fA-F]{4,}/g, "").replace(/\d+/g, "").replace(/\s+/g, " ").trim();
+  return s.slice(0, 60) || "未知";
+};
+
 export class BadBidblockWatch {
   constructor(file) {
     this.file = file;
@@ -50,6 +57,7 @@ export class BadBidblockWatch {
     this.blocks = [];                                          // 明细(unique 坏块)
     this.totals = { blocks: 0, bid: 0, nonBid: 0, unknown: 0 }; // 按 unique hash 累计(持久)
     this.byBuilder = {};                                       // builderAddr → { n, lastT, lastNumber }
+    this.byError = {};                                         // 错误模式 → { n, bid, lastT, lastNumber, sample }
     this.watermark = 0;
     this.since = Date.now();
     this.truncated = false;                                    // 有窗口撞到 1000 条页限(可能漏旧行)
@@ -61,10 +69,21 @@ export class BadBidblockWatch {
           byBuilder: raw.byBuilder ?? {}, watermark: raw.watermark ?? 0, since: raw.since ?? Date.now(),
           countedHashes: raw.countedHashes ?? [],
         });
+        // 旧文件无 byError:用在册明细重建(blocks 按 hash 唯一,重建精确;已淘汰部分不可追溯)
+        if (raw.byError) this.byError = raw.byError;
+        else for (const b of this.blocks) this._countError(b, b.lastT);
       }
     } catch { /* fresh start */ }
     this.counted = new Set(this.countedHashes ?? []);   // 曾计入 totals 的 hash(防明细淘汰后重扫双计)
     this.byHash = new Map(this.blocks.map((b) => [b.hash, b]));
+  }
+
+  _countError(ev, t) {
+    const ek = normErrReason(ev.error);
+    const e = (this.byError[ek] ??= { n: 0, bid: 0, lastT: 0, lastNumber: null, sample: ev.error ?? "" });
+    e.n++;
+    if (ev.isBid === true) e.bid++;
+    if (t >= e.lastT) { e.lastT = t; e.lastNumber = ev.number; }
   }
 
   _merge(ev, host, t, rowKey) {
@@ -73,9 +92,10 @@ export class BadBidblockWatch {
       b = { ...ev, firstT: t, lastT: t, n: 0, hosts: [], rk: [] };
       this.byHash.set(ev.hash, b);
       this.blocks.push(b);
-      if (!this.counted.has(ev.hash)) {                 // totals/byBuilder 每 hash 只计一次(跨淘汰持久)
+      if (!this.counted.has(ev.hash)) {                 // totals/byBuilder/byError 每 hash 只计一次(跨淘汰持久)
         this.counted.add(ev.hash);
         this.totals.blocks++;
+        this._countError(ev, t);
         if (ev.isBid === true) {
           this.totals.bid++;
           const key = ev.builder ?? "unknown";
@@ -132,7 +152,7 @@ export class BadBidblockWatch {
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
       fs.writeFileSync(this.file, JSON.stringify({
-        blocks: this.blocks, totals: this.totals, byBuilder: this.byBuilder,
+        blocks: this.blocks, totals: this.totals, byBuilder: this.byBuilder, byError: this.byError,
         watermark: this.watermark, since: this.since,
         countedHashes: [...this.counted].slice(-4000),
       }));
@@ -148,6 +168,9 @@ export class BadBidblockWatch {
       totals: this.totals,
       byBuilder: Object.entries(this.byBuilder)
         .map(([addr, a]) => ({ addr, name: addr === "unknown" ? null : nameOf(addr), ...a }))
+        .sort((x, y) => y.n - x.n),
+      byError: Object.entries(this.byError)
+        .map(([key, e]) => ({ key, ...e }))
         .sort((x, y) => y.n - x.n),
       recent: this.blocks.slice(0, 40).map((b) => ({
         ...b, builderName: b.builder ? nameOf(b.builder) : null,

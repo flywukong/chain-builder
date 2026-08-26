@@ -311,6 +311,18 @@ export default function MevPage({ state }) {
                       <div key={b.addr}><em>{b.name ?? "?"}</em> <code>{b.addr}</code></div>
                     ))}
                   </div>
+                  {(bad.byError ?? []).length > 0 && (
+                    <>
+                      <div className="re-title" style={{ marginTop: 10 }}>错误原因汇总(unique 坏块)</div>
+                      {bad.byError.map((e) => (
+                        <div key={e.key} className="eb-miner" title={e.sample}>
+                          <em>{e.key}</em>
+                          <span className="eb-mbar"><i style={{ width: `${(e.n / bad.byError[0].n) * 100}%` }} /></span>
+                          <b>{e.n} 块{e.bid > 0 && e.bid !== e.n ? <em className="bb-pct">· bidblock {e.bid}</em> : null}</b>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
                 <div>
                   <div className="re-title">最近坏块(hash 去重 · ×n 为重播次数)</div>

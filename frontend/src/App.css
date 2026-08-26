@@ -697,6 +697,10 @@ body::before {
 .bb-err-row .eb-mbar { flex: 1 1 60px; }
 .bb-err-n { margin-left: auto; flex-shrink: 0; white-space: nowrap; color: var(--orange); }
 .bb-err-n em { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
+/* 错误原因编号徽章:汇总行与明细行同号同色互指 */
+.bb-err-idx { font-style: normal; font-family: var(--mono); font-size: 9px; font-weight: 700;
+  width: 14px; height: 14px; line-height: 12px; border: 1px solid; border-radius: 4px;
+  text-align: center; flex-shrink: 0; display: inline-block; background: rgba(255,255,255,.03); }
 .bb-inst-list { max-height: 300px; }
 .bb-pct { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
 .bb-addrs { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: var(--muted); }

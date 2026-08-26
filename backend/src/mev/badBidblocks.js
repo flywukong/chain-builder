@@ -180,6 +180,7 @@ export class BadBidblockWatch {
         .sort((x, y) => y.n - x.n),
       recent: this.blocks.slice(0, 40).map((b) => ({
         ...b, builderName: b.builder ? nameOf(b.builder) : null,
+        errKey: normErrReason(b.error), // 供前端把明细行标注到错误原因汇总的编号
       })),
     };
   }

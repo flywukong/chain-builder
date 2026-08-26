@@ -34,6 +34,10 @@ const FAMILY_COLORS = {
 
 const fmtBbT = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
+// 坏块错误原因编号徽章配色:1 号(最大头)金色,依次错开
+const ERR_IDX_COLORS = ["#F0B90B", "#f97316", "#45B8FF", "#22c55e", "#ec4899", "#9A86F0"];
+const errIdxColor = (ix) => ERR_IDX_COLORS[(ix - 1) % ERR_IDX_COLORS.length];
+
 // builder 实例名 → 家族(首词);puissant 系与 48club 同源,归并
 const BB_FAMILY_ALIAS = { puissant: "48club" };
 const famOf = (name) => {
@@ -48,6 +52,8 @@ export default function MevPage({ state }) {
   const [bb, setBb] = useState(null);
   // 坏块 bidblock 归因(2 台灰度探针机:metric + BAD BLOCK 日志)
   const [bad, setBad] = useState(null);
+  // 错误原因 → 汇总里的编号(按块数排序,1 = 最大头);明细行用同号同色徽章回指
+  const badErrIdx = new Map((bad?.byError ?? []).map((e, i) => [e.key, i + 1]));
   useEffect(() => {
     let alive = true;
     const pull = () => fetch(API + "/api/bidblock").then((r) => r.json()).then((j) => { if (alive) setBb(j); }).catch(() => {});
@@ -316,8 +322,9 @@ export default function MevPage({ state }) {
                   {(bad.byError ?? []).length > 0 && (
                     <>
                       <div className="re-title" style={{ marginTop: 10 }}>错误原因汇总(unique 坏块)</div>
-                      {bad.byError.map((e) => (
+                      {bad.byError.map((e, i) => (
                         <div key={e.key} className="bb-err-row" title={`${e.key}\n样本:${e.sample}`}>
+                          <i className="bb-err-idx" style={{ color: errIdxColor(i + 1), borderColor: errIdxColor(i + 1) }}>{i + 1}</i>
                           <em className="bb-err-key">{e.key}</em>
                           <span className="eb-mbar"><i style={{ width: `${(e.n / bad.byError[0].n) * 100}%` }} /></span>
                           <b className="bb-err-n">{e.n} 块{e.bid > 0 ? <em>· bidblock {e.bid}</em> : null}</b>
@@ -335,7 +342,12 @@ export default function MevPage({ state }) {
                         <b className="bbk-num">#{b.number.toLocaleString()}</b>
                         <span className={`bbk-tag ${b.isBid ? "bid" : b.isBid === false ? "" : "unk"}`}>{b.isBid ? "bidblock" : b.isBid === false ? "非bidblock" : "旧格式"}</span>
                         <span className="bbk-b">{b.isBid ? (b.builderName ?? (b.builder ?? "").slice(0, 10) + "…") : (b.minerName ?? (b.miner ?? "").slice(0, 10))}</span>
-                        <em className="bbk-err">{(b.error ?? "").slice(0, 44)}</em>
+                        {(() => {
+                          const ix = badErrIdx.get(b.errKey);
+                          return ix
+                            ? <i className="bb-err-idx" style={{ color: errIdxColor(ix), borderColor: errIdxColor(ix) }} title={b.errKey}>{ix}</i>
+                            : <em className="bbk-err">{(b.error ?? "").slice(0, 24)}</em>;
+                        })()}
                         <i className="bbk-n">×{b.n}</i>
                       </div>
                     ))}

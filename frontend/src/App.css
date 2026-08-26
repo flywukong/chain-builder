@@ -677,7 +677,6 @@ body::before {
 .bb-r24 em.bb-wrap { width: auto; max-width: 180px; }
 .bb-r24 b { color: var(--text); }
 .bb-r24 span { color: var(--muted); font-size: 9.5px; }
-.bb-r24-err { margin-top: 4px; font-size: 9.5px; color: var(--text-dim); font-family: var(--mono); }
 /* 条幅:填满剩余但封顶 190px(原来 flex:1 会把整行撑满);min-width 防止行内元素多时被挤成 0 */
 .eb-mbar { flex: 1 1 auto; max-width: 190px; min-width: 70px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
 /* Top3 validator 的空块成因 AI 解读 */
@@ -699,12 +698,11 @@ body::before {
 .bb-fork-row span { font-family: var(--mono); color: var(--gold); font-size: 10.5px; min-width: 44px; text-align: right; }
 .bb-fork-total { margin-top: 8px; font-size: 9.5px; color: var(--muted); font-family: var(--mono); }
 @media (max-width: 900px) { .bb-cols { grid-template-columns: 1fr; } }
-.bb-list { max-height: 360px; }
+.bb-list { max-height: 432px; }
 /* 错误原因汇总:错误键较长,专用行布局 —— 宽标签不截断、计数单行靠右不换行 */
 .bb-err-row { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; padding: 3px 0; min-width: 0; }
 .bb-err-key { font-style: normal; color: var(--text); flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bb-err-row .eb-mbar { flex: 1 1 60px; }
-.bb-err-n { margin-left: auto; flex-shrink: 0; white-space: nowrap; color: var(--orange); }
+.bb-err-n { flex-shrink: 0; white-space: nowrap; color: var(--orange); }
 .bb-err-n em { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
 /* 错误原因编号徽章:汇总行与明细行同号同色互指 */
 .bb-err-idx { font-style: normal; font-family: var(--mono); font-size: 9px; font-weight: 700;

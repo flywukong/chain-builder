@@ -45,9 +45,15 @@ export function parseBadBlockMsg(msg) {
 
 // 错误原因归一化:截掉首个括号起的参数段,抹平 hex/数字 → 稳定的模式键
 // 如 "invalid merkle root (remote: d20e… local: ae7d…) dberr: …" → "invalid merkle root"
+// remote 全 0(builder 根本没填执行结果字段)与真实值不一致是两种病因,单独成键:
+// "invalid merkle root (remote: 0000…0000 local: c09b…)" → "invalid merkle root · remote全0"
+export const ERR_NORM_VER = 2; // 归一化规则版本:变更时加载端用在册明细重建 byError
 export const normErrReason = (err) => {
   const s = (err ?? "").replace(/\(.*$/s, "").replace(/0x[0-9a-fA-F]{4,}/g, "").replace(/\d+/g, "").replace(/\s+/g, " ").trim();
-  return s.slice(0, 60) || "未知";
+  let key = s.slice(0, 60) || "未知";
+  const remote = (err ?? "").match(/remote:\s*(?:0x)?([0-9a-fA-F]{8,})/);
+  if (remote && !/[^0]/.test(remote[1])) key += " · remote全0";
+  return key;
 };
 
 export class BadBidblockWatch {
@@ -69,9 +75,9 @@ export class BadBidblockWatch {
           byBuilder: raw.byBuilder ?? {}, watermark: raw.watermark ?? 0, since: raw.since ?? Date.now(),
           countedHashes: raw.countedHashes ?? [],
         });
-        // 旧文件无 byError:用在册明细重建(blocks 按 hash 唯一,重建精确;已淘汰部分不可追溯)
-        if (raw.byError) this.byError = raw.byError;
-        else for (const b of this.blocks) this._countError(b, b.lastT);
+        // 旧文件无 byError 或归一化规则升级:用在册明细重建(blocks 按 hash 唯一,重建精确;已淘汰部分不可追溯)
+        if (raw.byError && raw.byErrorVer === ERR_NORM_VER) this.byError = raw.byError;
+        else { this.byError = {}; for (const b of this.blocks) this._countError(b, b.lastT); }
       }
     } catch { /* fresh start */ }
     this.counted = new Set(this.countedHashes ?? []);   // 曾计入 totals 的 hash(防明细淘汰后重扫双计)
@@ -153,7 +159,7 @@ export class BadBidblockWatch {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
       fs.writeFileSync(this.file, JSON.stringify({
         blocks: this.blocks, totals: this.totals, byBuilder: this.byBuilder, byError: this.byError,
-        watermark: this.watermark, since: this.since,
+        byErrorVer: ERR_NORM_VER, watermark: this.watermark, since: this.since,
         countedHashes: [...this.counted].slice(-4000),
       }));
     } catch { /* non-fatal */ }

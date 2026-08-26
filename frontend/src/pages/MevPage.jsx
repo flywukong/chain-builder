@@ -317,10 +317,10 @@ export default function MevPage({ state }) {
                     <>
                       <div className="re-title" style={{ marginTop: 10 }}>错误原因汇总(unique 坏块)</div>
                       {bad.byError.map((e) => (
-                        <div key={e.key} className="eb-miner" title={e.sample}>
-                          <em>{e.key}</em>
+                        <div key={e.key} className="bb-err-row" title={`${e.key}\n样本:${e.sample}`}>
+                          <em className="bb-err-key">{e.key}</em>
                           <span className="eb-mbar"><i style={{ width: `${(e.n / bad.byError[0].n) * 100}%` }} /></span>
-                          <b>{e.n} 块{e.bid > 0 && e.bid !== e.n ? <em className="bb-pct">· bidblock {e.bid}</em> : null}</b>
+                          <b className="bb-err-n">{e.n} 块{e.bid > 0 ? <em>· bidblock {e.bid}</em> : null}</b>
                         </div>
                       ))}
                     </>
@@ -329,7 +329,7 @@ export default function MevPage({ state }) {
                 <div>
                   <div className="re-title">最近坏块(hash 去重 · ×n 为重播次数)</div>
                   <div className="eb-list bb-list">
-                    {bad.recent.slice(0, 12).map((b) => (
+                    {bad.recent.slice(0, 16).map((b) => (
                       <div key={b.hash} className="bbk-row" title={`${b.hash}\n${b.error ?? ""}`}>
                         <span className="hpd-num">{fmtBbT(b.lastT)}</span>
                         <b className="bbk-num">#{b.number.toLocaleString()}</b>

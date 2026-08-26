@@ -690,7 +690,13 @@ body::before {
 .bb-fork-row span { font-family: var(--mono); color: var(--gold); font-size: 10.5px; min-width: 44px; text-align: right; }
 .bb-fork-total { margin-top: 8px; font-size: 9.5px; color: var(--muted); font-family: var(--mono); }
 @media (max-width: 900px) { .bb-cols { grid-template-columns: 1fr; } }
-.bb-list { max-height: 300px; }
+.bb-list { max-height: 360px; }
+/* 错误原因汇总:错误键较长,专用行布局 —— 宽标签不截断、计数单行靠右不换行 */
+.bb-err-row { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; padding: 3px 0; min-width: 0; }
+.bb-err-key { font-style: normal; color: var(--text); flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb-err-row .eb-mbar { flex: 1 1 60px; }
+.bb-err-n { margin-left: auto; flex-shrink: 0; white-space: nowrap; color: var(--orange); }
+.bb-err-n em { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
 .bb-inst-list { max-height: 300px; }
 .bb-pct { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
 .bb-addrs { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: var(--muted); }

@@ -237,7 +237,7 @@ export default function MevPage({ state }) {
                   <div className="eb-list bb-inst-list">
                     {bb.builders.map((b) => (
                       <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
-                        <em>{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
+                        <em className="bb-wrap">{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
                         <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
                         <b>{b.count.toLocaleString()}<em className="bb-pct">· {((b.count / bb.count) * 100).toFixed(1)}%</em></b>
                       </div>
@@ -319,7 +319,7 @@ export default function MevPage({ state }) {
                     ? <div className="eb-none">✓ 尚无归因到 bidblock 的坏块</div>
                     : bad.byBuilder.map((b) => (
                         <div key={b.addr} className="eb-miner" title={b.addr}>
-                          <em className="eb-hot">{b.name ?? (b.addr === "unknown" ? "未带 builder 标记" : b.addr.slice(0, 10) + "…")}</em>
+                          <em className="eb-hot bb-wrap">{b.name ?? (b.addr === "unknown" ? "未带 builder 标记" : b.addr.slice(0, 10) + "…")}</em>
                           <span className="eb-mbar"><i style={{ width: `${(b.n / bad.byBuilder[0].n) * 100}%` }} /></span>
                           <b>{b.n} 次</b>
                         </div>

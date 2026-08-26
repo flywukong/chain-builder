@@ -669,6 +669,8 @@ body::before {
 .eb-miner { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; }
 .eb-miner em { font-style: normal; color: var(--text); width: 108px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .eb-miner b { width: 26px; text-align: right; color: var(--orange); flex-shrink: 0; }
+/* 长 builder 实例名(如 blockrazor virginia):两行折行,不截断 */
+.eb-miner em.bb-wrap { white-space: normal; word-break: break-word; line-height: 1.3; width: 118px; }
 /* 条幅:填满剩余但封顶 190px(原来 flex:1 会把整行撑满);min-width 防止行内元素多时被挤成 0 */
 .eb-mbar { flex: 1 1 auto; max-width: 190px; min-width: 70px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
 /* Top3 validator 的空块成因 AI 解读 */

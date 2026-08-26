@@ -7,8 +7,12 @@
  *     新版在其中打印 IsBidBlock: true/false 与 Builder: 0x…(header.RequestsHash 自声明标记,
  *     无共识校验,builder 只作线索不作定论)。
  *
- * 采集约束:peer 会反复重播同一坏块 → 同一 hash 在日志里刷屏,必须按块 hash 去重;
- * ES token 查询单窗口上限 2 天 → 增量扫描 + 水位线,首扫回填分片进行。
+ * 采集约束:
+ *  - peer 反复重播同一坏块 → 同一 hash 刷屏,unique 统计按块 hash 去重;
+ *  - BAD BLOCK 多行长日志可能延迟数小时才入 ES → 不能用"只扫水位线之后"的增量,
+ *    每轮固定回看 12h + 行级幂等(host|t 行键),迟到的行随时补记、重扫不重复计数;
+ *  - 空库首扫回看 46h(ES token 查询单窗上限 2 天),分片进行;
+ *  - quickwit 不支持 hostName:("A" OR "B") 分组语法(静默返回 0),必须逐项 OR 展开。
  */
 
 import fs from "fs";
@@ -19,8 +23,10 @@ export const BAD_BIDBLOCK_IPS = (process.env.BAD_BIDBLOCK_IPS ?? "10.213.33.42,1
   .split(",").map((s) => s.trim()).filter(Boolean);
 
 const CHUNK_MS = 12 * 3600e3;          // 单次 ES 查询窗口(远小于 2d 上限,降低 1000 条截断风险)
-const BACKFILL_MS = 46 * 3600e3;       // 首扫回填(2d 上限内留余量)
+const BACKFILL_MS = 46 * 3600e3;       // 空库首扫回看(2d 上限内留余量)
+const LOOKBACK_MS = 12 * 3600e3;       // 常规每轮回看窗:容忍 ES 迟到入库(实测可迟到数小时)
 const BLOCK_CAP = 500;                 // 明细上限;淘汰块的计数已进 totals/byBuilder,不丢
+const ROWKEY_CAP = 300;                // 每块最多记多少行键(host|t),超出的重播不再细计
 
 // BAD BLOCK 摘要解析(整段 message):没有 Block: 行的不是坏块摘要
 export function parseBadBlockMsg(msg) {
@@ -53,44 +59,51 @@ export class BadBidblockWatch {
         Object.assign(this, {
           blocks: raw.blocks ?? [], totals: raw.totals ?? this.totals,
           byBuilder: raw.byBuilder ?? {}, watermark: raw.watermark ?? 0, since: raw.since ?? Date.now(),
+          countedHashes: raw.countedHashes ?? [],
         });
       }
     } catch { /* fresh start */ }
+    this.counted = new Set(this.countedHashes ?? []);   // 曾计入 totals 的 hash(防明细淘汰后重扫双计)
     this.byHash = new Map(this.blocks.map((b) => [b.hash, b]));
   }
 
-  _merge(ev, host, t) {
+  _merge(ev, host, t, rowKey) {
     let b = this.byHash.get(ev.hash);
     if (!b) {
-      b = { ...ev, firstT: t, lastT: t, n: 0, hosts: [] };
+      b = { ...ev, firstT: t, lastT: t, n: 0, hosts: [], rk: [] };
       this.byHash.set(ev.hash, b);
       this.blocks.push(b);
-      this.totals.blocks++;
-      if (ev.isBid === true) {
-        this.totals.bid++;
-        const key = ev.builder ?? "unknown";
-        const a = (this.byBuilder[key] ??= { n: 0, lastT: 0, lastNumber: null });
-        a.n++; a.lastT = t; a.lastNumber = ev.number;
-      } else if (ev.isBid === false) this.totals.nonBid++;
-      else this.totals.unknown++;
+      if (!this.counted.has(ev.hash)) {                 // totals/byBuilder 每 hash 只计一次(跨淘汰持久)
+        this.counted.add(ev.hash);
+        this.totals.blocks++;
+        if (ev.isBid === true) {
+          this.totals.bid++;
+          const key = ev.builder ?? "unknown";
+          const a = (this.byBuilder[key] ??= { n: 0, lastT: 0, lastNumber: null });
+          a.n++; a.lastT = t; a.lastNumber = ev.number;
+        } else if (ev.isBid === false) this.totals.nonBid++;
+        else this.totals.unknown++;
+      }
     }
+    // 行级幂等:回看窗内同一行每轮都会再见到,记过的行键不重复累计 n
+    if (b.rk?.includes(rowKey)) return;
+    if ((b.rk ??= []).length < ROWKEY_CAP) b.rk.push(rowKey);
     b.n++;
     if (t > b.lastT) b.lastT = t;
     if (t < b.firstT) b.firstT = t;
     if (!b.hosts.includes(host)) b.hosts.push(host);
   }
 
-  // 增量扫描:水位线(-60s 重叠防边界漏)→ now,分片查询
+  // 每轮固定回看 12h(空库首扫 46h,分片);行级幂等保证重扫不重复计数
   async scan(configPath) {
     const now = Date.now();
-    let from = this.watermark ? this.watermark - 60e3 : now - BACKFILL_MS;
-    from = Math.max(from, now - BACKFILL_MS);
-    const hostQ = this.ips.map((ip) => `"${ip}"`).join(" OR ");
+    let from = now - (this.blocks.length === 0 ? BACKFILL_MS : LOOKBACK_MS);
+    const hostQ = this.ips.map((ip) => `hostName:"${ip}"`).join(" OR ");
     let added = 0;
     while (from < now) {
       const to = Math.min(from + CHUNK_MS, now);
       const { total, rows } = await searchLogs(configPath, {
-        query: `hostName:(${hostQ}) AND message:"BAD BLOCK"`,
+        query: `(${hostQ}) AND message:"BAD BLOCK"`,
         fromMs: from, toMs: to, order: "desc",
       });
       if (total > rows.length) this.truncated = true;   // 撞页限:坏块风暴期可能漏更旧的重复行(unique 统计影响有限)
@@ -99,12 +112,12 @@ export class BadBidblockWatch {
         if (!ev) continue;
         const t = Date.parse(r.t) || to;
         const fresh = !this.byHash.has(ev.hash);
-        this._merge(ev, r.host, t);
+        this._merge(ev, r.host, t, `${r.host}|${r.t}`);
         if (fresh) added++;
       }
       from = to;
     }
-    this.watermark = now;
+    this.watermark = now;   // 语义:最近一次扫描时刻(展示用),不再做增量起点
     // 按最近活跃排序,淘汰最老明细(计数已持久在 totals/byBuilder)
     this.blocks.sort((a, b) => b.lastT - a.lastT);
     if (this.blocks.length > BLOCK_CAP) {
@@ -121,6 +134,7 @@ export class BadBidblockWatch {
       fs.writeFileSync(this.file, JSON.stringify({
         blocks: this.blocks, totals: this.totals, byBuilder: this.byBuilder,
         watermark: this.watermark, since: this.since,
+        countedHashes: [...this.counted].slice(-4000),
       }));
     } catch { /* non-fatal */ }
   }

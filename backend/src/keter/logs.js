@@ -8,6 +8,10 @@
  * lucene 的 `fields.xxx:>N` / `[a TO b]` 是字典序比较 —— 会返回看似合理、实则错误的结果
  * (实测 elapsed:>100 命中 46ms 的行)。精确匹配(fields.number:117014781)不受影响。
  * 需要数值筛选时:窄化窗口拉回 ≤1000 条后在本地 parseFloat 处理;全量数值扫描请改走 keter 指标。
+ *
+ * ⚠ 字段分组陷阱:底层是 quickwit,不支持 `field:(a OR b)` 分组语法 —— 不报错、静默返回 0!
+ * (实测 hostName:("A" OR "B") 恒为 0,同数据 (hostName:"A" OR hostName:"B") 命中 149。)
+ * 多值过滤必须逐项展开:`(hostName:"A" OR hostName:"B")`。
  */
 
 import { keterPost } from "./client.js";

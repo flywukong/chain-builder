@@ -34,6 +34,13 @@ const FAMILY_COLORS = {
 
 const fmtBbT = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
+// builder 实例名 → 家族(首词);puissant 系与 48club 同源,归并
+const BB_FAMILY_ALIAS = { puissant: "48club" };
+const famOf = (name) => {
+  const w = (name ?? "?").split(" ")[0].toLowerCase();
+  return BB_FAMILY_ALIAS[w] ?? w;
+};
+
 export default function MevPage({ state }) {
   const mev = state.mevStats;
   const { s: ai, run: runAi } = MevAiBox();
@@ -105,7 +112,7 @@ export default function MevPage({ state }) {
       <div className="subpage-head">
         <div>
           <h1>💎 MEV 分析</h1>
-          <p>Builder 出块格局 · MEV 占比 · v1/v2 路径(BEP-675 主网未激活)· 指标窗口 24 小时</p>
+          <p>Builder 出块格局 · MEV 占比 · v1/v2 路径(BEP-675 已随 Pasteur 激活)· 指标窗口 24 小时</p>
         </div>
         <div className="ai-bar">
           <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading}>
@@ -124,11 +131,10 @@ export default function MevPage({ state }) {
         )}
         <div className="stat-cards mev-cards">
           <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{cards.mevPct}%</div><div className="sc-l">MEV 占比 · 24h</div></div>
-          {/* header.RequestsHash 的 version 字节 = 2。BEP-675 随 Pasteur 硬分叉激活,主网 PasteurTime 仍为 nil,
-              所以这不代表协议层已上线 —— 是个别 builder 自定义构建提前打的标记,标题据此措辞,勿写成 BEP-675 占比 */}
-          <div className="stat-card sc-card-v2" title="判据:header.RequestsHash 的 version 字节 = 2(BEP-675 SendBidBlock 编码)。Pasteur 硬分叉尚未在主网激活,此标记来自个别 builder 的自定义构建,不代表协议层已支持 bid-block。">
+          {/* header.RequestsHash 的 version 字节 = 2。BEP-675 已随 Pasteur 硬分叉于 2026-08-25 10:30(UTC+8)在主网激活 */}
+          <div className="stat-card sc-card-v2" title="判据:header.RequestsHash 的 version 字节 = 2(BEP-675 SendBidBlock 编码)。Pasteur 硬分叉已于 2026-08-25 10:30(UTC+8)在主网激活,bid-block 为协议内正式出块路径。">
             <div className="sc-v" style={{ color: "#FF9F1C" }}><span className="sc-ico">⚡</span>{cards.v2.toLocaleString()}<span className="sc-sub-pct">({cards.v2Pct}% MEV)</span></div>
-            <div className="sc-l">header 标记 v2 (bid-block) 块 · 24h<span className="sc-bep">主网未激活</span></div>
+            <div className="sc-l">header 标记 v2 (bid-block) 块 · 24h<span className="sc-bep">Pasteur 已激活</span></div>
           </div>
           <div className="stat-card">
             <div className="sc-v" style={{ color: "var(--green)" }}><span className="sc-ico">◇</span>{cards.v1.toLocaleString()}</div>
@@ -182,7 +188,7 @@ export default function MevPage({ state }) {
           </div>
         </div>
 
-        {/* BID-BLOCK (v2) 观测:走 BEP-675 路径的 builder + 区块区间与数量(Pasteur 未激活,提前灰度) */}
+        {/* BID-BLOCK (v2) 观测:走 BEP-675 路径的 builder 格局(Pasteur 已激活,统计自激活时刻) */}
         <div className="panel" style={{ maxWidth: 720 }}>
           <div className="panel-header">
             <span>BID-BLOCK (v2) 观测
@@ -190,44 +196,56 @@ export default function MevPage({ state }) {
                 const live = bb.sessions.some((s) => Date.now() - s.tEnd < 5 * 60e3);
                 return (
                   <em className={`panel-verdict pv-${live ? "warn" : bb.count ? "mid" : "ok"}`}>
-                    {bb.count ? `${live ? "⚡ 灰度进行中 · " : ""}${bb.count.toLocaleString()} 块 · ${bb.sessions.length} 段` : "未观测到 v2 块"}
+                    {bb.count ? `${live ? "⚡ 出块中 · " : ""}${bb.count.toLocaleString()} 块 · ${bb.sessions.length} 段` : "未观测到 v2 块"}
                   </em>
                 );
               })()}
             </span>
-            <span className="sub">判据 header.RequestsHash version=2 · BEP-675 主网未激活,出现即为提前灰度 · 窗口 15d</span>
+            <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已于 8/25 10:30 激活 · 统计自激活时刻(#117,920,136)</span>
           </div>
           <div className="panel-body">
             {!bb || bb.count === 0 ? (
-              <div className="ph-note">窗口内无 bid-block 标记块。Pasteur 分叉未激活,此处一旦出现,代表有 builder+validator 在主网提前灰度 SendBidBlock 路径。</div>
+              <div className="ph-note">激活时刻以来暂无 bid-block 标记块(回扫可能仍在进行,首次部署自激活块补齐约需数分钟)。</div>
             ) : (
               <div className="bb-cols">
                 <div>
-                  <div className="re-title">BUILDER</div>
-                  {bb.builders.map((b) => (
-                    <div key={b.addr} className="eb-miner" title={b.addr}>
-                      <em>{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
-                      <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
-                      <b>{b.count}</b>
-                    </div>
-                  ))}
-                  <div className="bb-addrs">
-                    {bb.builders.slice(0, 4).map((b) => (
-                      <div key={b.addr}><em>{b.name ?? "?"}</em> <code>{b.addr}</code></div>
+                  <div className="re-title">BUILDER 家族份额(同家实例汇总)</div>
+                  {(() => {
+                    const fams = new Map();
+                    for (const b of bb.builders) {
+                      const f = famOf(b.name);
+                      fams.set(f, (fams.get(f) ?? 0) + b.count);
+                    }
+                    const rows = [...fams.entries()].sort((a, x) => x[1] - a[1]);
+                    return rows.map(([f, c]) => (
+                      <div key={f} className="eb-miner">
+                        <em style={{ color: FAMILY_COLORS[f] || "var(--text)" }}>{f}</em>
+                        <span className="eb-mbar"><i style={{ width: `${(c / rows[0][1]) * 100}%`, background: FAMILY_COLORS[f] || undefined }} /></span>
+                        <b>{c.toLocaleString()}<em className="bb-pct">· {((c / bb.count) * 100).toFixed(1)}%</em></b>
+                      </div>
+                    ));
+                  })()}
+                  <div className="re-title" style={{ marginTop: 10 }}>实例明细</div>
+                  <div className="eb-list bb-inst-list">
+                    {bb.builders.map((b) => (
+                      <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
+                        <em>{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
+                        <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
+                        <b>{b.count.toLocaleString()}<em className="bb-pct">· {((b.count / bb.count) * 100).toFixed(1)}%</em></b>
+                      </div>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <div className="re-title">灰度会话(相邻 v2 块距 ≤1200 归同一段)</div>
+                  <div className="re-title">会话(相邻 v2 块距 ≤1200 归同一段)</div>
                   <div className="eb-list bb-list">
                     {bb.sessions.map((s) => {
                       const live = Date.now() - s.tEnd < 5 * 60e3;
                       const span = s.to - s.from + 1;
                       const durMin = Math.max(1, Math.round((s.tEnd - s.tStart) / 60e3));
                       const dur = durMin >= 60 ? `${(durMin / 60).toFixed(1)}h` : `${durMin}m`;
-                      // 渗透率:v2 块数 ÷ 该批 validator 在区间内的预期出块(出块集 21 席口径)
-                      const expect = span * (s.minerNames.length / 21);
-                      const pen = expect > 0 ? Math.min(100, Math.round((s.count / expect) * 100)) : null;
+                      const share = span > 0 ? ((s.count / span) * 100).toFixed(1) : null;
+                      const famN = new Set(s.builders.map(famOf)).size;
                       return (
                         <div key={s.from} className={`bb-sess ${live ? "live" : ""}`}>
                           <div className="bb-sess-top">
@@ -236,11 +254,11 @@ export default function MevPage({ state }) {
                             <span>· 持续 {dur}</span>
                             <i className="bb-sess-n">v2 {s.count.toLocaleString()} 块</i>
                           </div>
-                          <div className="bb-sess-mid">区块 #{s.from.toLocaleString()} – #{s.to.toLocaleString()}<em>(区间共 {span.toLocaleString()} 块,v2 只出现在下列 validator 的轮次内)</em></div>
+                          <div className="bb-sess-mid">区块 #{s.from.toLocaleString()} – #{s.to.toLocaleString()}</div>
                           <div className="bb-sess-low">
-                            <span>builder <b>{s.builders.join(" / ")}</b></span>
-                            <span>· validator {s.minerNames.length} 个:{s.minerNames.join("/")}</span>
-                            {pen != null && <span title="该批 validator 轮次内被 bid-block 赢下的比例;按 21 席出块集估算">· 轮次渗透率 ≈<b>{pen}%</b></span>}
+                            <span>builder <b>{famN} 家 / {s.builders.length} 实例</b></span>
+                            <span>· validator <b>{s.minerNames.length}</b> 个</span>
+                            {share != null && <span title="v2 块数 ÷ 区间总块数">· v2 区间占比 ≈<b>{share}%</b></span>}
                           </div>
                         </div>
                       );
@@ -381,7 +399,7 @@ export default function MevPage({ state }) {
         <BidMetricsPanel />
         <GreedyMergePanel />
 
-        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算;归因切换到 header 精确口径后从零重计),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。v2 标记来自个别 builder 在 Pasteur 分叉前的提前灰度(48club/puissant),协议层尚未激活。</div>
+        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算;归因切换到 header 精确口径后从零重计),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。BEP-675 (bid-block) 已随 Pasteur 于 2026-08-25 10:30 在主网激活,v2 观测面板自激活时刻起统计,激活前的灰度数据已废弃。</div>
       </div>
     </div>
   );

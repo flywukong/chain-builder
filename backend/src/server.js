@@ -53,7 +53,11 @@ const mevAgg    = new MevAggregator({ file: path.join(dataDir, "mev-day.json") }
 const latencyStore = new LatencyStore(path.join(dataDir, "latency-24h-v2.json"));
 const txpoolStore  = new TxpoolStore(path.join(dataDir, "txpool-24h.json"));
 const emptyStore   = new EmptyBlockStore(path.join(dataDir, "empty-24h.json"));
-const bidBlockStore = new BidBlockStore(path.join(dataDir, "bidblock-15d.json"));
+// Pasteur 主网激活:2026-08-25 10:30 UTC+8(ts 1787625000),首个分叉后块 #117920136。
+// v2 统计自激活时刻起算(激活前为个别 builder 灰度,口径不同,换文件名废弃)
+const PASTEUR_MS = 1787625000e3;
+const PASTEUR_BLOCK = 117920136;
+const bidBlockStore = new BidBlockStore(path.join(dataDir, "bidblock-live.json"), 15 * 86400e3, 60000, PASTEUR_MS);
 const badBidWatch  = new BadBidblockWatch(path.join(dataDir, "bad-bidblocks.json"));   // 坏块 bidblock 归因(2 台灰度探针)
 const errGrades = new ErrGradeBook(path.join(dataDir, "errlog-grades.json"));
 const reorgObs     = new ReorgObsStore(path.join(dataDir, "reorg-obs-24h.json"));
@@ -201,7 +205,7 @@ streamer.on("block", (block) => {
 streamer.on("blockMev", (block) => {
   mevAgg.add(block);
   scanLargeTxs(block);
-  // v2(SendBidBlock)标记块:主网 Pasteur 未激活,来自个别 builder 的提前灰度,单独观测
+  // v2(SendBidBlock)标记块:Pasteur 已激活,协议内正式路径,单独观测格局
   if (block.mev?.source === "bidblock") {
     bidBlockStore.add({
       t: block.timestampMs ?? Date.now(), number: block.number, miner: block.miner,
@@ -211,16 +215,18 @@ streamer.on("blockMev", (block) => {
   }
 });
 
-// 启动回扫:实时流只覆盖进程存活期,回扫近 N 块的 header 把重启空窗里的 v2 块补上(去重,幂等)
-const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "3000", 10);
+// 启动回扫:实时流只覆盖进程存活期。空库自 Pasteur 激活块起扫(首次部署一次性 ~20 万块,分钟级);
+// 有库则从已覆盖最高块续扫,只补重启空窗。env 为安全上限(块数)。
+const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "800000", 10);
 (async () => {
   try {
     const tip = await provider.getBlockNumber();
-    const from = Math.max(1, tip - BIDBLOCK_BACKFILL);
+    const last = bidBlockStore.lastNumber();
+    const from = Math.max(last ? last - 100 : PASTEUR_BLOCK, PASTEUR_BLOCK, tip - BIDBLOCK_BACKFILL, 1);
     let found = 0;
-    for (let n = from; n <= tip; n += 20) {
+    for (let n = from; n <= tip; n += 40) {
       const batch = [];
-      for (let k = n; k < Math.min(n + 20, tip + 1); k++)
+      for (let k = n; k < Math.min(n + 40, tip + 1); k++)
         batch.push(provider.send("eth_getHeaderByNumber", [ethers.toQuantity(k)]).then((hd) => ({ k, hd })).catch(() => null));
       for (const r of await Promise.all(batch)) {
         if (!r?.hd) continue;

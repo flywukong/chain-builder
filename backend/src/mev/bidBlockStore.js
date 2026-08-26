@@ -1,9 +1,9 @@
 /**
  * BidBlockStore — rolling record of v2 (BEP-675 SendBidBlock) tagged blocks.
- * 主网 Pasteur 未激活,这些块来自个别 builder 的提前灰度(如 48club/puissant),
- * 有观测价值:谁在跑、哪些区块区间、每段多少块。
+ * Pasteur 已于 2026-08-25 10:30(UTC+8)在主网激活,bid-block 为协议内正式路径;
+ * 统计自激活时刻起(sinceMs 守卫),激活前的灰度数据不混入。
  *
- * 灰度火力全开时 v2 可达 ~3 万块/天,15 天窗口存不下逐块明细 ——
+ * 主网火力全开时 v2 可达 ~16 万块/天,15 天窗口存不下逐块明细 ——
  * 明细只保留最近 cap 条;被 cap/窗口淘汰的块折叠进持久「会话归档」
  * (每段仅 from/to/count/时间/名单,体积趋近于零),历史段不丢。
  * Fed per-block by the streamer + boot backfill; deduped by number + 归档水位线。
@@ -50,10 +50,11 @@ function foldIntoSessions(sessions, items) {
 }
 
 export class BidBlockStore {
-  constructor(file, windowMs = 15 * 86400e3, cap = 60000) {
+  constructor(file, windowMs = 15 * 86400e3, cap = 60000, sinceMs = 0) {
     this.file = file;
     this.windowMs = windowMs;
     this.cap = cap;
+    this.sinceMs = sinceMs;      // 统计起点(Pasteur 激活时刻),更早的块不入账
     this.items = [];        // 明细 { t, number, miner, builder(addr), builderName }
     this.archive = { sessions: [], builders: {}, count: 0, watermark: 0 };   // 淘汰块的折叠归档
     this.seen = new Set();
@@ -71,6 +72,7 @@ export class BidBlockStore {
 
   add(item) {
     if (!item?.number || this.seen.has(item.number)) return;
+    if (item.t && item.t < this.sinceMs) return;          // 统计起点之前(激活前灰度)不入账
     if (item.number <= this.archive.watermark) return;   // 已归档范围,防回填重复计数
     this.seen.add(item.number);
     this.items.push(item);
@@ -79,6 +81,13 @@ export class BidBlockStore {
   }
 
   flush() { if (this._dirty) this._save(); }
+
+  // 已覆盖到的最高块号(明细 + 归档),供启动回扫定起点
+  lastNumber() {
+    const it = this.items.reduce((m, x) => (x.number > m ? x.number : m), 0);
+    const arc = Math.max(this.archive.watermark || 0, this.archive.sessions.at(-1)?.to ?? 0);
+    return Math.max(it, arc);
+  }
 
   _save() {
     this._prune();
@@ -137,6 +146,7 @@ export class BidBlockStore {
     foldIntoSessions(sessions, asc);
     return {
       count: this.archive.count + asc.length,
+      statsSince: this.sinceMs || null,
       builders: [...byBuilder.values()].sort((a, b) => b.count - a.count),
       sessions: sessions.reverse().slice(0, 30),
       lastT: asc.at(-1)?.t ?? this.archive.sessions.at(-1)?.tEnd ?? null,

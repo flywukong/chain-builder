@@ -678,7 +678,17 @@ body::before {
 .eb-mn-ai:hover { background: rgba(240,185,11,.2); }
 .eb-mn-ai:disabled { opacity: .55; cursor: default; }
 /* BID-BLOCK (v2) 观测面板 */
-.bb-cols { display: grid; grid-template-columns: 260px 1fr; gap: 18px; align-items: start; }
+.bb-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+/* 分叉后路径分裂汇总(右列) */
+.bb-fork-bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; margin: 6px 0 10px; background: rgba(255,255,255,.04); }
+.bb-fork-bar i { display: block; min-width: 1px; }
+.bb-fork-row { display: flex; align-items: baseline; gap: 8px; font-size: 11px; padding: 4px 0;
+  border-bottom: 1px dashed rgba(255,255,255,.05); }
+.bb-fork-row i { width: 8px; height: 8px; border-radius: 2px; align-self: center; flex: none; }
+.bb-fork-row em { font-style: normal; font-family: var(--mono); color: var(--text-dim); flex: 1; }
+.bb-fork-row b { font-family: var(--mono); color: var(--text); }
+.bb-fork-row span { font-family: var(--mono); color: var(--gold); font-size: 10.5px; min-width: 44px; text-align: right; }
+.bb-fork-total { margin-top: 8px; font-size: 9.5px; color: var(--muted); font-family: var(--mono); }
 @media (max-width: 900px) { .bb-cols { grid-template-columns: 1fr; } }
 .bb-list { max-height: 300px; }
 .bb-inst-list { max-height: 300px; }

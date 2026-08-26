@@ -168,7 +168,7 @@ export default function MevPage({ state }) {
         )}
 
         {/* Builder 分布(核心):历史累计 + 24h 对照,单列 */}
-        <div className="panel" style={{ maxWidth: 720 }}>
+        <div className="panel" style={{ maxWidth: 936 }}>
           <div className="panel-header">
             <span>Builder 分布</span>
             <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右列为 24h 份额与环比</span>
@@ -189,7 +189,7 @@ export default function MevPage({ state }) {
         </div>
 
         {/* BID-BLOCK (v2) 观测:走 BEP-675 路径的 builder 格局(Pasteur 已激活,统计自激活时刻) */}
-        <div className="panel" style={{ maxWidth: 720 }}>
+        <div className="panel" style={{ maxWidth: 936 }}>
           <div className="panel-header">
             <span>BID-BLOCK (v2) 观测
               {bb && (() => {
@@ -201,7 +201,7 @@ export default function MevPage({ state }) {
                 );
               })()}
             </span>
-            <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已于 8/25 10:30 激活 · 统计自激活时刻(#117,920,136)</span>
+            <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已激活 · 统计自激活时刻</span>
           </div>
           <div className="panel-body">
             {!bb || bb.count === 0 ? (
@@ -225,9 +225,7 @@ export default function MevPage({ state }) {
                       </div>
                     ));
                   })()}
-                </div>
-                <div>
-                  <div className="re-title">实例明细</div>
+                  <div className="re-title" style={{ marginTop: 10 }}>实例明细</div>
                   <div className="eb-list bb-inst-list">
                     {bb.builders.map((b) => (
                       <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
@@ -238,6 +236,32 @@ export default function MevPage({ state }) {
                     ))}
                   </div>
                 </div>
+                {/* 分叉后累计:bid / bidblock / local 三分裂(header 逐块精确口径) */}
+                {bb.fork?.total > 0 && (() => {
+                  const f = bb.fork;
+                  const rows = [
+                    ["bidblock (v2)", f.v2, f.v2Pct, "#FF9F1C"],
+                    ["bid (v1)", f.v1, f.v1Pct, "var(--green)"],
+                    ["local", f.local, f.localPct, "#8A8F99"],
+                  ];
+                  return (
+                    <div>
+                      <div className="re-title">自分叉累计 · 出块路径分裂</div>
+                      <div className="bb-fork-bar">
+                        {rows.map(([k, , p, c]) => <i key={k} style={{ width: `${p}%`, background: c }} title={`${k} ${p}%`} />)}
+                      </div>
+                      {rows.map(([k, n, p, c]) => (
+                        <div key={k} className="bb-fork-row">
+                          <i style={{ background: c }} />
+                          <em>{k}</em>
+                          <b>{n.toLocaleString()}</b>
+                          <span>{p}%</span>
+                        </div>
+                      ))}
+                      <div className="bb-fork-total">总计 {f.total.toLocaleString()} 块 · 已覆盖至 #{f.coveredTo.toLocaleString()}</div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -372,7 +396,7 @@ export default function MevPage({ state }) {
         <BidMetricsPanel />
         <GreedyMergePanel />
 
-        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算;归因切换到 header 精确口径后从零重计),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。BEP-675 (bid-block) 已随 Pasteur 于 2026-08-25 10:30 在主网激活,v2 观测面板自激活时刻起统计,激活前的灰度数据已废弃。</div>
+        <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算;归因切换到 header 精确口径后从零重计),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。BEP-675 (bid-block) 已随 Pasteur 在主网激活,v2 观测面板与路径分裂自激活时刻起统计(header 逐块精确口径),激活前的灰度数据已废弃。</div>
       </div>
     </div>
   );

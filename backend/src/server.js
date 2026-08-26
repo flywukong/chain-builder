@@ -215,34 +215,56 @@ streamer.on("blockMev", (block) => {
   }
 });
 
-// 启动回扫:实时流只覆盖进程存活期。空库自 Pasteur 激活块起扫(首次部署一次性 ~20 万块,分钟级);
-// 有库则从已覆盖最高块续扫,只补重启空窗。env 为安全上限(块数)。
+// ── 分叉后 header 同步:v2 明细 + bid/bidblock/local 三分裂累计 ────────────
+// 每 30s 扫 (coveredTo, tip] 的 header,requestsHash 标记逐块精确分类
+// (v1=bid,v2=bidblock,无标记=local),水位连续推进 → 重启不重不漏;
+// v2 块同时喂 bidBlockStore(与实时流按块号去重)。首次自 Pasteur 激活块起
+// 一次性 ~20 万块(分钟级);env 为单次追赶上限(块数),超限则弃洞续扫。
 const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "800000", 10);
-(async () => {
+const forkSplitFile = path.join(dataDir, "fork-split.json");
+let forkSplit = { coveredTo: 0, v1: 0, v2: 0, local: 0 };
+try { if (fs.existsSync(forkSplitFile)) forkSplit = { ...forkSplit, ...JSON.parse(fs.readFileSync(forkSplitFile, "utf8")) }; } catch { /* fresh */ }
+const saveForkSplit = () => { try { fs.writeFileSync(forkSplitFile, JSON.stringify(forkSplit)); } catch {} };
+let forkSyncBusy = false;
+async function syncForkSplit() {
+  if (forkSyncBusy) return;
+  forkSyncBusy = true;
   try {
     const tip = await provider.getBlockNumber();
-    const last = bidBlockStore.lastNumber();
-    const from = Math.max(last ? last - 100 : PASTEUR_BLOCK, PASTEUR_BLOCK, tip - BIDBLOCK_BACKFILL, 1);
-    let found = 0;
+    let from = Math.max(PASTEUR_BLOCK, forkSplit.coveredTo + 1);
+    if (tip - from > BIDBLOCK_BACKFILL) {
+      console.warn(`[fork-split] gap ${tip - from} blocks exceeds cap ${BIDBLOCK_BACKFILL}, skipping hole`);
+      from = tip - BIDBLOCK_BACKFILL;
+      forkSplit.coveredTo = from - 1;
+    }
+    outer:
     for (let n = from; n <= tip; n += 40) {
-      const batch = [];
-      for (let k = n; k < Math.min(n + 40, tip + 1); k++)
-        batch.push(provider.send("eth_getHeaderByNumber", [ethers.toQuantity(k)]).then((hd) => ({ k, hd })).catch(() => null));
-      for (const r of await Promise.all(batch)) {
-        if (!r?.hd) continue;
-        const tag = decodeMevTag(r.hd.requestsHash);
-        if (tag?.v !== 2) continue;
-        found++;
-        bidBlockStore.add({
-          t: parseInt(r.hd.timestamp, 16) * 1000, number: r.k, miner: r.hd.miner,
-          builder: tag.builder, builderName: getBuilderName(tag.builder) ?? null,
-        });
+      const hi = Math.min(n + 39, tip);
+      const batch = await Promise.all(Array.from({ length: hi - n + 1 }, (_, i) =>
+        provider.send("eth_getHeaderByNumber", [ethers.toQuantity(n + i)]).catch(() => null)));
+      for (let i = 0; i < batch.length; i++) {
+        const hd = batch[i];
+        if (!hd) break outer;                       // RPC 缺口:水位止步于上一块,下轮续扫
+        const tag = decodeMevTag(hd.requestsHash);
+        if (tag?.v === 2) {
+          forkSplit.v2++;
+          bidBlockStore.add({
+            t: parseInt(hd.timestamp, 16) * 1000, number: n + i, miner: hd.miner,
+            builder: tag.builder, builderName: getBuilderName(tag.builder) ?? null,
+          });
+        } else if (tag?.v === 1) forkSplit.v1++;
+        else forkSplit.local++;
+        forkSplit.coveredTo = n + i;
       }
+      if (forkSplit.coveredTo % 4000 < 40) { saveForkSplit(); bidBlockStore.flush(); }   // 长回扫期间周期落盘
     }
     bidBlockStore.flush();
-    if (found) console.log(`[bidblock] backfill ${from}-${tip}: ${found} v2 blocks`);
-  } catch (e) { console.error("[bidblock] backfill", e.message); }
-})();
+    saveForkSplit();
+  } catch (e) { console.error("[fork-split]", e.message); }
+  finally { forkSyncBusy = false; }
+}
+syncForkSplit();
+setInterval(syncForkSplit, 30_000);
 
 // 大额单笔 tx:对 streamer 标记的候选(gasLimit≥阈值,通常每块 0~几笔)拉 receipt 确认真实 gasUsed
 async function scanLargeTxs(block) {
@@ -916,12 +938,20 @@ app.get("/api/errlogs", async (req) => {
 // v2(SendBidBlock)观测:谁在走 bid-block、区块区间与数量(主网 Pasteur 未激活,来自提前灰度)
 app.get("/api/bidblock",  async () => {
   const v = bidBlockStore.view();
+  const fTotal = forkSplit.v1 + forkSplit.v2 + forkSplit.local;
+  const fPct = (n) => (fTotal ? Math.floor((n / fTotal) * 1000) / 10 : 0);
   return {
     ...v,
     sessions: v.sessions.map((s) => ({
       ...s,
       minerNames: s.miners.map((m) => { const i = validatorInfo(m); return i.name ?? (m || "").slice(0, 10); }),
     })),
+    // 分叉后三分裂累计(header 逐块精确口径,水位见 coveredTo)
+    fork: {
+      total: fTotal, coveredTo: forkSplit.coveredTo,
+      v1: forkSplit.v1, v2: forkSplit.v2, local: forkSplit.local,
+      v1Pct: fPct(forkSplit.v1), v2Pct: fPct(forkSplit.v2), localPct: fPct(forkSplit.local),
+    },
   };
 });
 // 坏块 bidblock 归因:探针 counter(keter 指标,60s 缓存)+ 日志聚合(builder 汇总/明细)

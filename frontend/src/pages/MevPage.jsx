@@ -39,12 +39,16 @@ export default function MevPage({ state }) {
   const { s: ai, run: runAi } = MevAiBox();
   // v2(SendBidBlock)观测:主网未激活,出现即代表有 builder 在提前灰度
   const [bb, setBb] = useState(null);
+  // 坏块 bidblock 归因(2 台灰度探针机:metric + BAD BLOCK 日志)
+  const [bad, setBad] = useState(null);
   useEffect(() => {
     let alive = true;
     const pull = () => fetch(API + "/api/bidblock").then((r) => r.json()).then((j) => { if (alive) setBb(j); }).catch(() => {});
-    pull();
+    const pullBad = () => fetch(API + "/api/bad-bidblock").then((r) => r.json()).then((j) => { if (alive && !j.error) setBad(j); }).catch(() => {});
+    pull(); pullBad();
     const t = setInterval(pull, 60_000);
-    return () => { alive = false; clearInterval(t); };
+    const t2 = setInterval(pullBad, 60_000);
+    return () => { alive = false; clearInterval(t); clearInterval(t2); };
   }, []);
 
   if (!mev) {
@@ -245,6 +249,72 @@ export default function MevPage({ state }) {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* BAD BLOCK 归因:全网坏块有多少由 bidblock(SendBidBlock)导致 + builder 出错汇总。
+            指标 counter 实时可靠;BAD BLOCK 多行长日志可能被采集端丢弃 → counter>0 而日志缺位时以 counter 报警 */}
+        <div className="panel" style={{ maxWidth: 720 }}>
+          <div className="panel-header">
+            <span>BAD BLOCK · bidblock 归因
+              {bad?.totals && (() => {
+                const bidLive = Math.max(0, ...(bad.counters ?? []).map((c) => c.count ?? 0));
+                return (
+                  <em className={`panel-verdict pv-${bad.totals.bid > 0 || bidLive > 0 ? "warn" : bad.totals.blocks > 0 ? "mid" : "ok"}`}>
+                    {bad.totals.blocks > 0 ? `坏块 ${bad.totals.blocks} · bidblock 致 ${bad.totals.bid}`
+                      : bidLive > 0 ? `⚡ 探针已计 ${bidLive} 个坏 bidblock · 日志待入库` : "探针未见坏块"}
+                  </em>
+                );
+              })()}
+            </span>
+            <span className="sub">探针 {bad?.ips?.join(" / ") ?? "…"}(部署统计版)· chain_insert_badBidblock + BAD BLOCK 日志 · builder 为 header 自声明标记,作线索非定论</span>
+          </div>
+          <div className="panel-body">
+            <div className="bbk-chips">
+              {(bad?.counters ?? []).map((c) => (
+                <span key={c.instance} className="bbk-chip">📟 {c.instance} 进程计数 <b>{c.count ?? "—"}</b></span>
+              ))}
+              <span className="bbk-chip">日志累计 unique 坏块 <b>{bad?.totals?.blocks ?? "—"}</b> · 其中 bidblock <b className="bbk-hot">{bad?.totals?.bid ?? "—"}</b>{bad?.totals?.unknown > 0 ? ` · 旧格式待判 ${bad.totals.unknown}` : ""}</span>
+            </div>
+            {!bad || bad.totals.blocks === 0 ? (
+              <div className="ph-note">探针日志窗口内未见 BAD BLOCK 摘要。出现后这里会判定坏块是否走 BEP-675 SendBidBlock 路径,并按 builder 汇总出错次数(同一坏块被 peer 重播多次,按块 hash 去重)。若上方进程计数 &gt;0 而此处为空 = BAD BLOCK 多行长日志未入 ES(采集端可能丢弃超长条目),builder 归因需登机 grep bsc.log。</div>
+            ) : (
+              <div className="bb-cols">
+                <div>
+                  <div className="re-title">BUILDER 出错汇总(bidblock 坏块)</div>
+                  {bad.byBuilder.length === 0
+                    ? <div className="eb-none">✓ 尚无归因到 bidblock 的坏块</div>
+                    : bad.byBuilder.map((b) => (
+                        <div key={b.addr} className="eb-miner" title={b.addr}>
+                          <em className="eb-hot">{b.name ?? (b.addr === "unknown" ? "未带 builder 标记" : b.addr.slice(0, 10) + "…")}</em>
+                          <span className="eb-mbar"><i style={{ width: `${(b.n / bad.byBuilder[0].n) * 100}%` }} /></span>
+                          <b>{b.n} 次</b>
+                        </div>
+                      ))}
+                  <div className="bb-addrs">
+                    {bad.byBuilder.slice(0, 4).filter((b) => b.addr !== "unknown").map((b) => (
+                      <div key={b.addr}><em>{b.name ?? "?"}</em> <code>{b.addr}</code></div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="re-title">最近坏块(hash 去重 · ×n 为重播次数)</div>
+                  <div className="eb-list bb-list">
+                    {bad.recent.slice(0, 12).map((b) => (
+                      <div key={b.hash} className="bbk-row" title={`${b.hash}\n${b.error ?? ""}`}>
+                        <span className="hpd-num">{fmtBbT(b.lastT)}</span>
+                        <b className="bbk-num">#{b.number.toLocaleString()}</b>
+                        <span className={`bbk-tag ${b.isBid ? "bid" : b.isBid === false ? "" : "unk"}`}>{b.isBid ? "bidblock" : b.isBid === false ? "非bidblock" : "旧格式"}</span>
+                        <span className="bbk-b">{b.isBid ? (b.builderName ?? (b.builder ?? "").slice(0, 10) + "…") : (b.minerName ?? (b.miner ?? "").slice(0, 10))}</span>
+                        <em className="bbk-err">{(b.error ?? "").slice(0, 44)}</em>
+                        <i className="bbk-n">×{b.n}</i>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {bad?.truncated && <div className="bbk-note">⚠ 有扫描窗口命中 ES 单页上限(1000 行),重播计数可能偏低;unique 坏块与 builder 汇总基本不受影响。</div>}
           </div>
         </div>
 

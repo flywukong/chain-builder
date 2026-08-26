@@ -14,10 +14,11 @@ import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { BlockStreamer, getBuilderName } from "./block/streamer.js";
 import { BidBlockStore, decodeMevTag } from "./mev/bidBlockStore.js";
+import { BadBidblockWatch } from "./mev/badBidblocks.js";
 import { searchLogs, fetchHostLogs, fetchHostEvidence, fmtLine, clusterMessages, normalizeMsg } from "./keter/logs.js";
 import { ErrGradeBook } from "./ai/errGradeBook.js";
 import { ChainContracts } from "./chain/contracts.js";
-import { fetchNodeStats, fetchNodeJobs, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment } from "./keter/metrics.js";
+import { fetchNodeStats, fetchNodeJobs, fetchGasUsed, fetchLatencySnapshot, fetchDiskAlerts, fetchTxpoolSnapshot, fetchReorgStats, fetchReorgTimeline, fetchBlockGas, fetchTrafficTimeline, fetchSyncErrors, fetchSyncDetail, fetchDbStats, fetchInsertLatency, fetchLatencyStages, fetchBidMetrics, fetchGreedyMerge, fetchExecStatsAll, setLiveGasLimit, liveGasLimitM, refineEpisode, refineReorgMoment, fetchBadBidblockCounters } from "./keter/metrics.js";
 import { sampleBlockContracts, sampleFullGasEvent } from "./ai/evidence.js";
 import { LatencyStore } from "./metrics/latencyStore.js";
 import { TxpoolStore } from "./metrics/txpoolStore.js";
@@ -53,6 +54,7 @@ const latencyStore = new LatencyStore(path.join(dataDir, "latency-24h-v2.json"))
 const txpoolStore  = new TxpoolStore(path.join(dataDir, "txpool-24h.json"));
 const emptyStore   = new EmptyBlockStore(path.join(dataDir, "empty-24h.json"));
 const bidBlockStore = new BidBlockStore(path.join(dataDir, "bidblock-15d.json"));
+const badBidWatch  = new BadBidblockWatch(path.join(dataDir, "bad-bidblocks.json"));   // 坏块 bidblock 归因(2 台灰度探针)
 const errGrades = new ErrGradeBook(path.join(dataDir, "errlog-grades.json"));
 const reorgObs     = new ReorgObsStore(path.join(dataDir, "reorg-obs-24h.json"));
 const slashEvents  = new SlashEventStore(path.join(dataDir, "slash-events-15d-v2.json"));   // v2:15d 窗口 + filler/gapMs enrich,换文件触发全量回填
@@ -528,6 +530,16 @@ setInterval(pollContractLabels, 2 * 3600_000);         // 2h 一轮加速收编�
 scanSlashEvents();
 setInterval(scanSlashEvents, 60_000);
 
+// ── 坏块 bidblock 归因:2 台灰度探针机的 BAD BLOCK 日志增量扫描(2min)──────
+async function scanBadBidblocks() {
+  try {
+    const added = await badBidWatch.scan(cfg.keterConfigPath);
+    if (added) console.log(`[bad-bidblock] +${added} unique bad blocks (total ${badBidWatch.totals.blocks}, bid ${badBidWatch.totals.bid})`);
+  } catch (e) { console.error("[bad-bidblock]", e.message); }
+}
+setTimeout(scanBadBidblocks, 5_000);
+setInterval(scanBadBidblocks, 120_000);
+
 // ── HTTP server ────────────────────────────────────────────────────────────
 const app = Fastify({ logger: true });
 await app.register(fastifyCors, { origin: cfg.corsOrigin });
@@ -904,6 +916,21 @@ app.get("/api/bidblock",  async () => {
       ...s,
       minerNames: s.miners.map((m) => { const i = validatorInfo(m); return i.name ?? (m || "").slice(0, 10); }),
     })),
+  };
+});
+// 坏块 bidblock 归因:探针 counter(keter 指标,60s 缓存)+ 日志聚合(builder 汇总/明细)
+let badBidCache = { at: 0, counters: null };
+app.get("/api/bad-bidblock", async () => {
+  if (Date.now() - badBidCache.at > 60_000) {
+    try {
+      badBidCache = { at: Date.now(), counters: await fetchBadBidblockCounters(cfg.keterConfigPath, badBidWatch.ips) };
+    } catch { badBidCache = { at: Date.now(), counters: badBidCache.counters }; }
+  }
+  const v = badBidWatch.view(getBuilderName);
+  return {
+    ...v,
+    counters: badBidCache.counters,
+    recent: v.recent.map((b) => ({ ...b, minerName: b.miner ? validatorInfo(b.miner).name : null })),
   };
 });
 

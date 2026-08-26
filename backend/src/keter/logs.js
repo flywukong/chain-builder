@@ -25,7 +25,14 @@ export async function searchLogs(configPath, { query = "", fromMs, toMs, order =
     time_end: new Date(toMs).toISOString(),
     ...APP,
   };
-  const d = await keterPost("/api/es/search/kql", body, { configPath });
+  let d;
+  try {
+    d = await keterPost("/api/es/search/kql", body, { configPath });
+  } catch (e) {
+    // keter 把「查询合法但零命中」当 400 错误返回;统一折算成空结果,调用方无需各自兜
+    if (/NO RESULT FOUND/i.test(e.message)) return { total: 0, rows: [] };
+    throw e;
+  }
   const rows = (d.hits?.hits ?? []).map((h) => h._source).map((s) => ({
     t: s["@timestamp"], host: s.hostName, role: s.nodeRole, level: s.level,
     msg: s.message, fields: s.fields ?? null, logFile: s.logFile,

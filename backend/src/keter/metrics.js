@@ -638,6 +638,20 @@ export async function fetchBidMetrics(configPath, hours = 6) {
   };
 }
 
+// ── Bad bidblock counter(灰度探针机):chain_insert_badBidblock 进程内计数 ────
+// 只有部署了统计版本的机器暴露该指标;counter 按块 hash LRU 去重,进程重启归零
+export async function fetchBadBidblockCounters(configPath, ips) {
+  const raw = await grafanaQuery(
+    DATASOURCES["dex-prod"],
+    `chain_insert_badBidblock{instance=~"${ips.join("|")}"}`,
+    { configPath }
+  );
+  return extractSeries(raw).map((s) => {
+    const v = s.values?.at(-1);
+    return { instance: s.labels.instance, count: typeof v === "number" && isFinite(v) ? Math.round(v) : null };
+  });
+}
+
 // ── AI 解读用:keter 全部自营节点(各 datasource 全部 validator job)per-instance 统计 ──
 // 展示图取少量典型 IP;解读时把能分析的节点都喂给 AI(吞吐/块gas/导入时延)
 export async function fetchExecStatsAll(configPath, minutes = 30, latHours = 24) {

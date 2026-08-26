@@ -58,11 +58,14 @@ export class BidBlockStore {
     this.items = [];        // 明细 { t, number, miner, builder(addr), builderName }
     this.archive = { sessions: [], builders: {}, count: 0, watermark: 0 };   // 淘汰块的折叠归档
     this.seen = new Set();
+    this.discardedLegacy = false;
     try {
       if (fs.existsSync(file)) {
         const raw = JSON.parse(fs.readFileSync(file, "utf8"));
-        if (Array.isArray(raw)) this.items = raw;                        // 旧格式(纯明细数组)
-        else if (raw) { this.items = raw.items ?? []; this.archive = { ...this.archive, ...raw.archive }; }
+        // v3 起淘汰按块号升序(见 _prune)。旧格式按插入顺序淘汰,回扫+实时并发写入时
+        // watermark 会跳到链头、之后的回填被 add() 整段拒收 —— 旧数据不可信,弃掉重扫
+        if (raw?.v === 3) { this.items = raw.items ?? []; this.archive = { ...this.archive, ...raw.archive }; }
+        else { this.discardedLegacy = true; try { fs.copyFileSync(file, file + ".pre-v3.bak"); } catch {} }
       }
     } catch { this.items = []; }
     for (const it of this.items) this.seen.add(it.number);
@@ -93,24 +96,28 @@ export class BidBlockStore {
     this._prune();
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(this.file, JSON.stringify({ v: 2, items: this.items, archive: this.archive }));
+      fs.writeFileSync(this.file, JSON.stringify({ v: 3, items: this.items, archive: this.archive }));
       this._dirty = 0;
       this._lastSave = Date.now();
     } catch {}
   }
 
-  // 窗口/容量淘汰:被挤出的明细折叠进归档(会话 + builder 计数),而不是丢弃
+  // 窗口/容量淘汰:被挤出的明细折叠进归档(会话 + builder 计数),而不是丢弃。
+  // 必须按块号升序从最老的块淘汰:add() 以「块号 ≤ archive.watermark = 已归档」做去重,
+  // 回扫(低块号)与实时流(链头)并发写入时插入顺序≠块号序,按插入序淘汰会把
+  // watermark 顶到链头,之后整段回填被拒收(v2 前的静默丢数据 bug)
   _prune(now = Date.now()) {
     const cut = now - this.windowMs;
     // 归档里滚出 15d 窗口的会话直接删(整段过期)
     this.archive.sessions = this.archive.sessions.filter((s) => s.tEnd >= cut);
     if (this.items.length <= this.cap && !(this.items[0]?.t < cut)) return;
-    const keepFrom = Math.max(0, this.items.length - this.cap);
-    const evicted = [];
-    const kept = [];
-    this.items.forEach((x, i) => { (x.t < cut || i < keepFrom ? evicted : kept).push(x); });
+    this.items.sort((a, b) => a.number - b.number);
+    const overflow = Math.max(0, this.items.length - this.cap);
+    let idx = 0;
+    while (idx < this.items.length && (idx < overflow || this.items[idx].t < cut)) idx++;
+    const evicted = this.items.slice(0, idx);
+    const kept = this.items.slice(idx);
     if (evicted.length) {
-      evicted.sort((a, b) => a.number - b.number);
       const stillValid = evicted.filter((x) => x.t >= cut);   // 过期块不进归档
       foldIntoSessions(this.archive.sessions, stillValid);
       for (const it of stillValid) {
@@ -121,7 +128,7 @@ export class BidBlockStore {
         if (it.number < e.firstBlock) e.firstBlock = it.number;
       }
       this.archive.count += stillValid.length;
-      this.archive.watermark = Math.max(this.archive.watermark, ...evicted.map((x) => x.number));
+      this.archive.watermark = Math.max(this.archive.watermark, evicted[evicted.length - 1].number);   // evicted 已升序
     }
     this.items = kept;
     this.seen = new Set(kept.map((x) => x.number));

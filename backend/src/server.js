@@ -224,6 +224,9 @@ const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "800000", 10
 const forkSplitFile = path.join(dataDir, "fork-split.json");
 let forkSplit = { coveredTo: 0, v1: 0, v2: 0, local: 0 };
 try { if (fs.existsSync(forkSplitFile)) forkSplit = { ...forkSplit, ...JSON.parse(fs.readFileSync(forkSplitFile, "utf8")) }; } catch { /* fresh */ }
+// store 因格式升级弃数据时(v3 前按插入序淘汰导致 watermark 顶穿、回填被拒收),
+// fork-split 与它共用同一 header 扫描,一并归零从激活块重扫,两边口径重新对齐
+if (bidBlockStore.discardedLegacy) forkSplit = { coveredTo: 0, v1: 0, v2: 0, local: 0 };
 const saveForkSplit = () => { try { fs.writeFileSync(forkSplitFile, JSON.stringify(forkSplit)); } catch {} };
 let forkSyncBusy = false;
 async function syncForkSplit() {

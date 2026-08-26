@@ -269,7 +269,7 @@ export default function MevPage({ state }) {
 
         {/* BAD BLOCK 归因:全网坏块有多少由 bidblock(SendBidBlock)导致 + builder 出错汇总。
             指标 counter 实时可靠;BAD BLOCK 多行长日志可能被采集端丢弃 → counter>0 而日志缺位时以 counter 报警 */}
-        <div className="panel" style={{ maxWidth: 720 }}>
+        <div className="panel" style={{ maxWidth: 936 }}>
           <div className="panel-header">
             <span>BAD BLOCK · bidblock 归因
               {bad?.totals && (() => {

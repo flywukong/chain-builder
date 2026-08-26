@@ -690,7 +690,7 @@ body::before {
 .bb-fork-row span { font-family: var(--mono); color: var(--gold); font-size: 10.5px; min-width: 44px; text-align: right; }
 .bb-fork-total { margin-top: 8px; font-size: 9.5px; color: var(--muted); font-family: var(--mono); }
 @media (max-width: 900px) { .bb-cols { grid-template-columns: 1fr; } }
-.bb-list { max-height: 390px; }
+.bb-list { max-height: 300px; }
 .bb-inst-list { max-height: 300px; }
 .bb-pct { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
 .bb-addrs { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: var(--muted); }

@@ -165,25 +165,36 @@ export class BadBidblockWatch {
     } catch { /* non-fatal */ }
   }
 
-  view(nameOf = () => null) {
-    // 近 1h 新增(按 firstT = 首次见到该坏块的时刻):突发错误的直观呈现,与历史累计分开
-    const cutR = Date.now() - 3600e3;
-    const rb = this.blocks.filter((b) => b.firstT >= cutR);
+  // 时间窗聚合(按 firstT = 坏块首次出现,重播不算新出现);builder/原因均按最近出现倒序
+  _recentAgg(windowMs, nameOf) {
+    const cut = Date.now() - windowMs;
+    const rb = this.blocks.filter((b) => b.firstT >= cut);
     const aggB = {}, aggE = {};
     for (const b of rb) {
-      if (b.isBid === true) { const k = b.builder ?? "unknown"; (aggB[k] ??= 0); aggB[k]++; }
+      if (b.isBid === true) {
+        const k = b.builder ?? "unknown";
+        const e = (aggB[k] ??= { n: 0, lastSeen: 0 });
+        e.n++; if (b.firstT > e.lastSeen) e.lastSeen = b.firstT;
+      }
       const ek = normErrReason(b.error);
-      const e = (aggE[ek] ??= { n: 0, bid: 0 });
+      const e = (aggE[ek] ??= { n: 0, bid: 0, lastSeen: 0 });
       e.n++; if (b.isBid === true) e.bid++;
+      if (b.firstT > e.lastSeen) e.lastSeen = b.firstT;
     }
-    const recent1h = {
+    return {
       count: rb.length,
       bid: rb.filter((b) => b.isBid === true).length,
-      byBuilder: Object.entries(aggB).map(([addr, n]) => ({ addr, name: addr === "unknown" ? null : nameOf(addr), n })).sort((x, y) => y.n - x.n),
-      byError: Object.entries(aggE).map(([key, e]) => ({ key, ...e })).sort((x, y) => y.n - x.n),
-      lastT: this.blocks.reduce((m, b) => (b.lastT > m ? b.lastT : m), 0) || null,
+      byBuilder: Object.entries(aggB).map(([addr, e]) => ({ addr, name: addr === "unknown" ? null : nameOf(addr), ...e })).sort((x, y) => y.lastSeen - x.lastSeen),
+      byError: Object.entries(aggE).map(([key, e]) => ({ key, ...e })).sort((x, y) => y.lastSeen - x.lastSeen),
+      lastT: this.blocks.reduce((m, b) => (b.firstT > m ? b.firstT : m), 0) || null,   // 最近一次「新出现」
     };
+  }
+
+  view(nameOf = () => null) {
+    const recent1h = this._recentAgg(3600e3, nameOf);
+    const recent24h = this._recentAgg(86400e3, nameOf);
     return {
+      recent24h,
       ips: this.ips,
       since: this.since,
       watermark: this.watermark,

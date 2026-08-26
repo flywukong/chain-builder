@@ -193,10 +193,10 @@ export default function MevPage({ state }) {
           <div className="panel-header">
             <span>BID-BLOCK (v2) 观测
               {bb && (() => {
-                const live = bb.sessions.some((s) => Date.now() - s.tEnd < 5 * 60e3);
+                const live = bb.lastT && Date.now() - bb.lastT < 5 * 60e3;
                 return (
                   <em className={`panel-verdict pv-${live ? "warn" : bb.count ? "mid" : "ok"}`}>
-                    {bb.count ? `${live ? "⚡ 出块中 · " : ""}${bb.count.toLocaleString()} 块 · ${bb.sessions.length} 段` : "未观测到 v2 块"}
+                    {bb.count ? `${live ? "⚡ 出块中 · " : ""}${bb.count.toLocaleString()} 块` : "未观测到 v2 块"}
                   </em>
                 );
               })()}
@@ -225,7 +225,9 @@ export default function MevPage({ state }) {
                       </div>
                     ));
                   })()}
-                  <div className="re-title" style={{ marginTop: 10 }}>实例明细</div>
+                </div>
+                <div>
+                  <div className="re-title">实例明细</div>
                   <div className="eb-list bb-inst-list">
                     {bb.builders.map((b) => (
                       <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
@@ -234,35 +236,6 @@ export default function MevPage({ state }) {
                         <b>{b.count.toLocaleString()}<em className="bb-pct">· {((b.count / bb.count) * 100).toFixed(1)}%</em></b>
                       </div>
                     ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="re-title">会话(相邻 v2 块距 ≤1200 归同一段)</div>
-                  <div className="eb-list bb-list">
-                    {bb.sessions.map((s) => {
-                      const live = Date.now() - s.tEnd < 5 * 60e3;
-                      const span = s.to - s.from + 1;
-                      const durMin = Math.max(1, Math.round((s.tEnd - s.tStart) / 60e3));
-                      const dur = durMin >= 60 ? `${(durMin / 60).toFixed(1)}h` : `${durMin}m`;
-                      const share = span > 0 ? ((s.count / span) * 100).toFixed(1) : null;
-                      const famN = new Set(s.builders.map(famOf)).size;
-                      return (
-                        <div key={s.from} className={`bb-sess ${live ? "live" : ""}`}>
-                          <div className="bb-sess-top">
-                            <em className={`bb-sess-st ${live ? "on" : ""}`}>{live ? "⚡ 进行中" : "已结束"}</em>
-                            <b>{fmtBbT(s.tStart)} → {live ? "现在" : fmtBbT(s.tEnd)}</b>
-                            <span>· 持续 {dur}</span>
-                            <i className="bb-sess-n">v2 {s.count.toLocaleString()} 块</i>
-                          </div>
-                          <div className="bb-sess-mid">区块 #{s.from.toLocaleString()} – #{s.to.toLocaleString()}</div>
-                          <div className="bb-sess-low">
-                            <span>builder <b>{famN} 家 / {s.builders.length} 实例</b></span>
-                            <span>· validator <b>{s.minerNames.length}</b> 个</span>
-                            {share != null && <span title="v2 块数 ÷ 区间总块数">· v2 区间占比 ≈<b>{share}%</b></span>}
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
                 </div>
               </div>

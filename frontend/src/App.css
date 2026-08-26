@@ -707,11 +707,12 @@ body::before {
 .bb-addrs em { font-style: normal; color: var(--text-dim); }
 .bb-addrs code { font-family: var(--mono); font-size: 8.5px; word-break: break-all; }
 /* 坏块 bidblock 归因面板 */
-.bbk-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.bbk-chip { font-family: var(--mono); font-size: 10px; color: var(--muted); padding: 4px 9px;
-  border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.02); }
-.bbk-chip b { color: var(--text); }
-.bbk-chip .bbk-hot { color: var(--orange); }
+/* 近 1h 突发区:有新增时橙色告警条,安静时一行灰字 */
+.bb-recent { font-size: 10.5px; color: var(--muted); margin-bottom: 10px; font-family: var(--mono); }
+.bb-recent.hot { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,159,28,.55); background: rgba(255,159,28,.07); color: var(--text-dim); }
+.bb-recent.hot b { color: #FF9F1C; font-size: 11.5px; }
+.bb-recent.hot em { font-style: normal; color: var(--text); }
 .bbk-row { display: flex; align-items: baseline; gap: 8px; font-size: 10.5px; padding: 3px 0;
   border-bottom: 1px dashed rgba(255,255,255,.05); }
 .bbk-num { font-family: var(--mono); color: var(--text); }

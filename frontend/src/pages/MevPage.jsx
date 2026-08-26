@@ -282,9 +282,11 @@ export default function MevPage({ state }) {
             <span>BAD BLOCK · bidblock 归因
               {bad?.totals && (() => {
                 const bidLive = Math.max(0, ...(bad.counters ?? []).map((c) => c.count ?? 0));
+                const rc = bad.recent1h?.count ?? 0;
+                const hot = rc > 0 || (bad.totals.blocks === 0 && bidLive > 0);
                 return (
-                  <em className={`panel-verdict pv-${bad.totals.bid > 0 || bidLive > 0 ? "warn" : bad.totals.blocks > 0 ? "mid" : "ok"}`}>
-                    {bad.totals.blocks > 0 ? `坏块 ${bad.totals.blocks} · bidblock 致 ${bad.totals.bid}`
+                  <em className={`panel-verdict pv-${hot ? "warn" : bad.totals.blocks > 0 ? "mid" : "ok"}`}>
+                    {bad.totals.blocks > 0 ? `坏块 ${bad.totals.blocks} · bidblock 致 ${bad.totals.bid}${rc > 0 ? ` · ⚡近1h +${rc}` : ""}`
                       : bidLive > 0 ? `⚡ 探针已计 ${bidLive} 个坏 bidblock · 日志待入库` : "探针未见坏块"}
                   </em>
                 );
@@ -293,18 +295,26 @@ export default function MevPage({ state }) {
             <span className="sub">探针 {bad?.ips?.join(" / ") ?? "…"}(部署统计版)· chain_insert_badBidblock + BAD BLOCK 日志 · builder 为 header 自声明标记,作线索非定论</span>
           </div>
           <div className="panel-body">
-            <div className="bbk-chips">
-              {(bad?.counters ?? []).map((c) => (
-                <span key={c.instance} className="bbk-chip">📟 {c.instance} 进程计数 <b>{c.count ?? "—"}</b></span>
-              ))}
-              <span className="bbk-chip">日志累计 unique 坏块 <b>{bad?.totals?.blocks ?? "—"}</b> · 其中 bidblock <b className="bbk-hot">{bad?.totals?.bid ?? "—"}</b>{bad?.totals?.unknown > 0 ? ` · 旧格式待判 ${bad.totals.unknown}` : ""}</span>
-            </div>
             {!bad || bad.totals.blocks === 0 ? (
-              <div className="ph-note">探针日志窗口内未见 BAD BLOCK 摘要。出现后这里会判定坏块是否走 BEP-675 SendBidBlock 路径,并按 builder 汇总出错次数(同一坏块被 peer 重播多次,按块 hash 去重)。若上方进程计数 &gt;0 而此处为空 = BAD BLOCK 多行长日志未入 ES(采集端可能丢弃超长条目),builder 归因需登机 grep bsc.log。</div>
+              <div className="ph-note">探针日志窗口内未见 BAD BLOCK 摘要。出现后这里会判定坏块是否走 BEP-675 SendBidBlock 路径,并按 builder 汇总出错次数(同一坏块被 peer 重播多次,按块 hash 去重)。若探针指标(chain_insert_badBidblock)&gt;0 而此处为空 = 日志未入 ES,标题会以指标计数报警,归因需登机 grep bsc.log。</div>
             ) : (
+              <>
+              {/* 突发直观呈现:近 1h 新增(builder 与原因分别说明);安静时一行灰字 */}
+              {(() => {
+                const r = bad.recent1h ?? { count: 0 };
+                return r.count > 0 ? (
+                  <div className="bb-recent hot">
+                    <b>⚡ 近 1 小时新增 {r.count} 个坏块(bidblock {r.bid})</b>
+                    <span>最近出错 builder:<em>{r.byBuilder.length ? r.byBuilder.map((b) => `${b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")} ×${b.n}`).join("、") : "—(均非 bidblock 路径)"}</em></span>
+                    <span>最近出错原因:<em>{r.byError.map((e) => `${e.key} ×${e.n}`).join("、")}</em></span>
+                  </div>
+                ) : (
+                  <div className="bb-recent">✓ 近 1 小时无新增坏块{r.lastT ? ` · 最近一次 ${fmtBbT(r.lastT)}` : ""}</div>
+                );
+              })()}
               <div className="bb-cols">
                 <div>
-                  <div className="re-title">BUILDER 出错汇总(bidblock 坏块)</div>
+                  <div className="re-title">历史累计 · BUILDER 出错(bidblock 坏块)</div>
                   {bad.byBuilder.length === 0
                     ? <div className="eb-none">✓ 尚无归因到 bidblock 的坏块</div>
                     : bad.byBuilder.map((b) => (
@@ -321,7 +331,7 @@ export default function MevPage({ state }) {
                   </div>
                   {(bad.byError ?? []).length > 0 && (
                     <>
-                      <div className="re-title" style={{ marginTop: 10 }}>错误原因汇总(unique 坏块)</div>
+                      <div className="re-title" style={{ marginTop: 10 }}>历史累计 · 错误原因(unique 坏块)</div>
                       {bad.byError.map((e, i) => (
                         <div key={e.key} className="bb-err-row" title={`${e.key}\n样本:${e.sample}`}>
                           <i className="bb-err-idx" style={{ color: errIdxColor(i + 1), borderColor: errIdxColor(i + 1) }}>{i + 1}</i>
@@ -354,6 +364,7 @@ export default function MevPage({ state }) {
                   </div>
                 </div>
               </div>
+              </>
             )}
             {bad?.truncated && <div className="bbk-note">⚠ 有扫描窗口命中 ES 单页上限(1000 行),重播计数可能偏低;unique 坏块与 builder 汇总基本不受影响。</div>}
           </div>

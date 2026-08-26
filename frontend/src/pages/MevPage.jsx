@@ -312,7 +312,7 @@ export default function MevPage({ state }) {
                   <div className="bb-recent">✓ 近 1 小时无新增坏块{r.lastT ? ` · 最近一次 ${fmtBbT(r.lastT)}` : ""}</div>
                 );
               })()}
-              <div className="bb-cols">
+              <div className="bb-cols bb-cols-bad">
                 <div>
                   {/* 近 24h:按最近出错时间倒序,回答「近期是谁在出坏块」 */}
                   {(() => {
@@ -320,7 +320,7 @@ export default function MevPage({ state }) {
                     if (!r || r.count === 0) return <div className="re-title" style={{ marginBottom: 10 }}>近 24 小时 · 无新增坏块</div>;
                     return (
                       <>
-                        <div className="re-title">近 24 小时 · BUILDER(最近出错在前)</div>
+                        <div className="re-title">近 24 小时 · BUILDER</div>
                         {r.byBuilder.length === 0
                           ? <div className="eb-none">✓ 24h 内坏块均非 bidblock 路径(共 {r.count} 块)</div>
                           : r.byBuilder.map((b) => (
@@ -333,7 +333,7 @@ export default function MevPage({ state }) {
                       </>
                     );
                   })()}
-                  <div className="re-title" style={{ marginTop: 10 }}>历史累计 · BUILDER 出错(bidblock 坏块)</div>
+                  <div className="re-title" style={{ marginTop: 10 }}>历史累计 · BUILDER 出错</div>
                   {bad.byBuilder.length === 0
                     ? <div className="eb-none">✓ 尚无归因到 bidblock 的坏块</div>
                     : bad.byBuilder.map((b) => (

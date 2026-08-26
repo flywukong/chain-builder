@@ -687,6 +687,7 @@ body::before {
 .eb-mn-ai:disabled { opacity: .55; cursor: default; }
 /* BID-BLOCK (v2) 观测面板 */
 .bb-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+.bb-cols-bad { grid-template-columns: minmax(0, 1fr) 390px; }   /* BAD BLOCK 面板:明细列加宽 30%,左列文字短、避免中间大片空白 */
 /* 分叉后路径分裂汇总(右列) */
 .bb-fork-bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; margin: 6px 0 10px; background: rgba(255,255,255,.04); }
 .bb-fork-bar i { display: block; min-width: 1px; }

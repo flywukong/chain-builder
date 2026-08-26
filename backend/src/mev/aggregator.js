@@ -3,9 +3,9 @@
  *
  * Two horizons:
  *  - rolling 2000-block window: recent list / top miners (realtime texture)
- *  - persisted day stats: 24h hourly buckets (MEV%, v1/v2/local), all-time
- *    builder totals, and per-validator last-block version (24h validity) —
- *    survives restarts via a throttled JSON file.
+ *  - persisted day stats: hourly buckets retained 15d(24h 卡片 + 24h/7d 份额环比,
+ *    7d 环比需 14d 桶),all-time builder totals, and per-validator last-block
+ *    version (24h validity) — survives restarts via a throttled JSON file.
  */
 
 import fs from "fs";
@@ -84,8 +84,8 @@ export class MevAggregator extends EventEmitter {
     if (block.miner && block.version && block.version !== "unknown") {
       this.day.minerVers[block.miner] = { ver: block.version, t: now };
     }
-    // prune:桶留 25h,版本记录留 24h
-    const cutHk = Math.floor((now - 25 * HOUR) / HOUR);
+    // prune:桶留 15d(7d 份额 + 7d 环比需 14d,留 1d 余量),版本记录留 24h
+    const cutHk = Math.floor((now - 15 * 24 * HOUR) / HOUR);
     for (const k of Object.keys(this.day.buckets)) if (+k < cutHk) delete this.day.buckets[k];
     const cutV = now - 24 * HOUR;
     for (const [m, v] of Object.entries(this.day.minerVers)) if (v.t < cutV) delete this.day.minerVers[m];
@@ -118,8 +118,10 @@ export class MevAggregator extends EventEmitter {
     const now = Date.now();
     const hkCut = Math.floor((now - 24 * HOUR) / HOUR);
     const hkPrevCut = Math.floor((now - 48 * HOUR) / HOUR);
-    let dTotal = 0, dMev = 0, dV2 = 0, prevMev = 0;
-    const famsNow = {}, famsPrev = {}, instsNow = {}, instsPrev = {};
+    const hk7Cut = Math.floor((now - 7 * 24 * HOUR) / HOUR);
+    const hk14Cut = Math.floor((now - 14 * 24 * HOUR) / HOUR);
+    let dTotal = 0, dMev = 0, dV2 = 0, prevMev = 0, mev7 = 0, mev7Prev = 0, hours7 = 0;
+    const famsNow = {}, famsPrev = {}, instsNow = {}, instsPrev = {}, fams7 = {}, fams7Prev = {};
     const merge = (dst, src) => { for (const [k, n] of Object.entries(src || {})) dst[k] = (dst[k] || 0) + n; };
     for (const [hk, b] of Object.entries(this.day.buckets)) {
       if (+hk >= hkCut) {
@@ -129,6 +131,9 @@ export class MevAggregator extends EventEmitter {
         prevMev += b.mev;
         merge(famsPrev, b.fams); merge(instsPrev, b.insts);
       }
+      // 7d 与前一 7d 独立累加(与 24h 窗口重叠,不能挂进上面的 else 链)
+      if (+hk >= hk7Cut) { mev7 += b.mev; hours7++; merge(fams7, b.fams); }
+      else if (+hk >= hk14Cut) { mev7Prev += b.mev; merge(fams7Prev, b.fams); }
     }
     const day24 = {
       total: dTotal,
@@ -156,6 +161,15 @@ export class MevAggregator extends EventEmitter {
     };
     // 每 family 的 24h 份额 + 环比(Builder 分布面板的"当下"列)
     const famsDay = famsSorted.map(shareOf);
+
+    // 每 family 的 7d 份额 + 环比(vs 前一个 7d;需 14d 桶,积累期 prevPct=null)
+    const fams7d = Object.entries(fams7)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, n]) => ({
+        name, n,
+        pct: pct1(n, mev7),
+        prevPct: mev7Prev ? pct1(fams7Prev[name] || 0, mev7Prev) : null,
+      }));
 
     // ── Builder instance 拆分(24h,family 内按实例)──
     const instances = Object.entries(instsNow)
@@ -219,6 +233,8 @@ export class MevAggregator extends EventEmitter {
       buildersSince: this.day.since,
       concentration,
       famsDay,
+      fams7d,
+      fams7dHours: hours7, // 7d 窗口内实际有数据的小时桶数(<168 = 积累中)
       instances,
       validatorBuilders,
     };

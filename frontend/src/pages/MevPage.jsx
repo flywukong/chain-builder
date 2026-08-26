@@ -167,21 +167,23 @@ export default function MevPage({ state }) {
           </div>
         )}
 
-        {/* Builder 分布(核心):历史累计 + 24h 对照,单列 */}
+        {/* Builder 分布(核心):历史累计 + 24h/7d 对照,单列 */}
         <div className="panel" style={{ maxWidth: 936 }}>
           <div className="panel-header">
             <span>Builder 分布</span>
-            <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右列为 24h 份额与环比</span>
+            <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右两列为 24h / 7d 份额与环比{(mev.fams7dHours ?? 168) < 160 ? ` · 7d 桶积累中 ${mev.fams7dHours}/168h` : ""}</span>
           </div>
           <div className="panel-body mev-bars">
             {fams.map(([f, c]) => {
               const d24 = (mev.famsDay ?? []).find((x) => x.name === f);
+              const d7 = (mev.fams7d ?? []).find((x) => x.name === f);
               return (
                 <div key={f} className="ver-row">
                   <span className="ver-tag" style={{ width: 92, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
                   <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
                   <span className="ver-count">{c.toLocaleString()}<em>· {fmtPct(c, famTotal)}</em></span>
                   <span className="fam-24h">{d24 ? <>24h {d24.pct}% {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
+                  <span className="fam-24h fam-7d">{d7 ? <>7d {d7.pct}% {fmtDelta(d7.pct, d7.prevPct)}</> : <em>—</em>}</span>
                 </div>
               );
             })}

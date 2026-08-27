@@ -1959,8 +1959,9 @@ body::before {
 }
 .bbx-panel .bbx-hero-b { padding-left: 8px; }
 .bbx-panel .bbx-cell { border-left: 1px solid var(--line); }
-.bbx-panel .bbx-hero-b b { font-size: 22px; }
+.bbx-panel .bbx-hero-b b { font-size: 11px; }
 .bbx-panel .bbx-cell b { font-size: 15px; }
+.bbx-panel .bbx-cell-err b { font-size: 19.5px; }
 .bbx-panel .bbx-hero-detail { margin-right: 174px; }
 
 .bbx-panel .bbx-tiles {

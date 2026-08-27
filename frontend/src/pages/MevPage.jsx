@@ -412,7 +412,7 @@ export default function MevPage({ state }) {
                         {topAddr ? <code>{topAddr}</code> : null}
                       </div>
                       <div className="bbx-cell"><span>块高范围</span><b>#{lo.toLocaleString()} – #{hi.toLocaleString()}</b></div>
-                      <div className="bbx-cell"><span>错误汇总</span>
+                      <div className="bbx-cell bbx-cell-err"><span>错误汇总</span>
                         <b>{eList.map(([k, c], i) => (
                           <span key={k ?? i} style={{ color: badErrColor(k) }}>{i > 0 ? " · " : ""}{errShort(k)} ×{c}</span>
                         ))}</b>

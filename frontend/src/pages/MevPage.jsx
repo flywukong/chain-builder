@@ -355,6 +355,15 @@ export default function MevPage({ state }) {
               <div className="ph-note">探针日志窗口内未见 BAD BLOCK 摘要。出现后这里会判定坏块是否走 BEP-675 SendBidBlock 路径,并按 builder 汇总出错次数(同一坏块被 peer 重播多次,按块 hash 去重)。若探针指标(chain_insert_badBidblock)&gt;0 而此处为空 = 日志未入 ES,标题会以指标计数报警,归因需登机 grep bsc.log。</div>
             ) : (
               <>
+              {/* 全部汇总:自部署起的整体一行账(替代此前的指标卡) */}
+              <div className="bbx-alltime">
+                <em>全部汇总</em>
+                <span>唯一坏块 <b>{bad.totals.blocks}</b></span>
+                <span>bidblock 已归因 <b className="hot">{bad.totals.bid}</b></span>
+                <span>无法归因/非 bidblock <b>{bad.totals.unknown + bad.totals.nonBid}</b></span>
+                <span>builder:<b className="hot">{bad.byBuilder.map((b) => `${b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")} ×${b.n}`).join("、") || "—"}</b></span>
+                <span>观测上报 <b>{(bad.totals.obs ?? 0).toLocaleString()}</b></span>
+              </div>
               {/* 最近一批坏块:以最新坏块为锚,往前 1 小时内的全部坏块为一批(时间聚簇,非固定条数);1h 内有新块时红边告警 */}
               {(() => {
                 const sorted = [...bad.recent].sort((a, b) => b.firstT - a.firstT);

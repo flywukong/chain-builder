@@ -761,6 +761,12 @@ body::before {
 
 /* ── BAD BLOCK 面板(效果图版):hero + 指标 + 排名/分布 + 事故表 ── */
 .bbx-panel { max-width: 1240px; }
+/* 全部汇总单行条(hero 之上) */
+.bbx-alltime { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-bottom: 8px; padding: 0 2px; }
+.bbx-alltime em { font-style: normal; color: var(--gold); font-weight: 700; letter-spacing: .4px; }
+.bbx-alltime b { color: var(--text); font-size: 12px; }
+.bbx-alltime b.hot { color: #FF9F1C; }
 .bbx-hero { border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; margin-bottom: 9px; }
 .bbx-hero.fresh { border-color: rgba(246,70,93,.65); background: rgba(246,70,93,.05); }
 .bbx-hero-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }

@@ -97,8 +97,6 @@ export default function MevPage({ state }) {
   const [badOpen, setBadOpen] = useState(null);  // 展开的事故行(hash)
   const [badPage, setBadPage] = useState(-1);    // 事故表分页:-1=收起(仅前10),≥0=展开后的页码(10/页)
   const copyText = (t) => { try { navigator.clipboard?.writeText(t); } catch { /* http 环境无 clipboard */ } };
-  const [v2Win, setV2Win] = useState("24h");     // v2 份额表时间窗:24h / 7d / 自激活
-  const [v2Mode, setV2Mode] = useState("fam");   // v2 份额表口径:家族 / 实例
   // 错误原因 → 序号(按块数排序,1 = 最大头);分布条与事故表错误列同色联动
   const badErrIdx = new Map((bad?.byError ?? []).map((e, i) => [e.key, i + 1]));
   const badErrColor = (k) => (badErrIdx.get(k) ? errIdxColor(badErrIdx.get(k)) : "var(--muted)");
@@ -257,87 +255,41 @@ export default function MevPage({ state }) {
                 );
               })()}
             </span>
-            <span className="bm-ctls">
-              <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已激活 · 小时序列自部署积累</span>
-              <span className="tf-ranges">
-                {[["24h", "24h"], ["7d", "7d"], ["all", "自激活"]].map(([v, l]) => (
-                  <button key={v} className={`tf-range ${v2Win === v ? "on" : ""}`} onClick={() => setV2Win(v)}>{l}</button>
-                ))}
-              </span>
-            </span>
+            <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已激活 · 自激活累计</span>
           </div>
           <div className="panel-body">
             {!bb || bb.count === 0 ? (
               <div className="ph-note">激活时刻以来暂无 bid-block 标记块(回扫可能仍在进行,首次部署自激活块补齐约需数分钟)。</div>
             ) : (
               <div className="v2x-cols">
-                {/* 左:份额表 */}
-                <div className="v2x-card">
+                {/* 左:家族份额 + 实例明细(旧版样式,自激活累计) */}
+                <div>
+                  <div className="re-title">BUILDER 家族份额(同家实例汇总)</div>
                   {(() => {
-                    const now = Date.now();
-                    const agg = (ms) => {
-                      const m = new Map(); let tot = 0;
-                      for (const h of bb.hourly ?? []) {
-                        if (h.t < now - ms) continue;
-                        tot += h.total;
-                        for (const [n, c] of Object.entries(h.byName)) m.set(n, (m.get(n) || 0) + c);
-                      }
-                      return { m, tot };
-                    };
-                    const wins = {
-                      "24h": agg(24 * 3600e3),
-                      "7d": agg(7 * 86400e3),
-                      all: { m: new Map(bb.builders.map((b) => [b.name ?? b.addr ?? "?", b.count])), tot: bb.count },
-                    };
-                    const fold = ({ m, tot }) => {
-                      if (v2Mode !== "fam") return { m, tot };
-                      const f = new Map();
-                      for (const [n, c] of m) f.set(famOf(n), (f.get(famOf(n)) || 0) + c);
-                      return { m: f, tot };
-                    };
-                    const sel = fold(wins[v2Win]), s24 = fold(wins["24h"]), s7 = fold(wins["7d"]);
-                    const pctOf = (w, k) => (w.tot ? ((w.m.get(k) || 0) / w.tot) * 100 : null);
-                    const rows = [...sel.m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
-                    return (
-                      <>
-                        <div className="v2x-card-head">
-                          <span className="re-title">BUILDER V2 份额</span>
-                          <span className="tf-ranges">
-                            {[["fam", "家族"], ["inst", "实例"]].map(([v, l]) => (
-                              <button key={v} className={`tf-range ${v2Mode === v ? "on" : ""}`} onClick={() => setV2Mode(v)}>{l}</button>
-                            ))}
-                          </span>
-                        </div>
-                        <div className="v2x-th"><span>#</span><span>{v2Mode === "fam" ? "builder 家族" : "builder 实例"}</span><span>V2 区块</span><span>份额</span><span>24h</span><span>7d</span><span>趋势</span></div>
-                        {rows.map(([k, c], i) => {
-                          const share = sel.tot ? (c / sel.tot) * 100 : 0;
-                          const p24 = pctOf(s24, k), p7 = pctOf(s7, k);
-                          const fam = v2Mode === "fam" ? k : famOf(k);
-                          return (
-                            <div key={k} className="v2x-tr">
-                              <span className="v2x-i">{i + 1}</span>
-                              <em style={{ color: FAMILY_COLORS[fam] || "var(--text)" }}>{k}</em>
-                              <b>{c.toLocaleString()}</b>
-                              <span className="v2x-share">
-                                <span className="v2x-sbar"><i style={{ width: `${share}%`, background: FAMILY_COLORS[fam] || "#888" }} /></span>
-                                <b>{share.toFixed(1)}%</b>
-                              </span>
-                              <span className="v2x-p">{p24 != null ? `${p24.toFixed(1)}%` : "—"}</span>
-                              <span className="v2x-p">{p7 != null ? `${p7.toFixed(1)}%` : "—"}</span>
-                              <span className="v2x-p">{p24 != null && p7 != null ? fmtDelta(p24, p7) : "—"}</span>
-                            </div>
-                          );
-                        })}
-                        <div className="v2x-tr v2x-total">
-                          <span />
-                          <em>总计</em>
-                          <b>{sel.tot.toLocaleString()}</b>
-                          <span className="v2x-share"><b>100%</b></span>
-                          <span className="v2x-p">—</span><span className="v2x-p">—</span><span className="v2x-p">—</span>
-                        </div>
-                      </>
-                    );
+                    const famsM = new Map();
+                    for (const b of bb.builders) {
+                      const f = famOf(b.name);
+                      famsM.set(f, (famsM.get(f) ?? 0) + b.count);
+                    }
+                    const rows = [...famsM.entries()].sort((a, x) => x[1] - a[1]);
+                    return rows.map(([f, c]) => (
+                      <div key={f} className="eb-miner">
+                        <em style={{ color: FAMILY_COLORS[f] || "var(--text)" }}>{f}</em>
+                        <span className="eb-mbar"><i style={{ width: `${(c / rows[0][1]) * 100}%`, background: FAMILY_COLORS[f] || undefined }} /></span>
+                        <b>{c.toLocaleString()}<em className="bb-pct">· {((c / bb.count) * 100).toFixed(1)}%</em></b>
+                      </div>
+                    ));
                   })()}
+                  <div className="re-title" style={{ marginTop: 10 }}>实例明细</div>
+                  <div className="eb-list bb-inst-list">
+                    {bb.builders.map((b) => (
+                      <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
+                        <em className="bb-wrap">{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
+                        <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
+                        <b>{b.count.toLocaleString()}<em className="bb-pct">· {((b.count / bb.count) * 100).toFixed(1)}%</em></b>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {/* 右:采用率趋势 + 出块路径分布 */}
                 <div className="v2x-right">

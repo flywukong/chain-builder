@@ -61,7 +61,7 @@ export class BadBidblockWatch {
     this.file = file;
     this.ips = BAD_BIDBLOCK_IPS;
     this.blocks = [];                                          // 明细(unique 坏块)
-    this.totals = { blocks: 0, bid: 0, nonBid: 0, unknown: 0 }; // 按 unique hash 累计(持久)
+    this.totals = { blocks: 0, bid: 0, nonBid: 0, unknown: 0, obs: 0 }; // 按 unique hash 累计;obs=观测上报行数(持久)
     this.byBuilder = {};                                       // builderAddr → { n, lastT, lastNumber }
     this.byError = {};                                         // 错误模式 → { n, bid, lastT, lastNumber, sample }
     this.watermark = 0;
@@ -91,6 +91,7 @@ export class BadBidblockWatch {
         }
       }
     } catch { /* fresh start */ }
+    if (this.totals.obs == null) this.totals.obs = this.blocks.reduce((s, x) => s + (x.n || 0), 0);   // 旧文件迁移
     this.counted = new Set(this.countedHashes ?? []);   // 曾计入 totals 的 hash(防明细淘汰后重扫双计)
     this.byHash = new Map(this.blocks.map((b) => [b.hash, b]));
   }
@@ -128,6 +129,7 @@ export class BadBidblockWatch {
     if (b.rk?.includes(rowKey)) return;
     if ((b.rk ??= []).length < ROWKEY_CAP) b.rk.push(rowKey);
     b.n++;
+    this.totals.obs = (this.totals.obs || 0) + 1;
     if (t > b.lastT) b.lastT = t;
     if (t < b.firstT) b.firstT = t;
     if (!b.hosts.includes(host)) b.hosts.push(host);
@@ -218,11 +220,14 @@ export class BadBidblockWatch {
       byBuilder: (() => {
         const n24 = Object.fromEntries(recent24h.byBuilder.map((b) => [b.addr, b.n]));
         return Object.entries(this.byBuilder)
-          .map(([addr, a]) => ({
-            addr, name: addr === "unknown" ? null : nameOf(addr), ...a,
-            n24: n24[addr] ?? 0,
-            mainErr: Object.entries(a.errs ?? {}).sort((x, y) => y[1] - x[1])[0]?.[0] ?? null,
-          }))
+          .map(([addr, a]) => {
+            const top = Object.entries(a.errs ?? {}).sort((x, y) => y[1] - x[1])[0] ?? null;
+            return {
+              addr, name: addr === "unknown" ? null : nameOf(addr), ...a,
+              n24: n24[addr] ?? 0,
+              mainErr: top?.[0] ?? null, mainErrN: top?.[1] ?? 0,
+            };
+          })
           .sort((x, y) => y.lastT - x.lastT);
       })(),
       byError: Object.entries(this.byError)

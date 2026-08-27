@@ -34,9 +34,16 @@ const FAMILY_COLORS = {
 
 const fmtBbT = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-// 坏块错误原因编号徽章配色:1 号(最大头)金色,依次错开
-const ERR_IDX_COLORS = ["#F0B90B", "#f97316", "#45B8FF", "#22c55e", "#ec4899", "#9A86F0"];
+// 坏块错误原因配色:1 号(最大头)红,依次错开;分布条/主要错误点/事故表错误列同色联动
+const ERR_IDX_COLORS = ["#F6465D", "#FF9F1C", "#45B8FF", "#22c55e", "#ec4899", "#9A86F0"];
 const errIdxColor = (ix) => ERR_IDX_COLORS[(ix - 1) % ERR_IDX_COLORS.length];
+// 归一化错误键 → 英文短标签(展示用;悬停仍可见原始键/样本)
+const ERR_SHORT = {
+  "invalid merkle root · remote全0": "StateRoot zero",
+  "invalid merkle root": "StateRoot mismatch",
+  "invalid bloom": "Bloom mismatch",
+};
+const errShort = (k) => ERR_SHORT[k] ?? (k || "—");
 
 // builder 实例名 → 家族(首词);puissant 系与 48club 同源,归并
 const BB_FAMILY_ALIAS = { puissant: "48club" };
@@ -52,8 +59,10 @@ export default function MevPage({ state }) {
   const [bb, setBb] = useState(null);
   // 坏块 bidblock 归因(2 台灰度探针机:metric + BAD BLOCK 日志)
   const [bad, setBad] = useState(null);
-  // 错误原因 → 汇总里的编号(按块数排序,1 = 最大头);明细行用同号同色徽章回指
+  const [badTab, setBadTab] = useState("24h");   // 事故表时间窗:24h / 7d / All
+  // 错误原因 → 序号(按块数排序,1 = 最大头);分布条与事故表错误列同色联动
   const badErrIdx = new Map((bad?.byError ?? []).map((e, i) => [e.key, i + 1]));
+  const badErrColor = (k) => (badErrIdx.get(k) ? errIdxColor(badErrIdx.get(k)) : "var(--muted)");
   useEffect(() => {
     let alive = true;
     const pull = () => fetch(API + "/api/bidblock").then((r) => r.json()).then((j) => { if (alive) setBb(j); }).catch(() => {});
@@ -277,17 +286,17 @@ export default function MevPage({ state }) {
 
         {/* BAD BLOCK 归因:全网坏块有多少由 bidblock(SendBidBlock)导致 + builder 出错汇总。
             指标 counter 实时可靠;BAD BLOCK 多行长日志可能被采集端丢弃 → counter>0 而日志缺位时以 counter 报警 */}
-        <div className="panel" style={{ maxWidth: 936 }}>
+        <div className="panel" style={{ maxWidth: 1240 }}>
           <div className="panel-header">
-            <span>BAD BLOCK · bidblock 归因
+            <span>BAD BLOCK · BIDBLOCK 归因
               {bad?.totals && (() => {
                 const bidLive = Math.max(0, ...(bad.counters ?? []).map((c) => c.count ?? 0));
                 const rc = bad.recent1h?.count ?? 0;
-                const hot = rc > 0 || (bad.totals.blocks === 0 && bidLive > 0);
                 return (
-                  <em className={`panel-verdict pv-${hot ? "warn" : bad.totals.blocks > 0 ? "mid" : "ok"}`}>
-                    {bad.totals.blocks > 0 ? `坏块 ${bad.totals.blocks} · bidblock 致 ${bad.totals.bid}${rc > 0 ? ` · ⚡近1h +${rc}` : ""}`
-                      : bidLive > 0 ? `⚡ 探针已计 ${bidLive} 个坏 bidblock · 日志待入库` : "探针未见坏块"}
+                  <em className={`panel-verdict pv-${rc > 0 ? "warn" : bad.totals.blocks > 0 ? "ok" : bidLive > 0 ? "warn" : "ok"}`}>
+                    {rc > 0 ? `🚨 近 1 小时 +${rc} · bidblock ${bad.recent1h.bid}`
+                      : bad.totals.blocks > 0 ? "● 近 1 小时无新增"
+                      : bidLive > 0 ? `⚡ 探针已计 ${bidLive} · 日志待入库` : "探针未见坏块"}
                   </em>
                 );
               })()}
@@ -299,77 +308,104 @@ export default function MevPage({ state }) {
               <div className="ph-note">探针日志窗口内未见 BAD BLOCK 摘要。出现后这里会判定坏块是否走 BEP-675 SendBidBlock 路径,并按 builder 汇总出错次数(同一坏块被 peer 重播多次,按块 hash 去重)。若探针指标(chain_insert_badBidblock)&gt;0 而此处为空 = 日志未入 ES,标题会以指标计数报警,归因需登机 grep bsc.log。</div>
             ) : (
               <>
-              {/* 突发直观呈现:近 1h 新增(builder 与原因分别说明);安静时一行灰字 */}
+              {/* 最新坏块 hero:1h 内红色告警边,过时转灰 */}
               {(() => {
-                const r = bad.recent1h ?? { count: 0 };
-                return r.count > 0 ? (
-                  <div className="bb-recent hot">
-                    <b>⚡ 近 1 小时新增 {r.count} 个坏块(bidblock {r.bid})</b>
-                    <span>最近出错 builder:<em>{r.byBuilder.length ? r.byBuilder.map((b) => `${b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")} ×${b.n}`).join("、") : "—(均非 bidblock 路径)"}</em></span>
-                    <span>最近出错原因:<em>{r.byError.map((e) => `${e.key} ×${e.n}`).join("、")}</em></span>
+                const latest = bad.recent.reduce((m, b) => (!m || b.firstT > m.firstT ? b : m), null);
+                if (!latest) return null;
+                const ageMin = Math.max(1, Math.round((Date.now() - latest.firstT) / 60e3));
+                const fresh = Date.now() - latest.firstT < 3600e3;
+                const age = ageMin < 60 ? `${ageMin} 分钟前` : ageMin < 1440 ? `${Math.round(ageMin / 60)} 小时前` : `${Math.round(ageMin / 1440)} 天前`;
+                return (
+                  <div className={`bbx-hero ${fresh ? "fresh" : ""}`} title={latest.hash}>
+                    <div className="bbx-hero-top">
+                      <b>🚨 最新坏块</b>
+                      <i className={fresh ? "bbx-new" : "bbx-age"}>{fresh ? `NEW · ${age}` : age}</i>
+                      <span className="bbx-hero-src">RequestsHash 归因 · BidBlock v2</span>
+                    </div>
+                    <div className="bbx-hero-grid">
+                      <div className="bbx-hero-b">
+                        <span>BUILDER</span>
+                        <b>{latest.isBid ? (latest.builderName ?? (latest.builder ?? "").slice(0, 12) + "…") : latest.isBid === false ? "非 bidblock" : "legacy · 未判"}</b>
+                        {latest.isBid && latest.builder ? <code>{latest.builder}</code> : null}
+                      </div>
+                      <div className="bbx-cell"><span>块高</span><b>#{latest.number.toLocaleString()}</b></div>
+                      <div className="bbx-cell"><span>错误</span><b style={{ color: badErrColor(latest.errKey) }} title={latest.error ?? ""}>{errShort(latest.errKey)}</b></div>
+                      <div className="bbx-cell"><span>Validator</span><b>{latest.minerName ?? (latest.miner ?? "").slice(0, 10) ?? "—"}</b></div>
+                      <div className="bbx-cell"><span>观测(重播)</span><b>×{latest.n}</b></div>
+                      <div className="bbx-cell"><span>时间</span><b>{fmtBbT(latest.firstT)}</b></div>
+                    </div>
                   </div>
-                ) : (
-                  <div className="bb-recent">✓ 近 1 小时无新增坏块{r.lastT ? ` · 最近一次 ${fmtBbT(r.lastT)}` : ""}</div>
                 );
               })()}
+              {/* 四指标 */}
+              <div className="bbx-tiles">
+                <div className="bbx-tile"><b>{bad.totals.blocks}</b><span>唯一坏块</span></div>
+                <div className="bbx-tile hot"><b>{bad.totals.bid}</b><span>bidblock 已归因</span></div>
+                <div className="bbx-tile"><b>{bad.totals.unknown + bad.totals.nonBid}</b><span>无法归因 / 非 bidblock</span></div>
+                <div className="bbx-tile"><b>{(bad.totals.obs ?? 0).toLocaleString()}</b><span>观测上报(含重播)</span></div>
+              </div>
               <div className="bb-cols bb-cols-bad">
                 <div>
-                  {/* Builder 合并表:24h 与历史不分家,按最近出错倒序;24h>0 的行橙色高亮 */}
-                  <div className="re-title">BUILDER 汇总(最近出错在前)</div>
+                  <div className="re-title">BUILDER 排名(最近出错在前)</div>
                   {bad.byBuilder.length === 0
                     ? <div className="eb-none">✓ 尚无归因到 bidblock 的坏块</div>
                     : (
                       <div className="bb-tbl">
-                        <div className="bb-tbl-h"><span>builder</span><span>24h</span><span>累计</span><span>最近</span><span>主要错误</span></div>
-                        {bad.byBuilder.map((b) => (
+                        <div className="bb-tbl-h"><span /><span>builder</span><span>24h</span><span>累计</span><span>最近</span><span>主要错误</span></div>
+                        {bad.byBuilder.map((b, i) => (
                           <div key={b.addr} className="bb-tbl-r" title={b.addr}>
+                            <i className="bb-err-idx" style={{ color: b.n24 > 0 ? "#FF9F1C" : "var(--muted)", borderColor: b.n24 > 0 ? "#FF9F1C" : "var(--line)" }}>{i + 1}</i>
                             <em className={b.n24 > 0 ? "hot" : ""}>{b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")}</em>
                             <b className={b.n24 > 0 ? "hot" : ""}>{b.n24}</b>
                             <b>{b.n}</b>
                             <span>{fmtBbT(b.lastT)}</span>
-                            <i title={b.mainErr ?? ""}>{b.mainErr ?? "—"}</i>
+                            <i className="bb-tbl-err" title={b.mainErr ?? ""}>
+                              {b.mainErr ? <><u style={{ background: badErrColor(b.mainErr) }} />{errShort(b.mainErr)} ({b.mainErrN})</> : "—"}
+                            </i>
                           </div>
                         ))}
                       </div>
                     )}
-                  <div className="bb-addrs">
-                    {bad.byBuilder.slice(0, 4).filter((b) => b.addr !== "unknown").map((b) => (
-                      <div key={b.addr}><em>{b.name ?? "?"}</em> <code>{b.addr}</code></div>
-                    ))}
-                  </div>
-                  {(bad.byError ?? []).length > 0 && (
-                    <>
-                      <div className="re-title" style={{ marginTop: 10 }}>历史累计 · 错误原因(unique 坏块)</div>
-                      {bad.byError.map((e, i) => (
-                        <div key={e.key} className="bb-err-row" title={`${e.key}\n样本:${e.sample}`}>
-                          <i className="bb-err-idx" style={{ color: errIdxColor(i + 1), borderColor: errIdxColor(i + 1) }}>{i + 1}</i>
-                          <em className="bb-err-key">{e.key}</em>
-                          <b className="bb-err-n">{e.n} 块{e.bid > 0 ? <em>· bidblock {e.bid}</em> : null}</b>
-                        </div>
-                      ))}
-                    </>
-                  )}
                 </div>
                 <div>
-                  <div className="re-title">最近坏块(hash 去重 · ×n 为重播次数)</div>
-                  <div className="eb-list bb-list">
-                    {bad.recent.slice(0, 20).map((b) => (
-                      <div key={b.hash} className="bbk-row" title={`${b.hash}\n${b.error ?? ""}`}>
-                        <span className="hpd-num">{fmtBbT(b.lastT)}</span>
-                        <b className="bbk-num">#{b.number.toLocaleString()}</b>
-                        <span className={`bbk-tag ${b.isBid ? "bid" : b.isBid === false ? "" : "unk"}`}>{b.isBid ? "bidblock" : b.isBid === false ? "非bidblock" : "旧格式"}</span>
-                        <span className="bbk-b">{b.isBid ? (b.builderName ?? (b.builder ?? "").slice(0, 10) + "…") : (b.minerName ?? (b.miner ?? "").slice(0, 10))}</span>
-                        {(() => {
-                          const ix = badErrIdx.get(b.errKey);
-                          return ix
-                            ? <i className="bb-err-idx" style={{ color: errIdxColor(ix), borderColor: errIdxColor(ix) }} title={b.errKey}>{ix}</i>
-                            : <em className="bbk-err">{(b.error ?? "").slice(0, 24)}</em>;
-                        })()}
-                        <i className="bbk-n">×{b.n}</i>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="re-title">错误原因分布(unique 坏块)</div>
+                  {(bad.byError ?? []).map((e, i) => (
+                    <div key={e.key} className="bbx-dist" title={`${e.key}\n样本:${e.sample}`}>
+                      <em>{errShort(e.key)}</em>
+                      <span className="bbx-dist-bar"><i style={{ width: `${(e.n / bad.byError[0].n) * 100}%`, background: errIdxColor(i + 1) }} /></span>
+                      <b>{e.n}</b>
+                    </div>
+                  ))}
+                  <div className="bbx-dist-total">总计 {bad.totals.blocks} · bidblock {bad.totals.bid}</div>
                 </div>
+              </div>
+              {/* 最近事故:全宽表,时间倒序;1h 内的行红边高亮 */}
+              <div className="bbx-inc-head">
+                <span className="re-title">最近事故</span>
+                <span className="tf-ranges">
+                  {["24h", "7d", "All"].map((t) => (
+                    <button key={t} className={`tf-range ${badTab === t ? "on" : ""}`} onClick={() => setBadTab(t)}>{t}</button>
+                  ))}
+                </span>
+              </div>
+              <div className="bbx-table">
+                <div className="bbx-th"><span>时间</span><span>块高</span><span>类型</span><span>builder</span><span>validator</span><span>错误</span><span>观测</span></div>
+                {(() => {
+                  const cut = badTab === "24h" ? Date.now() - 864e5 : badTab === "7d" ? Date.now() - 7 * 864e5 : 0;
+                  const rows = bad.recent.filter((b) => b.firstT >= cut).sort((a, b) => b.firstT - a.firstT).slice(0, 20);
+                  if (!rows.length) return <div className="eb-none">该窗口无记录</div>;
+                  return rows.map((b) => (
+                    <div key={b.hash} className={`bbx-tr ${Date.now() - b.firstT < 3600e3 ? "fresh" : ""}`} title={`${b.hash}\n${b.error ?? ""}`}>
+                      <span className="bbx-t">{fmtBbT(b.firstT)}</span>
+                      <b>#{b.number.toLocaleString()}</b>
+                      <span className={`bbk-tag ${b.isBid ? "bid" : "unk"}`}>{b.isBid ? "bidblock" : b.isBid === false ? "non-bid" : "legacy"}</span>
+                      <em className="bbx-bl">{b.isBid ? (b.builderName ?? (b.builder ?? "").slice(0, 10) + "…") : "—"}</em>
+                      <em>{b.minerName ?? (b.miner ?? "").slice(0, 10)}</em>
+                      <i style={{ color: badErrColor(b.errKey) }}>{errShort(b.errKey)}</i>
+                      <span className="bbx-n">×{b.n}</span>
+                    </div>
+                  ));
+                })()}
               </div>
               </>
             )}

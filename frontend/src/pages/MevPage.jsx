@@ -431,7 +431,7 @@ export default function MevPage({ state }) {
               })()}
               <div className="bb-cols bb-cols-bad">
                 <div className="bbx-card">
-                  <div className="re-title bbx-card-title">Builder 排名</div>
+                  <div className="re-title bbx-card-title">Builder Bad Block 排名</div>
                   {bad.byBuilder.length === 0
                     ? <div className="eb-none">✓ 尚无归因到 bidblock 的坏块</div>
                     : (

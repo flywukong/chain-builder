@@ -758,6 +758,12 @@ body::before {
 .v2x-fork-leg em { font-style: normal; color: var(--text-dim); font-size: 9.5px; }
 .v2x-fork-leg b { color: var(--text); }
 .v2x-fork-leg span { color: var(--gold); font-size: 9.5px; }
+.gasx-svg { height: 122px; }
+.gasx-stats { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
+.gasx-stats > div { display: flex; align-items: baseline; gap: 8px; }
+.gasx-stats i { width: 8px; height: 8px; border-radius: 2px; align-self: center; flex: none; }
+.gasx-stats em { font-style: normal; color: var(--text-dim); width: 92px; }
+.gasx-stats b { color: var(--text); }
 
 /* ── BAD BLOCK 面板(效果图版):hero + 指标 + 排名/分布 + 事故表 ── */
 .bbx-panel { max-width: 1240px; }

@@ -221,12 +221,24 @@ streamer.on("blockMev", (block) => {
 // v2 块同时喂 bidBlockStore(与实时流按块号去重)。首次自 Pasteur 激活块起
 // 一次性 ~20 万块(分钟级);env 为单次追赶上限(块数),超限则弃洞续扫。
 const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "800000", 10);
+// Block gas 直方图:2.5M 步长 × 26 桶(0~62.5M,末桶收溢出),按路径(v1/v2/local)分开累计。
+// header.gasUsed 与 requestsHash 同在一次响应里 → 全量精确、零额外 RPC。
+const GAS_STEP = 2.5e6, GAS_BUCKETS = 26;
+const emptyGas = () => ({ v1: new Array(GAS_BUCKETS).fill(0), v2: new Array(GAS_BUCKETS).fill(0), local: new Array(GAS_BUCKETS).fill(0) });
+const FORK_SPLIT_VER = 2;   // 加 gas 直方图:版本升级 → 归零自激活块全量重扫(服务器一次性 ~1h)
+const emptyForkSplit = () => ({ v: FORK_SPLIT_VER, coveredTo: 0, v1: 0, v2: 0, local: 0, gas: emptyGas(), gasSum: { v1: 0, v2: 0, local: 0 } });
 const forkSplitFile = path.join(dataDir, "fork-split.json");
-let forkSplit = { coveredTo: 0, v1: 0, v2: 0, local: 0 };
-try { if (fs.existsSync(forkSplitFile)) forkSplit = { ...forkSplit, ...JSON.parse(fs.readFileSync(forkSplitFile, "utf8")) }; } catch { /* fresh */ }
+let forkSplit = emptyForkSplit();
+try {
+  if (fs.existsSync(forkSplitFile)) {
+    const raw = JSON.parse(fs.readFileSync(forkSplitFile, "utf8"));
+    if (raw?.v === FORK_SPLIT_VER) forkSplit = { ...forkSplit, ...raw };
+    else console.warn("[fork-split] schema upgraded, rescanning from activation block");
+  }
+} catch { /* fresh */ }
 // store 因格式升级弃数据时(v3 前按插入序淘汰导致 watermark 顶穿、回填被拒收),
 // fork-split 与它共用同一 header 扫描,一并归零从激活块重扫,两边口径重新对齐
-if (bidBlockStore.discardedLegacy) forkSplit = { coveredTo: 0, v1: 0, v2: 0, local: 0 };
+if (bidBlockStore.discardedLegacy) forkSplit = emptyForkSplit();
 const saveForkSplit = () => { try { fs.writeFileSync(forkSplitFile, JSON.stringify(forkSplit)); } catch {} };
 let forkSyncBusy = false;
 async function syncForkSplit() {
@@ -249,6 +261,7 @@ async function syncForkSplit() {
         const hd = batch[i];
         if (!hd) break outer;                       // RPC 缺口:水位止步于上一块,下轮续扫
         const tag = decodeMevTag(hd.requestsHash);
+        const pathKey = tag?.v === 2 ? "v2" : tag?.v === 1 ? "v1" : "local";
         if (tag?.v === 2) {
           forkSplit.v2++;
           bidBlockStore.add({
@@ -257,6 +270,9 @@ async function syncForkSplit() {
           });
         } else if (tag?.v === 1) forkSplit.v1++;
         else forkSplit.local++;
+        const gasUsed = parseInt(hd.gasUsed, 16) || 0;
+        forkSplit.gas[pathKey][Math.min(GAS_BUCKETS - 1, Math.floor(gasUsed / GAS_STEP))]++;
+        forkSplit.gasSum[pathKey] += gasUsed;
         forkSplit.coveredTo = n + i;
       }
       if (forkSplit.coveredTo % 4000 < 40) { saveForkSplit(); bidBlockStore.flush(); }   // 长回扫期间周期落盘
@@ -954,6 +970,7 @@ app.get("/api/bidblock",  async () => {
       total: fTotal, coveredTo: forkSplit.coveredTo,
       v1: forkSplit.v1, v2: forkSplit.v2, local: forkSplit.local,
       v1Pct: fPct(forkSplit.v1), v2Pct: fPct(forkSplit.v2), localPct: fPct(forkSplit.local),
+      gas: { step: GAS_STEP, buckets: forkSplit.gas, sum: forkSplit.gasSum },
     },
   };
 });

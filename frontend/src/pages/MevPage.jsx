@@ -85,6 +85,64 @@ function V2TrendChart({ hourly, bph }) {
   );
 }
 
+// Block gas used 分布(自激活,header 全量精确):三路径各自归一化(占本路径块数 %),
+// 形状可直接对比「bidblock 是否打包更满」;分位数由桶近似(±半桶 = ±1.25M)
+function GasHistChart({ gas, counts }) {
+  if (!gas?.buckets) return null;
+  const stepM = gas.step / 1e6;
+  const defs = [
+    ["bidblock (v2)", "v2", "#FF9F1C"],
+    ["bid (v1)", "v1", "#22c55e"],
+    ["local", "local", "#8A8F99"],
+  ];
+  const series = defs
+    .map(([label, key, color]) => {
+      const arr = gas.buckets[key] ?? [];
+      const tot = arr.reduce((a, b) => a + b, 0);
+      return { label, key, color, arr, tot };
+    })
+    .filter((s) => s.tot > 0);
+  if (!series.length) return <div className="ph-note">gas 分布积累中(重扫进行时逐步补齐)…</div>;
+  const nB = series[0].arr.length;
+  const maxPct = Math.max(1, ...series.flatMap((s) => s.arr.map((x) => (x / s.tot) * 100)));
+  const W = 520, H = 110, AX = 12;
+  const bw = W / nB;
+  const gw = Math.max(1, (bw - 2) / series.length);
+  const pctile = (arr, tot, q) => {
+    if (!tot) return null;
+    let acc = 0;
+    for (let i = 0; i < arr.length; i++) { acc += arr[i]; if (acc >= tot * q) return ((i + 0.5) * stepM).toFixed(1); }
+    return null;
+  };
+  return (
+    <>
+      <div className="re-title">Block Gas Used 分布(自激活 · 全量 header)</div>
+      <svg viewBox={`0 0 ${W} ${H + AX}`} className="v2x-svg gasx-svg" preserveAspectRatio="none">
+        {series.map((s, si) => s.arr.map((x, i) => {
+          const h = ((x / s.tot) * 100 / maxPct) * (H - 4);
+          if (h <= 0) return null;
+          return <rect key={`${s.key}-${i}`} x={i * bw + 1 + si * gw} y={H - h} width={gw} height={h} fill={s.color} opacity="0.9" />;
+        }))}
+        {[0, 15, 30, 45, 60].map((m) => (
+          <text key={m} x={(m / stepM) * bw} y={H + 10} fill="#666e7a" fontSize="8" fontFamily="var(--mono)">{m}M</text>
+        ))}
+      </svg>
+      <div className="gasx-stats">
+        {series.map((s) => (
+          <div key={s.key}>
+            <i style={{ background: s.color }} />
+            <em>{s.label}</em>
+            <span>p50 <b>{pctile(s.arr, s.tot, 0.5)}M</b></span>
+            <span>p90 <b>{pctile(s.arr, s.tot, 0.9)}M</b></span>
+            <span>p99 <b>{pctile(s.arr, s.tot, 0.99)}M</b></span>
+            <span>均值 <b>{counts[s.key] ? ((gas.sum?.[s.key] ?? 0) / counts[s.key] / 1e6).toFixed(1) : "—"}M</b></span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function MevPage({ state }) {
   const mev = state.mevStats;
   const { s: ai, run: runAi } = MevAiBox();
@@ -318,6 +376,11 @@ export default function MevPage({ state }) {
                       </div>
                     );
                   })()}
+                  {bb.fork?.gas && (
+                    <div className="v2x-card">
+                      <GasHistChart gas={bb.fork.gas} counts={{ v1: bb.fork.v1, v2: bb.fork.v2, local: bb.fork.local }} />
+                    </div>
+                  )}
                 </div>
               </div>
             )}

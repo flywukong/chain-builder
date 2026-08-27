@@ -1918,7 +1918,7 @@ body::before {
 .bbx-panel .bbx-hero {
   position: relative;
   margin-bottom: 12px;
-  padding: 0 16px 14px;
+  padding: 0 16px 8px;
   border: 1px solid rgba(246,70,93,.78);
   border-radius: 5px;
   background: linear-gradient(90deg, rgba(246,70,93,.055), rgba(246,70,93,.012) 55%, transparent);
@@ -1926,9 +1926,9 @@ body::before {
 }
 .bbx-panel .bbx-hero.fresh { background: linear-gradient(90deg, rgba(246,70,93,.09), rgba(246,70,93,.02) 58%, transparent); }
 .bbx-panel .bbx-hero-top {
-  min-height: 46px;
-  margin: 0 -16px 14px;
-  padding: 10px 16px;
+  min-height: 34px;
+  margin: 0 -16px 8px;
+  padding: 6px 16px;
   border-bottom: 1px solid rgba(246,70,93,.48);
 }
 .bbx-panel .bbx-hero-top b { font-size: 14px; }
@@ -1937,8 +1937,9 @@ body::before {
 .bbx-panel .bbx-hero-actions {
   position: absolute;
   right: 16px;
-  bottom: 12px;
+  top: 6px;
 }
+.bbx-panel .bbx-hero-src { margin-right: 176px; }   /* 顶条右端给按钮腾位 */
 .bbx-panel .bbx-copy {
   min-height: 30px;
   padding: 5px 11px;
@@ -1954,14 +1955,14 @@ body::before {
 }
 .bbx-panel .bbx-hero-b,
 .bbx-panel .bbx-cell {
-  min-height: 72px;
+  min-height: 40px;
   padding: 3px 20px;
 }
 .bbx-panel .bbx-hero-b { padding-left: 8px; }
 .bbx-panel .bbx-cell { border-left: 1px solid var(--line); }
 .bbx-panel .bbx-hero-b b { font-size: 11px; }
 .bbx-panel .bbx-cell b { font-size: 10.5px; }   /* 块高/时间/错误汇总同一字号 */
-.bbx-panel .bbx-hero-detail { margin-right: 174px; }
+.bbx-panel .bbx-hero-detail { margin-right: 0; }   /* 按钮已上移到顶条,展开区不再避让 */
 
 .bbx-panel .bbx-tiles {
   display: grid;

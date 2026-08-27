@@ -233,7 +233,7 @@ export class BadBidblockWatch {
       byError: Object.entries(this.byError)
         .map(([key, e]) => ({ key, ...e }))
         .sort((x, y) => y.n - x.n),
-      recent: this.blocks.slice(0, 40).map((b) => ({
+      recent: this.blocks.slice(0, 200).map((b) => ({
         ...b, builderName: b.builder ? nameOf(b.builder) : null,
         errKey: normErrReason(b.error), // 供前端把明细行标注到错误原因汇总的编号
       })),

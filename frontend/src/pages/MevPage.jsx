@@ -92,9 +92,10 @@ export default function MevPage({ state }) {
   const [bb, setBb] = useState(null);
   // 坏块 bidblock 归因(2 台灰度探针机:metric + BAD BLOCK 日志)
   const [bad, setBad] = useState(null);
-  const [badTab, setBadTab] = useState("24h");   // 事故表时间窗:24h / 7d / All
+  const [badTab, setBadTab] = useState("3d");    // 事故表时间窗:24h / 3d / 7d / All,默认 3d
   const [badQ, setBadQ] = useState("");          // 事故表搜索:builder/validator/块高/hash
   const [badOpen, setBadOpen] = useState(null);  // 展开的事故行(hash)
+  const [badPage, setBadPage] = useState(-1);    // 事故表分页:-1=收起(仅前10),≥0=展开后的页码(10/页)
   const copyText = (t) => { try { navigator.clipboard?.writeText(t); } catch { /* http 环境无 clipboard */ } };
   const [v2Win, setV2Win] = useState("24h");     // v2 份额表时间窗:24h / 7d / 自激活
   const [v2Mode, setV2Mode] = useState("fam");   // v2 份额表口径:家族 / 实例
@@ -390,11 +391,11 @@ export default function MevPage({ state }) {
             </span>
             <span className="bm-ctls" title={`探针 ${bad?.ips?.join(" / ") ?? "…"} · chain_insert_badBidblock + BAD BLOCK 日志 · builder 为自声明标记`}>
               <span className="tf-ranges">
-                {["24h", "7d", "All"].map((t) => (
-                  <button key={t} className={`tf-range ${badTab === t ? "on" : ""}`} onClick={() => setBadTab(t)}>{t}</button>
+                {["24h", "3d", "7d", "All"].map((t) => (
+                  <button key={t} className={`tf-range ${badTab === t ? "on" : ""}`} onClick={() => { setBadTab(t); setBadPage(-1); }}>{t}</button>
                 ))}
               </span>
-              <input className="bbx-q" placeholder="搜索 Builder / Validator / 块高 / 哈希" value={badQ} onChange={(e) => setBadQ(e.target.value)} />
+              <input className="bbx-q" placeholder="搜索 Builder / Validator / 块高 / 哈希" value={badQ} onChange={(e) => { setBadQ(e.target.value); setBadPage(-1); }} />
             </span>
           </div>
           <div className="panel-body">
@@ -495,14 +496,42 @@ export default function MevPage({ state }) {
                 <div className="bbx-table">
                   <div className="bbx-th"><span>时间</span><span>块高</span><span>类型</span><span>Builder</span><span>Validator</span><span>错误</span><span /></div>
                   {(() => {
-                    const cut = badTab === "24h" ? Date.now() - 864e5 : badTab === "7d" ? Date.now() - 7 * 864e5 : 0;
+                    const cut = badTab === "24h" ? Date.now() - 864e5 : badTab === "3d" ? Date.now() - 3 * 864e5 : badTab === "7d" ? Date.now() - 7 * 864e5 : 0;
                     const q = badQ.trim().toLowerCase();
-                    const rows = bad.recent
+                    const all = bad.recent
                       .filter((b) => b.firstT >= cut)
                       .filter((b) => !q || [b.builderName, b.minerName, b.builder, b.miner, String(b.number), b.hash].some((v) => (v ?? "").toString().toLowerCase().includes(q)))
-                      .sort((a, b) => b.firstT - a.firstT).slice(0, 20);
-                    if (!rows.length) return <div className="eb-none">该窗口无匹配记录</div>;
-                    return rows.map((b) => (
+                      .sort((a, b) => b.firstT - a.firstT);
+                    if (!all.length) {
+                      const newest = bad.recent.reduce((m, b) => (b.firstT > m ? b.firstT : m), 0);
+                      return (
+                        <div className="eb-none">
+                          {q ? "该窗口无匹配记录" : <>✓ 近 {badTab} 无新增坏块 · 历史共 {bad.totals.blocks} 条{newest ? `,最近一次 ${fmtBbT(newest)}` : ""}
+                            <button className="bbx-copy" style={{ marginLeft: 8 }} onClick={() => { setBadTab("All"); setBadPage(-1); }}>查看全部</button></>}
+                        </div>
+                      );
+                    }
+                    // 分页:收起态只看前 10;展开后 10 条/页
+                    const PAGE = 10;
+                    const pages = Math.ceil(all.length / PAGE);
+                    const page = badPage < 0 ? 0 : Math.min(badPage, pages - 1);
+                    const rows = all.slice(page * PAGE, page * PAGE + PAGE);
+                    const pager = badPage < 0
+                      ? (all.length > PAGE && (
+                          <div className="bbx-pager">
+                            <button className="bbx-copy" onClick={() => setBadPage(0)}>展开全部 {all.length} 条</button>
+                          </div>
+                        ))
+                      : (
+                          <div className="bbx-pager">
+                            <button className="bbx-copy" disabled={page === 0} onClick={() => setBadPage(page - 1)}>‹ 上一页</button>
+                            <span>第 {page + 1} / {pages} 页 · 共 {all.length} 条</span>
+                            <button className="bbx-copy" disabled={page >= pages - 1} onClick={() => setBadPage(page + 1)}>下一页 ›</button>
+                            <button className="bbx-copy" onClick={() => setBadPage(-1)}>收起</button>
+                          </div>
+                        );
+                    return (<>
+                    {rows.map((b) => (
                       <div key={b.hash}>
                         <div className={`bbx-tr ${Date.now() - b.firstT < 3600e3 ? "fresh" : ""}`} onClick={() => setBadOpen(badOpen === b.hash ? null : b.hash)}>
                           <span className="bbx-t">{fmtBbT(b.firstT)}</span>
@@ -524,7 +553,9 @@ export default function MevPage({ state }) {
                           </div>
                         )}
                       </div>
-                    ));
+                    ))}
+                    {pager}
+                    </>);
                   })()}
                 </div>
               </div>

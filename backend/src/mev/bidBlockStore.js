@@ -29,6 +29,9 @@ export function decodeMevTag(requestsHash) {
 const SESSION_GAP_BLOCKS = 1200;   // ~9 分钟
 const SAVE_MIN_DIRTY = 50;
 const SAVE_MIN_MS = 30_000;
+const HOUR_MS = 3600e3;
+const HOURS_RETAIN_MS = 8 * 86400e3;   // 小时桶留 8 天(供 24h/7d 份额列与采用率趋势)
+const BLOCKS_PER_HOUR = 8000;          // 450ms 出块 → 每小时链上总块数,采用率分母
 
 // 把一批(升序)块折叠进会话列表;sessions 就地修改
 function foldIntoSessions(sessions, items) {
@@ -59,18 +62,29 @@ export class BidBlockStore {
     this.archive = { sessions: [], builders: {}, count: 0, watermark: 0 };   // 淘汰块的折叠归档
     this.seen = new Set();
     this.discardedLegacy = false;
+    this.hours = null;
     try {
       if (fs.existsSync(file)) {
         const raw = JSON.parse(fs.readFileSync(file, "utf8"));
         // v3 起淘汰按块号升序(见 _prune)。旧格式按插入顺序淘汰,回扫+实时并发写入时
         // watermark 会跳到链头、之后的回填被 add() 整段拒收 —— 旧数据不可信,弃掉重扫
-        if (raw?.v === 3) { this.items = raw.items ?? []; this.archive = { ...this.archive, ...raw.archive }; }
+        if (raw?.v === 3) { this.items = raw.items ?? []; this.archive = { ...this.archive, ...raw.archive }; this.hours = raw.hours ?? null; }
         else { this.discardedLegacy = true; try { fs.copyFileSync(file, file + ".pre-v3.bak"); } catch {} }
       }
     } catch { this.items = []; }
+    // 小时桶缺失(旧文件):用在册明细播种(覆盖近 ~10h,更早的随时间自然补齐)
+    if (!this.hours) { this.hours = {}; for (const it of this.items) this._bumpHour(it); }
     for (const it of this.items) this.seen.add(it.number);
     this._dirty = 0;
     this._lastSave = 0;
+  }
+
+  _bumpHour(it) {
+    const hk = Math.floor(it.t / HOUR_MS);
+    const h = (this.hours[hk] ??= { total: 0, byName: {} });
+    h.total++;
+    const name = it.builderName ?? it.builder ?? "?";
+    h.byName[name] = (h.byName[name] || 0) + 1;
   }
 
   add(item) {
@@ -79,6 +93,7 @@ export class BidBlockStore {
     if (item.number <= this.archive.watermark) return;   // 已归档范围,防回填重复计数
     this.seen.add(item.number);
     this.items.push(item);
+    this._bumpHour(item);
     this._dirty++;
     if (this._dirty >= SAVE_MIN_DIRTY && Date.now() - this._lastSave >= SAVE_MIN_MS) this._save();
   }
@@ -96,7 +111,7 @@ export class BidBlockStore {
     this._prune();
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(this.file, JSON.stringify({ v: 3, items: this.items, archive: this.archive }));
+      fs.writeFileSync(this.file, JSON.stringify({ v: 3, items: this.items, archive: this.archive, hours: this.hours }));
       this._dirty = 0;
       this._lastSave = Date.now();
     } catch {}
@@ -108,8 +123,10 @@ export class BidBlockStore {
   // watermark 顶到链头,之后整段回填被拒收(v2 前的静默丢数据 bug)
   _prune(now = Date.now()) {
     const cut = now - this.windowMs;
-    // 归档里滚出 15d 窗口的会话直接删(整段过期)
+    // 归档里滚出 15d 窗口的会话直接删(整段过期);小时桶滚出 8d 的删
     this.archive.sessions = this.archive.sessions.filter((s) => s.tEnd >= cut);
+    const hkCut = Math.floor((now - HOURS_RETAIN_MS) / HOUR_MS);
+    for (const hk of Object.keys(this.hours)) if (+hk < hkCut) delete this.hours[hk];
     if (this.items.length <= this.cap && !(this.items[0]?.t < cut)) return;
     this.items.sort((a, b) => a.number - b.number);
     const overflow = Math.max(0, this.items.length - this.cap);
@@ -151,10 +168,16 @@ export class BidBlockStore {
     // 会话 = 归档段 + 在册明细段,交界处按同一间隙规则缝合
     const sessions = this.archive.sessions.map((s) => ({ ...s, miners: [...s.miners], builders: [...s.builders] }));
     foldIntoSessions(sessions, asc);
+    // 小时序列(升序,含当前未满小时;前端画趋势时自行丢弃末桶)
+    const hourly = Object.entries(this.hours)
+      .map(([hk, h]) => ({ t: +hk * HOUR_MS, total: h.total, byName: h.byName }))
+      .sort((a, b) => a.t - b.t);
     return {
       count: this.archive.count + asc.length,
       statsSince: this.sinceMs || null,
+      blocksPerHour: BLOCKS_PER_HOUR,
       builders: [...byBuilder.values()].sort((a, b) => b.count - a.count),
+      hourly,
       sessions: sessions.reverse().slice(0, 30),
       lastT: asc.at(-1)?.t ?? this.archive.sessions.at(-1)?.tEnd ?? null,
     };

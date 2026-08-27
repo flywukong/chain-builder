@@ -52,6 +52,39 @@ const famOf = (name) => {
   return BB_FAMILY_ALIAS[w] ?? w;
 };
 
+// V2 采用率趋势(24h 小时线 + 7d 均值虚线基准);丢弃当前未满小时,末点即最近完整小时
+function V2TrendChart({ hourly, bph }) {
+  const now = Date.now();
+  const curHk = Math.floor(now / 3600e3);
+  const done = (hourly ?? []).filter((h) => Math.floor(h.t / 3600e3) < curHk);
+  const h24 = done.filter((h) => h.t >= now - 25 * 3600e3);
+  const h7 = done.filter((h) => h.t >= now - 7 * 86400e3);
+  if (h24.length < 3) return <div className="ph-note">小时序列积累中(部署后自动补齐)…</div>;
+  const rate = (h) => Math.min(100, (h.total / bph) * 100);
+  const avg7 = h7.reduce((s, h) => s + rate(h), 0) / h7.length;
+  const cur = rate(h24[h24.length - 1]);
+  const W = 320, H = 104;
+  const px = (i) => (i / (h24.length - 1)) * W;
+  const py = (r) => 4 + (H - 8) * (1 - r / 100);
+  const pts = h24.map((h, i) => `${px(i).toFixed(1)},${py(rate(h)).toFixed(1)}`).join(" ");
+  const fmtH = (t) => new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  return (
+    <>
+      <div className="v2x-trend-head">
+        <span className="re-title">V2 采用率趋势(24h · 小时)</span>
+        <b>{cur.toFixed(1)}%</b>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="v2x-svg" preserveAspectRatio="none">
+        {[25, 50, 75].map((g) => <line key={g} x1="0" x2={W} y1={py(g)} y2={py(g)} stroke="rgba(255,255,255,.06)" strokeWidth="1" />)}
+        <line x1="0" x2={W} y1={py(avg7)} y2={py(avg7)} stroke="#8A8F99" strokeWidth="1" strokeDasharray="4 3" />
+        <polyline points={pts} fill="none" stroke="#F0B90B" strokeWidth="1.6" />
+      </svg>
+      <div className="v2x-axis"><span>{fmtH(h24[0].t)}</span><span>{fmtH(h24[Math.floor(h24.length / 2)].t)}</span><span>{fmtH(h24[h24.length - 1].t)}</span></div>
+      <div className="v2x-legend"><i className="v2x-li" /> V2 采用率 <i className="v2x-li dash" /> 7d 均值 {avg7.toFixed(1)}%<span className="v2x-note">分母 = 每小时链上总块数(450ms/块)</span></div>
+    </>
+  );
+}
+
 export default function MevPage({ state }) {
   const mev = state.mevStats;
   const { s: ai, run: runAi } = MevAiBox();
@@ -60,6 +93,8 @@ export default function MevPage({ state }) {
   // 坏块 bidblock 归因(2 台灰度探针机:metric + BAD BLOCK 日志)
   const [bad, setBad] = useState(null);
   const [badTab, setBadTab] = useState("24h");   // 事故表时间窗:24h / 7d / All
+  const [v2Win, setV2Win] = useState("24h");     // v2 份额表时间窗:24h / 7d / 自激活
+  const [v2Mode, setV2Mode] = useState("fam");   // v2 份额表口径:家族 / 实例
   // 错误原因 → 序号(按块数排序,1 = 最大头);分布条与事故表错误列同色联动
   const badErrIdx = new Map((bad?.byError ?? []).map((e, i) => [e.key, i + 1]));
   const badErrColor = (k) => (badErrIdx.get(k) ? errIdxColor(badErrIdx.get(k)) : "var(--muted)");
@@ -205,10 +240,10 @@ export default function MevPage({ state }) {
           </div>
         </div>
 
-        {/* BID-BLOCK (v2) 观测:走 BEP-675 路径的 builder 格局(Pasteur 已激活,统计自激活时刻) */}
-        <div className="panel" style={{ maxWidth: 936 }}>
+        {/* BID-BLOCK (v2) 观测:份额表(家族/实例 + 24h/7d/自激活)| 采用率趋势 + 出块路径分布 */}
+        <div className="panel" style={{ maxWidth: 1240 }}>
           <div className="panel-header">
-            <span>BID-BLOCK (v2) 观测
+            <span>BID-BLOCK (V2) 观测
               {bb && (() => {
                 const live = bb.lastT && Date.now() - bb.lastT < 5 * 60e3;
                 return (
@@ -218,67 +253,116 @@ export default function MevPage({ state }) {
                 );
               })()}
             </span>
-            <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已激活 · 统计自激活时刻</span>
+            <span className="bm-ctls">
+              <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已激活 · 小时序列自部署积累</span>
+              <span className="tf-ranges">
+                {[["24h", "24h"], ["7d", "7d"], ["all", "自激活"]].map(([v, l]) => (
+                  <button key={v} className={`tf-range ${v2Win === v ? "on" : ""}`} onClick={() => setV2Win(v)}>{l}</button>
+                ))}
+              </span>
+            </span>
           </div>
           <div className="panel-body">
             {!bb || bb.count === 0 ? (
               <div className="ph-note">激活时刻以来暂无 bid-block 标记块(回扫可能仍在进行,首次部署自激活块补齐约需数分钟)。</div>
             ) : (
-              <div className="bb-cols">
-                <div>
-                  <div className="re-title">BUILDER 家族份额(同家实例汇总)</div>
+              <div className="v2x-cols">
+                {/* 左:份额表 */}
+                <div className="v2x-card">
                   {(() => {
-                    const fams = new Map();
-                    for (const b of bb.builders) {
-                      const f = famOf(b.name);
-                      fams.set(f, (fams.get(f) ?? 0) + b.count);
-                    }
-                    const rows = [...fams.entries()].sort((a, x) => x[1] - a[1]);
-                    return rows.map(([f, c]) => (
-                      <div key={f} className="eb-miner">
-                        <em style={{ color: FAMILY_COLORS[f] || "var(--text)" }}>{f}</em>
-                        <span className="eb-mbar"><i style={{ width: `${(c / rows[0][1]) * 100}%`, background: FAMILY_COLORS[f] || undefined }} /></span>
-                        <b>{c.toLocaleString()}<em className="bb-pct">· {((c / bb.count) * 100).toFixed(1)}%</em></b>
-                      </div>
-                    ));
-                  })()}
-                  <div className="re-title" style={{ marginTop: 10 }}>实例明细</div>
-                  <div className="eb-list bb-inst-list">
-                    {bb.builders.map((b) => (
-                      <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
-                        <em className="bb-wrap">{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
-                        <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
-                        <b>{b.count.toLocaleString()}<em className="bb-pct">· {((b.count / bb.count) * 100).toFixed(1)}%</em></b>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {/* 分叉后累计:bid / bidblock / local 三分裂(header 逐块精确口径) */}
-                {bb.fork?.total > 0 && (() => {
-                  const f = bb.fork;
-                  const rows = [
-                    ["bidblock (v2)", f.v2, f.v2Pct, "#FF9F1C"],
-                    ["bid (v1)", f.v1, f.v1Pct, "var(--green)"],
-                    ["local", f.local, f.localPct, "#8A8F99"],
-                  ];
-                  return (
-                    <div>
-                      <div className="re-title">自分叉累计 · 出块路径分裂</div>
-                      <div className="bb-fork-bar">
-                        {rows.map(([k, , p, c]) => <i key={k} style={{ width: `${p}%`, background: c }} title={`${k} ${p}%`} />)}
-                      </div>
-                      {rows.map(([k, n, p, c]) => (
-                        <div key={k} className="bb-fork-row">
-                          <i style={{ background: c }} />
-                          <em>{k}</em>
-                          <b>{n.toLocaleString()}</b>
-                          <span>{p}%</span>
+                    const now = Date.now();
+                    const agg = (ms) => {
+                      const m = new Map(); let tot = 0;
+                      for (const h of bb.hourly ?? []) {
+                        if (h.t < now - ms) continue;
+                        tot += h.total;
+                        for (const [n, c] of Object.entries(h.byName)) m.set(n, (m.get(n) || 0) + c);
+                      }
+                      return { m, tot };
+                    };
+                    const wins = {
+                      "24h": agg(24 * 3600e3),
+                      "7d": agg(7 * 86400e3),
+                      all: { m: new Map(bb.builders.map((b) => [b.name ?? b.addr ?? "?", b.count])), tot: bb.count },
+                    };
+                    const fold = ({ m, tot }) => {
+                      if (v2Mode !== "fam") return { m, tot };
+                      const f = new Map();
+                      for (const [n, c] of m) f.set(famOf(n), (f.get(famOf(n)) || 0) + c);
+                      return { m: f, tot };
+                    };
+                    const sel = fold(wins[v2Win]), s24 = fold(wins["24h"]), s7 = fold(wins["7d"]);
+                    const pctOf = (w, k) => (w.tot ? ((w.m.get(k) || 0) / w.tot) * 100 : null);
+                    const rows = [...sel.m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
+                    return (
+                      <>
+                        <div className="v2x-card-head">
+                          <span className="re-title">BUILDER V2 份额</span>
+                          <span className="tf-ranges">
+                            {[["fam", "家族"], ["inst", "实例"]].map(([v, l]) => (
+                              <button key={v} className={`tf-range ${v2Mode === v ? "on" : ""}`} onClick={() => setV2Mode(v)}>{l}</button>
+                            ))}
+                          </span>
                         </div>
-                      ))}
-                      <div className="bb-fork-total">总计 {f.total.toLocaleString()} 块 · 已覆盖至 #{f.coveredTo.toLocaleString()}</div>
-                    </div>
-                  );
-                })()}
+                        <div className="v2x-th"><span>#</span><span>{v2Mode === "fam" ? "builder 家族" : "builder 实例"}</span><span>V2 区块</span><span>份额</span><span>24h</span><span>7d</span><span>趋势</span></div>
+                        {rows.map(([k, c], i) => {
+                          const share = sel.tot ? (c / sel.tot) * 100 : 0;
+                          const p24 = pctOf(s24, k), p7 = pctOf(s7, k);
+                          const fam = v2Mode === "fam" ? k : famOf(k);
+                          return (
+                            <div key={k} className="v2x-tr">
+                              <span className="v2x-i">{i + 1}</span>
+                              <em style={{ color: FAMILY_COLORS[fam] || "var(--text)" }}>{k}</em>
+                              <b>{c.toLocaleString()}</b>
+                              <span className="v2x-share">
+                                <span className="v2x-sbar"><i style={{ width: `${share}%`, background: FAMILY_COLORS[fam] || "#888" }} /></span>
+                                <b>{share.toFixed(1)}%</b>
+                              </span>
+                              <span className="v2x-p">{p24 != null ? `${p24.toFixed(1)}%` : "—"}</span>
+                              <span className="v2x-p">{p7 != null ? `${p7.toFixed(1)}%` : "—"}</span>
+                              <span className="v2x-p">{p24 != null && p7 != null ? fmtDelta(p24, p7) : "—"}</span>
+                            </div>
+                          );
+                        })}
+                        <div className="v2x-tr v2x-total">
+                          <span />
+                          <em>总计</em>
+                          <b>{sel.tot.toLocaleString()}</b>
+                          <span className="v2x-share"><b>100%</b></span>
+                          <span className="v2x-p">—</span><span className="v2x-p">—</span><span className="v2x-p">—</span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                {/* 右:采用率趋势 + 出块路径分布 */}
+                <div className="v2x-right">
+                  <div className="v2x-card">
+                    <V2TrendChart hourly={bb.hourly} bph={bb.blocksPerHour ?? 8000} />
+                  </div>
+                  {bb.fork?.total > 0 && (() => {
+                    const f = bb.fork;
+                    const rows = [
+                      ["BidBlock (V2)", f.v2, f.v2Pct, "#FF9F1C"],
+                      ["Bid (V1)", f.v1, f.v1Pct, "var(--green)"],
+                      ["Local", f.local, f.localPct, "#8A8F99"],
+                    ];
+                    return (
+                      <div className="v2x-card">
+                        <div className="re-title">出块路径分布(自激活累计)</div>
+                        <div className="bb-fork-bar">
+                          {rows.map(([k, , p, c]) => <i key={k} style={{ width: `${p}%`, background: c }} title={`${k} ${p}%`} />)}
+                        </div>
+                        <div className="v2x-fork-leg">
+                          {rows.map(([k, n, p, c]) => (
+                            <div key={k}><i style={{ background: c }} /><em>{k}</em><b>{n.toLocaleString()}</b><span>{p}%</span></div>
+                          ))}
+                        </div>
+                        <div className="bb-fork-total">总计 {f.total.toLocaleString()} 块 · 覆盖至 #{f.coveredTo.toLocaleString()}</div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             )}
           </div>

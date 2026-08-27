@@ -725,6 +725,40 @@ body::before {
 .bb-addrs em { font-style: normal; color: var(--text-dim); }
 .bb-addrs code { font-family: var(--mono); font-size: 8.5px; word-break: break-all; }
 /* 坏块 bidblock 归因面板 */
+/* ── BID-BLOCK (V2) 面板(效果图版):份额表 | 采用率趋势 + 路径分布 ── */
+.v2x-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.v2x-right { display: flex; flex-direction: column; gap: 14px; }
+.v2x-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.v2x-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.v2x-th, .v2x-tr { display: grid; grid-template-columns: 18px minmax(0, 1.2fr) 72px minmax(0, 1.1fr) 48px 48px 54px;
+  gap: 8px; align-items: center; padding: 4px 0; font-family: var(--mono); font-size: 10.5px; }
+.v2x-th { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--line); }
+.v2x-tr { border-bottom: 1px dashed rgba(255,255,255,.05); }
+.v2x-tr em { font-style: normal; font-weight: 700; word-break: break-word; }
+.v2x-tr b { color: var(--text); }
+.v2x-i { color: var(--muted); font-size: 9px; }
+.v2x-share { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.v2x-sbar { flex: 1; height: 7px; border-radius: 3px; background: rgba(255,255,255,.05); overflow: hidden; min-width: 24px; }
+.v2x-sbar i { display: block; height: 100%; border-radius: 3px; }
+.v2x-share b { font-size: 10px; flex-shrink: 0; }
+.v2x-p { color: var(--text-dim); font-size: 10px; text-align: right; }
+.v2x-total { border-bottom: none; border-top: 1px solid var(--line); }
+.v2x-total em { color: var(--muted); }
+.v2x-trend-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.v2x-trend-head b { font-family: var(--mono); font-size: 20px; color: var(--gold); font-weight: 800; }
+.v2x-svg { width: 100%; height: 104px; display: block; }
+.v2x-axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 8.5px; color: var(--muted); margin-top: 2px; }
+.v2x-legend { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+.v2x-li { width: 14px; height: 2px; background: #F0B90B; display: inline-block; }
+.v2x-li.dash { background: repeating-linear-gradient(90deg, #8A8F99 0 3px, transparent 3px 6px); }
+.v2x-note { margin-left: auto; color: var(--dim); }
+.v2x-fork-leg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; font-family: var(--mono); font-size: 10px; }
+.v2x-fork-leg > div { display: flex; flex-direction: column; gap: 2px; }
+.v2x-fork-leg i { width: 8px; height: 8px; border-radius: 2px; }
+.v2x-fork-leg em { font-style: normal; color: var(--text-dim); font-size: 9.5px; }
+.v2x-fork-leg b { color: var(--text); }
+.v2x-fork-leg span { color: var(--gold); font-size: 9.5px; }
+
 /* ── BAD BLOCK 面板(效果图版):hero + 指标 + 排名/分布 + 事故表 ── */
 .bbx-hero { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
 .bbx-hero.fresh { border-color: rgba(246,70,93,.65); background: rgba(246,70,93,.05); }

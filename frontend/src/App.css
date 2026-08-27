@@ -2051,7 +2051,7 @@ body::before {
   .bbx-panel .bbx-hero-detail { margin-right: 0; }
 }
 @media (max-width: 760px) {
-  .bbx-panel > .panel-header { gap: 9px; }
+  .bbx-panel > .panel-header { gap: 9px; flex-wrap: nowrap; }
   .bbx-panel > .panel-header > span:first-child { width: 100%; flex-wrap: wrap; }
   .bbx-panel .panel-verdict { margin-left: 0; }
   .bbx-panel .bm-ctls { align-items: center; flex-wrap: wrap; }

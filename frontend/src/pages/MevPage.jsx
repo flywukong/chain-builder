@@ -355,47 +355,73 @@ export default function MevPage({ state }) {
               <div className="ph-note">探针日志窗口内未见 BAD BLOCK 摘要。出现后这里会判定坏块是否走 BEP-675 SendBidBlock 路径,并按 builder 汇总出错次数(同一坏块被 peer 重播多次,按块 hash 去重)。若探针指标(chain_insert_badBidblock)&gt;0 而此处为空 = 日志未入 ES,标题会以指标计数报警,归因需登机 grep bsc.log。</div>
             ) : (
               <>
-              {/* 最新坏块始终作为事故焦点展示；1h 内额外显示 NEW 状态。 */}
+              {/* 最近一批坏块(≤10 块):builder 聚合 + 块高范围 + 错误汇总;1h 内有新块时红边告警 */}
               {(() => {
-                const latest = bad.recent.reduce((m, b) => (!m || b.firstT > m.firstT ? b : m), null);
-                if (!latest) return null;
-                const ageMin = Math.max(1, Math.round((Date.now() - latest.firstT) / 60e3));
-                const fresh = Date.now() - latest.firstT < 3600e3;
+                const batch = [...bad.recent].sort((a, b) => b.firstT - a.firstT).slice(0, 10);
+                if (!batch.length) return null;
+                const newest = batch[0], oldest = batch[batch.length - 1];
+                const ageMin = Math.max(1, Math.round((Date.now() - newest.firstT) / 60e3));
+                const fresh = Date.now() - newest.firstT < 3600e3;
                 const age = ageMin < 60 ? `${ageMin} 分钟前` : ageMin < 1440 ? `${Math.round(ageMin / 60)} 小时前` : `${Math.round(ageMin / 1440)} 天前`;
+                const nums = batch.map((b) => b.number);
+                const lo = Math.min(...nums), hi = Math.max(...nums);
+                const bAgg = new Map(), eAgg = new Map();
+                for (const b of batch) {
+                  const name = b.isBid ? (b.builderName ?? (b.builder ?? "").slice(0, 10) + "…") : "legacy/未带标记";
+                  bAgg.set(name, (bAgg.get(name) ?? 0) + 1);
+                  eAgg.set(b.errKey, (eAgg.get(b.errKey) ?? 0) + 1);
+                }
+                const bList = [...bAgg.entries()].sort((a, x) => x[1] - a[1]);
+                const eList = [...eAgg.entries()].sort((a, x) => x[1] - a[1]);
+                const topAddr = batch.find((b) => b.isBid && b.builder)?.builder ?? null;
+                const sameDay = new Date(oldest.firstT).toDateString() === new Date(newest.firstT).toDateString();
+                const hm = (t) => new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+                const fmtRange = sameDay ? `${fmtBbT(oldest.firstT)} – ${hm(newest.firstT)}` : `${fmtBbT(oldest.firstT)} – ${fmtBbT(newest.firstT)}`;
+                const BATCH_KEY = "__batch__";
                 return (
-                  <div className={`bbx-hero ${fresh ? "fresh" : ""}`} title={latest.hash}>
+                  <div className={`bbx-hero ${fresh ? "fresh" : ""}`}>
                     <div className="bbx-hero-top">
-                      <b><span className="bbx-alert-dot" />最新坏块</b>
-                      <i className={fresh ? "bbx-new" : "bbx-age"}>{fresh ? `NEW · ${age}` : age}</i>
-                      <span className="bbx-hero-src">{latest.isBid ? "RequestsHash 归因 · BidBlock v2" : "旧格式 · Builder 无法归因"}</span>
+                      <b><span className="bbx-alert-dot" />最近一批坏块 · {batch.length} 块</b>
+                      <i className={fresh ? "bbx-new" : "bbx-age"}>{fresh ? `NEW · ${age}` : `最新 ${age}`}</i>
+                      <span className="bbx-hero-src">RequestsHash 归因 · BidBlock v2</span>
                       <span className="bbx-hero-actions">
-                        <button className="bbx-copy" title="复制该坏块的文字报告"
-                          onClick={() => copyText(`BAD BLOCK #${latest.number}\nhash: ${latest.hash}\ntype: ${latest.isBid ? "bidblock" : latest.isBid === false ? "non-bid" : "legacy"}\nbuilder: ${latest.builderName ?? latest.builder ?? "—"}\nvalidator: ${latest.minerName ?? latest.miner ?? "—"}\nerror: ${latest.error ?? ""}\nfirstSeen: ${new Date(latest.firstT).toLocaleString("zh-CN", { hour12: false })}`)}>
+                        <button className="bbx-copy" title="复制这批坏块的文字报告"
+                          onClick={() => copyText([
+                            `BAD BLOCK 最近一批(${batch.length} 块)`,
+                            `块高: #${lo} – #${hi}`,
+                            `builder: ${bList.map(([n, c]) => `${n} ×${c}`).join("、")}`,
+                            `错误: ${eList.map(([k, c]) => `${k ?? "未知"} ×${c}`).join("、")}`,
+                            `时间: ${fmtRange}`,
+                            "明细:",
+                            ...batch.map((b) => `#${b.number} ${b.hash} ${errShort(b.errKey)}`),
+                          ].join("\n"))}>
                           复制报告
                         </button>
-                        <button className="bbx-copy" title="展开该坏块的完整信息"
-                          onClick={() => setBadOpen(badOpen === latest.hash ? null : latest.hash)}>
-                          {badOpen === latest.hash ? "收起详情" : "查看详情"}
+                        <button className="bbx-copy" title="展开这批坏块的逐块明细"
+                          onClick={() => setBadOpen(badOpen === BATCH_KEY ? null : BATCH_KEY)}>
+                          {badOpen === BATCH_KEY ? "收起详情" : "查看详情"}
                         </button>
                       </span>
                     </div>
                     <div className="bbx-hero-grid">
                       <div className="bbx-hero-b">
-                        <span>BUILDER</span>
-                        <b>{latest.isBid ? (latest.builderName ?? (latest.builder ?? "").slice(0, 12) + "…") : latest.isBid === false ? "非 bidblock" : "legacy · 未判"}</b>
-                        {latest.isBid && latest.builder ? <code>{latest.builder}</code> : null}
+                        <span>BUILDER(本批汇总)</span>
+                        <b>{bList.map(([n, c]) => `${n} ×${c}`).join(" / ")}</b>
+                        {topAddr ? <code>{topAddr}</code> : null}
                       </div>
-                      <div className="bbx-cell"><span>块高</span><b>#{latest.number.toLocaleString()}</b></div>
-                      <div className="bbx-cell"><span>错误</span><b style={{ color: badErrColor(latest.errKey) }} title={latest.error ?? ""}>{errShort(latest.errKey)}</b></div>
-                      <div className="bbx-cell"><span>Validator</span><b>{latest.minerName ?? (latest.miner ?? "").slice(0, 10) ?? "—"}</b></div>
-                      <div className="bbx-cell"><span>时间</span><b>{fmtBbT(latest.firstT)}</b></div>
+                      <div className="bbx-cell"><span>块高范围</span><b>#{lo.toLocaleString()} – #{hi.toLocaleString()}</b></div>
+                      <div className="bbx-cell"><span>错误汇总</span>
+                        <b>{eList.map(([k, c], i) => (
+                          <span key={k ?? i} style={{ color: badErrColor(k) }}>{i > 0 ? " · " : ""}{errShort(k)} ×{c}</span>
+                        ))}</b>
+                      </div>
+                      <div className="bbx-cell"><span>时间</span><b>{fmtRange}</b></div>
                     </div>
-                    {badOpen === latest.hash && (
+                    {badOpen === BATCH_KEY && (
                       <div className="bbx-hero-detail">
-                        <div><span>Bad block hash</span><code>{latest.hash}</code></div>
-                        {latest.builder && <div><span>Builder 地址</span><code>{latest.builder}</code></div>}
-                        {latest.miner && <div><span>Validator 地址</span><code>{latest.miner}</code></div>}
-                        <div><span>错误全文</span><code>{latest.error ?? "—"}</code></div>
+                        {batch.map((b) => (
+                          <div key={b.hash}><span>#{b.number.toLocaleString()}</span><code>{errShort(b.errKey)} · {b.hash}</code></div>
+                        ))}
                       </div>
                     )}
                   </div>

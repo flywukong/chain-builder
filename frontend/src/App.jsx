@@ -16,9 +16,27 @@ import "./App.css";
 // 比例在所有屏上一致(无断点)。1440×780 ≈ 笔记本上现在的观感。
 const BASE_W = 1440, BASE_H = 780;
 
+// URL 直达路由:/mev /monitor /txn 打开对应子系统(大小写不敏感);
+// 切页写回地址栏(pushState),浏览器前进/后退可用。其余页面 URL 归 /
+const PATH_PAGES = ["mev", "monitor", "txn"];
+const pageFromPath = () => {
+  const p = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+  return PATH_PAGES.includes(p) ? p : "home";
+};
+
 export default function App() {
   const state = useMonitor();
-  const [page, setPage] = useState("home");
+  const [page, setPage] = useState(pageFromPath);
+  const nav = (p) => {
+    setPage(p);
+    const url = PATH_PAGES.includes(p) ? `/${p}` : "/";
+    if (window.location.pathname !== url) window.history.pushState({}, "", url);
+  };
+  useEffect(() => {
+    const onPop = () => setPage(pageFromPath());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   // 个人大小偏好(A−/A+,存本机),乘在 fit 缩放之上
   const [zoomPref, setZoomPref] = useState(() => {
     const v = parseFloat(localStorage.getItem("uiZoomPref"));
@@ -44,7 +62,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <NavRail current={page} onNav={setPage} connected={state.connected} />
+      <NavRail current={page} onNav={nav} connected={state.connected} />
 
       <div className="app-content">
         <Topbar
@@ -59,7 +77,7 @@ export default function App() {
           onZoomPref={setZoomPref}
         />
 
-        {page === "home"    && <HomePage state={state} onNav={setPage} />}
+        {page === "home"    && <HomePage state={state} onNav={nav} />}
         {page === "monitor" && <MonitorPage state={state} />}
         {page === "mev"     && <MevPage state={state} />}
         {page === "traffic" && <TrafficPage state={state} />}

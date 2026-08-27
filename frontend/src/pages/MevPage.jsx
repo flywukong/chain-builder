@@ -355,10 +355,12 @@ export default function MevPage({ state }) {
               <div className="ph-note">探针日志窗口内未见 BAD BLOCK 摘要。出现后这里会判定坏块是否走 BEP-675 SendBidBlock 路径,并按 builder 汇总出错次数(同一坏块被 peer 重播多次,按块 hash 去重)。若探针指标(chain_insert_badBidblock)&gt;0 而此处为空 = 日志未入 ES,标题会以指标计数报警,归因需登机 grep bsc.log。</div>
             ) : (
               <>
-              {/* 最近一批坏块(≤10 块):builder 聚合 + 块高范围 + 错误汇总;1h 内有新块时红边告警 */}
+              {/* 最近一批坏块:以最新坏块为锚,往前 1 小时内的全部坏块为一批(时间聚簇,非固定条数);1h 内有新块时红边告警 */}
               {(() => {
-                const batch = [...bad.recent].sort((a, b) => b.firstT - a.firstT).slice(0, 10);
-                if (!batch.length) return null;
+                const sorted = [...bad.recent].sort((a, b) => b.firstT - a.firstT);
+                if (!sorted.length) return null;
+                const anchor = sorted[0].firstT;
+                const batch = sorted.filter((b) => b.firstT >= anchor - 3600e3);
                 const newest = batch[0], oldest = batch[batch.length - 1];
                 const ageMin = Math.max(1, Math.round((Date.now() - newest.firstT) / 60e3));
                 const fresh = Date.now() - newest.firstT < 3600e3;

@@ -770,11 +770,12 @@ body::before {
 .bbx-age { font-style: normal; font-family: var(--mono); font-size: 9px; color: var(--muted); }
 .bbx-hero-src { margin-left: auto; font-size: 8.5px; color: var(--gold); font-family: var(--mono); }
 .bbx-hero-actions { display: inline-flex; gap: 6px; }
-.bbx-hero-grid { display: grid; grid-template-columns: minmax(200px, 1.7fr) repeat(3, minmax(110px, 1fr)); gap: 10px; align-items: start; }
-.bbx-hero-b span, .bbx-cell span { display: block; font-size: 8px; color: var(--muted); letter-spacing: .4px; margin-bottom: 2px; }
-.bbx-hero-b b { font-size: 12px; color: #FF9F1C; font-family: var(--mono); font-weight: 800; }
-.bbx-hero-b code { display: block; font-size: 8.5px; color: var(--muted); font-family: var(--mono); word-break: break-all; margin-top: 2px; }
-.bbx-cell b { font-size: 10.5px; color: var(--text); font-family: var(--mono); }
+.bbx-hero-grid { display: grid; grid-template-columns: minmax(200px, 1fr) repeat(3, max-content); gap: 10px 34px; align-items: start; }
+.bbx-hero-grid .bbx-cell b, .bbx-hero-b b { white-space: nowrap; }
+.bbx-hero-b span, .bbx-cell span { display: block; font-size: 10px; color: var(--muted); letter-spacing: .4px; margin-bottom: 3px; }
+.bbx-hero-b b { font-size: 14.5px; color: #FF9F1C; font-family: var(--mono); font-weight: 800; }
+.bbx-hero-b code { display: block; font-size: 9.5px; color: var(--muted); font-family: var(--mono); word-break: break-all; margin-top: 2px; }
+.bbx-cell b { font-size: 13px; color: var(--text); font-family: var(--mono); }
 .bbx-hero-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-top: 7px;
   padding-top: 7px; border-top: 1px dashed rgba(255,255,255,.08); }
 .bbx-hero-detail > div { min-width: 0; }
@@ -1946,7 +1947,8 @@ body::before {
   background: #101419;
 }
 .bbx-panel .bbx-hero-grid {
-  grid-template-columns: minmax(280px, 1.65fr) repeat(4, minmax(125px, 1fr));
+  /* 4 格(builder/块高范围/错误汇总/时间):右三列按内容定宽,值恒单行不折 */
+  grid-template-columns: minmax(280px, 1fr) repeat(3, max-content);
   gap: 0;
   padding-right: 174px;
 }

@@ -671,12 +671,19 @@ body::before {
 .eb-miner b { width: 26px; text-align: right; color: var(--orange); flex-shrink: 0; }
 /* 长 builder 实例名(如 blockrazor virginia):两行折行,不截断 */
 .eb-miner em.bb-wrap { white-space: normal; word-break: break-word; line-height: 1.3; width: 118px; }
-/* 近 24h builder 行:名称 + 次数 + 最近出现时刻(按时间倒序) */
-.bb-r24 { display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); font-size: 10.5px; padding: 2px 0; }
-.bb-r24 em { font-style: normal; color: var(--orange); font-weight: 700; }
-.bb-r24 em.bb-wrap { width: auto; max-width: 180px; }
-.bb-r24 b { color: var(--text); }
-.bb-r24 span { color: var(--muted); font-size: 9.5px; }
+/* Builder 合并表:builder | 24h | 累计 | 最近 | 主要错误(24h 活跃行橙色) */
+.bb-tbl { font-family: var(--mono); font-size: 10.5px; }
+.bb-tbl-h, .bb-tbl-r { display: grid; grid-template-columns: minmax(0, 1.1fr) 34px 42px 82px minmax(0, 1.3fr);
+  gap: 8px; align-items: baseline; padding: 3px 0; }
+.bb-tbl-h { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .4px;
+  border-bottom: 1px solid var(--line); }
+.bb-tbl-r { border-bottom: 1px dashed rgba(255,255,255,.05); }
+.bb-tbl-r em { font-style: normal; color: var(--text); font-weight: 700; word-break: break-word; }
+.bb-tbl-r em.hot, .bb-tbl-r b.hot { color: var(--orange); }
+.bb-tbl-r b { color: var(--text); }
+.bb-tbl-r span { color: var(--muted); font-size: 9.5px; }
+.bb-tbl-r i { font-style: normal; color: var(--text-dim); font-size: 9.5px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
 /* 条幅:填满剩余但封顶 190px(原来 flex:1 会把整行撑满);min-width 防止行内元素多时被挤成 0 */
 .eb-mbar { flex: 1 1 auto; max-width: 190px; min-width: 70px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
 /* Top3 validator 的空块成因 AI 解读 */

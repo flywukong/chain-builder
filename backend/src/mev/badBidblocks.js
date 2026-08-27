@@ -78,6 +78,17 @@ export class BadBidblockWatch {
         // 旧文件无 byError 或归一化规则升级:用在册明细重建(blocks 按 hash 唯一,重建精确;已淘汰部分不可追溯)
         if (raw.byError && raw.byErrorVer === ERR_NORM_VER) this.byError = raw.byError;
         else { this.byError = {}; for (const b of this.blocks) this._countError(b, b.lastT); }
+        // 旧文件 byBuilder 无 errs:同样用在册明细重建每家的错误分布
+        if (Object.values(this.byBuilder).some((a) => !a.errs)) {
+          for (const a of Object.values(this.byBuilder)) a.errs = {};
+          for (const b of this.blocks) {
+            if (b.isBid !== true) continue;
+            const a = this.byBuilder[b.builder ?? "unknown"];
+            if (!a) continue;
+            const ek = normErrReason(b.error);
+            a.errs[ek] = (a.errs[ek] || 0) + 1;
+          }
+        }
       }
     } catch { /* fresh start */ }
     this.counted = new Set(this.countedHashes ?? []);   // 曾计入 totals 的 hash(防明细淘汰后重扫双计)
@@ -105,8 +116,10 @@ export class BadBidblockWatch {
         if (ev.isBid === true) {
           this.totals.bid++;
           const key = ev.builder ?? "unknown";
-          const a = (this.byBuilder[key] ??= { n: 0, lastT: 0, lastNumber: null });
+          const a = (this.byBuilder[key] ??= { n: 0, lastT: 0, lastNumber: null, errs: {} });
           a.n++; a.lastT = t; a.lastNumber = ev.number;
+          const ek = normErrReason(ev.error);
+          (a.errs ??= {})[ek] = (a.errs[ek] || 0) + 1;   // 每家的错误分布(出「主要错误」列)
         } else if (ev.isBid === false) this.totals.nonBid++;
         else this.totals.unknown++;
       }
@@ -201,9 +214,17 @@ export class BadBidblockWatch {
       truncated: this.truncated,
       totals: this.totals,
       recent1h,
-      byBuilder: Object.entries(this.byBuilder)
-        .map(([addr, a]) => ({ addr, name: addr === "unknown" ? null : nameOf(addr), ...a }))
-        .sort((x, y) => y.n - x.n),
+      // 合并表:每家 = 24h 数 + 累计 + 最近出现 + 主要错误,按最近出现倒序
+      byBuilder: (() => {
+        const n24 = Object.fromEntries(recent24h.byBuilder.map((b) => [b.addr, b.n]));
+        return Object.entries(this.byBuilder)
+          .map(([addr, a]) => ({
+            addr, name: addr === "unknown" ? null : nameOf(addr), ...a,
+            n24: n24[addr] ?? 0,
+            mainErr: Object.entries(a.errs ?? {}).sort((x, y) => y[1] - x[1])[0]?.[0] ?? null,
+          }))
+          .sort((x, y) => y.lastT - x.lastT);
+      })(),
       byError: Object.entries(this.byError)
         .map(([key, e]) => ({ key, ...e }))
         .sort((x, y) => y.n - x.n),

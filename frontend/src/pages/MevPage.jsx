@@ -314,34 +314,24 @@ export default function MevPage({ state }) {
               })()}
               <div className="bb-cols bb-cols-bad">
                 <div>
-                  {/* 近 24h:按最近出错时间倒序,回答「近期是谁在出坏块」 */}
-                  {(() => {
-                    const r = bad.recent24h;
-                    if (!r || r.count === 0) return <div className="re-title" style={{ marginBottom: 10 }}>近 24 小时 · 无新增坏块</div>;
-                    return (
-                      <>
-                        <div className="re-title">近 24 小时 · BUILDER</div>
-                        {r.byBuilder.length === 0
-                          ? <div className="eb-none">✓ 24h 内坏块均非 bidblock 路径(共 {r.count} 块)</div>
-                          : r.byBuilder.map((b) => (
-                              <div key={b.addr} className="bb-r24" title={b.addr}>
-                                <em className="bb-wrap">{b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")}</em>
-                                <b>×{b.n}</b>
-                                <span>最近 {fmtBbT(b.lastSeen)}</span>
-                              </div>
-                            ))}
-                      </>
-                    );
-                  })()}
-                  <div className="re-title" style={{ marginTop: 10 }}>历史累计 · BUILDER 出错</div>
+                  {/* Builder 合并表:24h 与历史不分家,按最近出错倒序;24h>0 的行橙色高亮 */}
+                  <div className="re-title">BUILDER 汇总(最近出错在前)</div>
                   {bad.byBuilder.length === 0
                     ? <div className="eb-none">✓ 尚无归因到 bidblock 的坏块</div>
-                    : bad.byBuilder.map((b) => (
-                        <div key={b.addr} className="bb-r24" title={b.addr}>
-                          <em className="bb-wrap">{b.name ?? (b.addr === "unknown" ? "未带 builder 标记" : b.addr.slice(0, 10) + "…")}</em>
-                          <b>×{b.n}</b>
-                        </div>
-                      ))}
+                    : (
+                      <div className="bb-tbl">
+                        <div className="bb-tbl-h"><span>builder</span><span>24h</span><span>累计</span><span>最近</span><span>主要错误</span></div>
+                        {bad.byBuilder.map((b) => (
+                          <div key={b.addr} className="bb-tbl-r" title={b.addr}>
+                            <em className={b.n24 > 0 ? "hot" : ""}>{b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")}</em>
+                            <b className={b.n24 > 0 ? "hot" : ""}>{b.n24}</b>
+                            <b>{b.n}</b>
+                            <span>{fmtBbT(b.lastT)}</span>
+                            <i title={b.mainErr ?? ""}>{b.mainErr ?? "—"}</i>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   <div className="bb-addrs">
                     {bad.byBuilder.slice(0, 4).filter((b) => b.addr !== "unknown").map((b) => (
                       <div key={b.addr}><em>{b.name ?? "?"}</em> <code>{b.addr}</code></div>

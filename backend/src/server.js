@@ -285,6 +285,52 @@ async function syncForkSplit() {
 syncForkSplit();
 setInterval(syncForkSplit, 30_000);
 
+// ── 激活前基线:分叉前 GAS_BASELINE_SPAN 块的同口径 gas 分布(一次性扫描,永久存档)──
+// 与激活后窗对称,供「性能前后对比」双表;每轮限 6000 块防与追块抢 RPC,~50 分钟后台完成
+const GAS_BASELINE_SPAN = parseInt(process.env.GAS_BASELINE_SPAN ?? "576000", 10);
+const BASE_START = PASTEUR_BLOCK - GAS_BASELINE_SPAN;
+const BASE_VER = 1;
+const baselineFile = path.join(dataDir, "fork-baseline.json");
+let baseline = { v: BASE_VER, from: BASE_START, coveredTo: BASE_START - 1, v1: 0, v2: 0, local: 0, gas: emptyGas(), gasSum: { v1: 0, v2: 0, local: 0 } };
+try {
+  if (fs.existsSync(baselineFile)) {
+    const raw = JSON.parse(fs.readFileSync(baselineFile, "utf8"));
+    if (raw?.v === BASE_VER && raw.from === BASE_START) baseline = { ...baseline, ...raw };
+  }
+} catch { /* fresh */ }
+const saveBaseline = () => { try { fs.writeFileSync(baselineFile, JSON.stringify(baseline)); } catch {} };
+const BASE_TICK_BLOCKS = 6000;
+let baseBusy = false;
+async function syncBaseline() {
+  if (baseBusy || baseline.coveredTo >= PASTEUR_BLOCK - 1) return;
+  baseBusy = true;
+  try {
+    const to = Math.min(baseline.coveredTo + BASE_TICK_BLOCKS, PASTEUR_BLOCK - 1);
+    outer:
+    for (let n = baseline.coveredTo + 1; n <= to; n += 40) {
+      const hi = Math.min(n + 39, to);
+      const batch = await Promise.all(Array.from({ length: hi - n + 1 }, (_, i) =>
+        provider.send("eth_getHeaderByNumber", [ethers.toQuantity(n + i)]).catch(() => null)));
+      for (let i = 0; i < batch.length; i++) {
+        const hd = batch[i];
+        if (!hd) break outer;                       // RPC 缺口:下轮从 coveredTo+1 续
+        const tag = decodeMevTag(hd.requestsHash);
+        const pathKey = tag?.v === 2 ? "v2" : tag?.v === 1 ? "v1" : "local";
+        baseline[pathKey]++;
+        const gasUsed = parseInt(hd.gasUsed, 16) || 0;
+        baseline.gas[pathKey][Math.min(GAS_BUCKETS - 1, Math.floor(gasUsed / GAS_STEP))]++;
+        baseline.gasSum[pathKey] += gasUsed;
+        baseline.coveredTo = n + i;
+      }
+    }
+    saveBaseline();
+    if (baseline.coveredTo >= PASTEUR_BLOCK - 1) console.log(`[gas-baseline] complete #${BASE_START}–#${PASTEUR_BLOCK - 1}`);
+  } catch (e) { console.error("[gas-baseline]", e.message); }
+  finally { baseBusy = false; }
+}
+setTimeout(syncBaseline, 20_000);
+setInterval(syncBaseline, 30_000);
+
 // 大额单笔 tx:对 streamer 标记的候选(gasLimit≥阈值,通常每块 0~几笔)拉 receipt 确认真实 gasUsed
 async function scanLargeTxs(block) {
   const cands = block.largeTxCandidates;
@@ -971,6 +1017,15 @@ app.get("/api/bidblock",  async () => {
       v1: forkSplit.v1, v2: forkSplit.v2, local: forkSplit.local,
       v1Pct: fPct(forkSplit.v1), v2Pct: fPct(forkSplit.v2), localPct: fPct(forkSplit.local),
       gas: { step: GAS_STEP, buckets: forkSplit.gas, sum: forkSplit.gasSum },
+      // 激活前基线(一次性扫描,done=false 时带进度)
+      baseline: {
+        from: BASE_START, to: PASTEUR_BLOCK - 1, span: GAS_BASELINE_SPAN,
+        done: baseline.coveredTo >= PASTEUR_BLOCK - 1,
+        scanned: baseline.coveredTo - (BASE_START - 1),
+        total: baseline.v1 + baseline.v2 + baseline.local,
+        v1: baseline.v1, v2: baseline.v2, local: baseline.local,
+        gas: { step: GAS_STEP, buckets: baseline.gas, sum: baseline.gasSum },
+      },
     },
   };
 });

@@ -87,7 +87,7 @@ function V2TrendChart({ hourly, bph }) {
 
 // Block gas used 分布(自激活,header 全量精确):三路径各自归一化(占本路径块数 %),
 // 形状可直接对比「bidblock 是否打包更满」;分位数由桶近似(±半桶 = ±1.25M)
-function GasHistChart({ gas, counts }) {
+function GasHistChart({ gas, counts, title }) {
   if (!gas?.buckets) return null;
   const stepM = gas.step / 1e6;
   const defs = [
@@ -116,7 +116,7 @@ function GasHistChart({ gas, counts }) {
   };
   return (
     <>
-      <div className="re-title">Block Gas Used 分布(自激活 · 全量 header)</div>
+      {title && <div className="gasx-title">{title}</div>}
       <svg viewBox={`0 0 ${W} ${H + AX}`} className="v2x-svg gasx-svg" preserveAspectRatio="none">
         {series.map((s, si) => s.arr.map((x, i) => {
           const h = ((x / s.tot) * 100 / maxPct) * (H - 4);
@@ -132,8 +132,8 @@ function GasHistChart({ gas, counts }) {
           <div key={s.key}>
             <i style={{ background: s.color }} />
             <em>{s.label}</em>
-            <span>p50 <b>{pctile(s.arr, s.tot, 0.5)}M</b></span>
-            <span>p90 <b>{pctile(s.arr, s.tot, 0.9)}M</b></span>
+            <span>p75 <b>{pctile(s.arr, s.tot, 0.75)}M</b></span>
+            <span>p95 <b>{pctile(s.arr, s.tot, 0.95)}M</b></span>
             <span>p99 <b>{pctile(s.arr, s.tot, 0.99)}M</b></span>
             <span>均值 <b>{counts[s.key] ? ((gas.sum?.[s.key] ?? 0) / counts[s.key] / 1e6).toFixed(1) : "—"}M</b></span>
           </div>
@@ -376,16 +376,53 @@ export default function MevPage({ state }) {
                       </div>
                     );
                   })()}
-                  {bb.fork?.gas && (
-                    <div className="v2x-card">
-                      <GasHistChart gas={bb.fork.gas} counts={{ v1: bb.fork.v1, v2: bb.fork.v2, local: bb.fork.local }} />
-                    </div>
-                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
+
+        {/* Block Gas Used 分布:激活后 vs 激活前基线 双表对比(全量 header 逐块,各路径按自身块数归一化) */}
+        {bb?.fork?.gas && bb.fork.total > 0 && (
+          <div className="panel" style={{ maxWidth: 1240 }}>
+            <div className="panel-header">
+              <span>Block Gas Used 分布 · 激活前后对比</span>
+              <span className="sub">全量 header 逐块统计 · 各路径按自身块数归一化,形状可直接对比 · 分位数由 2.5M 桶近似</span>
+            </div>
+            <div className="panel-body">
+              <div className="gasx-cols">
+                <div>
+                  <GasHistChart
+                    gas={bb.fork.gas}
+                    counts={{ v1: bb.fork.v1, v2: bb.fork.v2, local: bb.fork.local }}
+                    title={`Pasteur 激活后 · ${bb.fork.total.toLocaleString()} 块(至 #${bb.fork.coveredTo.toLocaleString()})`}
+                  />
+                </div>
+                <div>
+                  {(() => {
+                    const bl = bb.fork.baseline;
+                    if (!bl) return null;
+                    if (!bl.done) {
+                      return (
+                        <>
+                          <div className="gasx-title">激活前基线 · #{bl.from.toLocaleString()} – #{bl.to.toLocaleString()}</div>
+                          <div className="ph-note">基线一次性扫描中…{Math.round((bl.scanned / bl.span) * 100)}%({bl.scanned.toLocaleString()}/{bl.span.toLocaleString()} 块),完成后自动展示</div>
+                        </>
+                      );
+                    }
+                    return (
+                      <GasHistChart
+                        gas={bl.gas}
+                        counts={{ v1: bl.v1, v2: bl.v2, local: bl.local }}
+                        title={`激活前基线 · ${bl.total.toLocaleString()} 块(#${bl.from.toLocaleString()} 起,约 ${(bl.span * 0.45 / 86400).toFixed(1)} 天)`}
+                      />
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* BAD BLOCK 归因:全网坏块有多少由 bidblock(SendBidBlock)导致 + builder 出错汇总。
             指标 counter 实时可靠;BAD BLOCK 多行长日志可能被采集端丢弃 → counter>0 而日志缺位时以 counter 报警 */}

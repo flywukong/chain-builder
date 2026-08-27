@@ -429,12 +429,6 @@ export default function MevPage({ state }) {
                   </div>
                 );
               })()}
-              {/* 三项唯一坏块统计；重复日志上报次数不作为业务指标展示 */}
-              <div className="bbx-tiles">
-                <div className="bbx-tile"><i className="bbx-metric-icon">◇</i><span><em>唯一坏块</em><b>{bad.totals.blocks}</b></span></div>
-                <div className="bbx-tile hot"><i className="bbx-metric-icon">◎</i><span><em>BidBlock 已归因</em><b>{bad.totals.bid}</b></span></div>
-                <div className="bbx-tile"><i className="bbx-metric-icon muted">?</i><span><em>无法归因 / 非 BidBlock</em><b>{bad.totals.unknown + bad.totals.nonBid}</b></span></div>
-              </div>
               <div className="bb-cols bb-cols-bad">
                 <div className="bbx-card">
                   <div className="re-title bbx-card-title">Builder 排名</div>
@@ -467,7 +461,7 @@ export default function MevPage({ state }) {
                       <b>{e.n}</b>
                     </div>
                   ))}
-                  <div className="bbx-dist-total">总计 {bad.totals.blocks} · bidblock {bad.totals.bid}</div>
+                  <div className="bbx-dist-total">总计 {bad.totals.blocks} · bidblock 已归因 {bad.totals.bid} · 无法归因/非 bidblock {bad.totals.unknown + bad.totals.nonBid}</div>
                 </div>
               </div>
               {/* 最近事故:卡片全宽表,时间倒序;1h 内红边;点行展开完整 hash/错误;搜索与窗口 tab 在面板 header */}
@@ -517,7 +511,7 @@ export default function MevPage({ state }) {
                           <span className="bbx-t">{fmtBbT(b.firstT)}</span>
                           <b>#{b.number.toLocaleString()}</b>
                           <span className={`bbk-tag ${b.isBid ? "bid" : "unk"}`}>{b.isBid ? "bidblock" : b.isBid === false ? "non-bid" : "legacy"}</span>
-                          <em className="bbx-bl">{b.isBid ? (b.builderName ?? (b.builder ?? "").slice(0, 10) + "…") : "Unknown"}</em>
+                          <em className="bbx-bl" title={b.manual ? "人工归因:旧格式日志无 Builder 行,由 debug_getBadBlocks 的 RequestsHash 人工核实" : undefined}>{b.isBid ? (b.builderName ?? (b.builder ?? "").slice(0, 10) + "…") : "Unknown"}{b.manual ? " *" : ""}</em>
                           <em>{b.minerName ?? (b.miner ?? "").slice(0, 10)}</em>
                           <i style={{ color: badErrColor(b.errKey) }}>{errShort(b.errKey)}</i>
                           <button className="bbx-copy sm" title="复制 hash 与错误"

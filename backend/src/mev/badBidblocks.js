@@ -43,6 +43,15 @@ export function parseBadBlockMsg(msg) {
   };
 }
 
+// 人工归因(hash → builder):探针升级统计版之前的旧格式坏块日志没有 Builder 行,
+// 由 debug_getBadBlocks 的 header.RequestsHash 人工核实后在此登记(来源:用户 8/25 报告给 bloXroute 的取证)
+const MANUAL_ATTR = {
+  // #117925310 invalid bloom → bloXroute dublin(0xD437…FD52)
+  "0xe41f2c3270a2d3d1cd1067e52e41848a1f5ba7b6b51378e0a171755b3186a104": { builder: "0xd4376fdc9b49d90e6526daa929f2766a33bffd52" },
+  // #117927313 invalid bloom → bloXroute dublin(同一报告中的第二块)
+  "0x148ff1442774e286f06f190e56ac58e563d233a201928beb24da6366c09835b2": { builder: "0xd4376fdc9b49d90e6526daa929f2766a33bffd52" },
+};
+
 // 错误原因归一化:截掉首个括号起的参数段,抹平 hex/数字 → 稳定的模式键
 // 如 "invalid merkle root (remote: d20e… local: ae7d…) dberr: …" → "invalid merkle root"
 // remote 全 0(builder 根本没填执行结果字段)与真实值不一致是两种病因,单独成键:
@@ -92,6 +101,19 @@ export class BadBidblockWatch {
       }
     } catch { /* fresh start */ }
     if (this.totals.obs == null) this.totals.obs = this.blocks.reduce((s, x) => s + (x.n || 0), 0);   // 旧文件迁移
+    // 人工归因迁移:已入账为「未知」的块翻转成 bidblock+builder,聚合同步修正
+    for (const b of this.blocks) {
+      const man = MANUAL_ATTR[b.hash];
+      if (!man || b.isBid === true) continue;
+      this.totals.unknown--; this.totals.bid++;
+      b.isBid = true; b.builder = man.builder; b.manual = true;
+      const a = (this.byBuilder[man.builder] ??= { n: 0, lastT: 0, lastNumber: null, errs: {} });
+      a.n++;
+      if (b.firstT >= a.lastT) { a.lastT = b.firstT; a.lastNumber = b.number; }
+      const ek = normErrReason(b.error);
+      (a.errs ??= {})[ek] = (a.errs[ek] || 0) + 1;
+      if (this.byError[ek]) this.byError[ek].bid++;
+    }
     this.counted = new Set(this.countedHashes ?? []);   // 曾计入 totals 的 hash(防明细淘汰后重扫双计)
     this.byHash = new Map(this.blocks.map((b) => [b.hash, b]));
   }
@@ -105,6 +127,8 @@ export class BadBidblockWatch {
   }
 
   _merge(ev, host, t, rowKey) {
+    const man = MANUAL_ATTR[ev.hash];
+    if (man && ev.isBid !== true) ev = { ...ev, isBid: true, builder: man.builder, manual: true };
     let b = this.byHash.get(ev.hash);
     if (!b) {
       b = { ...ev, firstT: t, lastT: t, n: 0, hosts: [], rk: [] };

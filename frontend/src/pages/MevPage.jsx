@@ -234,8 +234,8 @@ export default function MevPage({ state }) {
                   <span className="ver-tag" style={{ width: 92, color: FAMILY_COLORS[f] || "#aaa" }}>{f}</span>
                   <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
                   <span className="ver-count">{c.toLocaleString()}<em>· {fmtPct(c, famTotal)}</em></span>
-                  <span className="fam-24h">{d24 ? <>24h {d24.pct}% {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
-                  <span className="fam-24h fam-7d">{d7 ? <>7d {d7.pct}% {fmtDelta(d7.pct, d7.prevPct)}</> : <em>—</em>}</span>
+                  <span className="fam-24h">{d24 ? <><i>24h</i> <b>{d24.pct}%</b> {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
+                  <span className="fam-24h fam-7d">{d7 ? <><i>7d</i> <b>{d7.pct}%</b> {fmtDelta(d7.pct, d7.prevPct)}</> : <em>—</em>}</span>
                 </div>
               );
             })}
@@ -358,11 +358,8 @@ export default function MevPage({ state }) {
               {/* 全部汇总:自部署起的整体一行账(替代此前的指标卡) */}
               <div className="bbx-alltime">
                 <em>全部汇总</em>
-                <span>唯一坏块 <b>{bad.totals.blocks}</b></span>
-                <span>bidblock 已归因 <b className="hot">{bad.totals.bid}</b></span>
-                <span>无法归因/非 bidblock <b>{bad.totals.unknown + bad.totals.nonBid}</b></span>
-                <span>builder:<b className="hot">{bad.byBuilder.map((b) => `${b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")} ×${b.n}`).join("、") || "—"}</b></span>
-                <span>观测上报 <b>{(bad.totals.obs ?? 0).toLocaleString()}</b></span>
+                <span>bad block 总数 <b>{bad.totals.blocks}</b></span>
+                <span>涉及 builder:<b className="hot">{bad.byBuilder.map((b) => `${b.name ?? (b.addr === "unknown" ? "未带标记" : b.addr.slice(0, 10) + "…")} ×${b.n}`).join("、") || "—"}</b></span>
               </div>
               {/* 最近一批坏块:以最新坏块为锚,往前 1 小时内的全部坏块为一批(时间聚簇,非固定条数);1h 内有新块时红边告警 */}
               {(() => {

@@ -1550,9 +1550,12 @@ body::before {
   transform: none;
 }
 .robot-brief.rb-gold { border-color: rgba(240,185,11,.55); box-shadow: 0 4px 18px rgba(0,0,0,.45), 0 0 12px rgba(240,185,11,.15); }
-.fam-24h { font-family: var(--mono); font-size: 9px; color: var(--muted); width: 104px; flex-shrink: 0; display: inline-flex; justify-content: flex-end; gap: 4px; }
+.fam-24h { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 118px; flex-shrink: 0;
+  display: inline-flex; justify-content: flex-end; align-items: baseline; gap: 5px; }
+.fam-24h i { font-style: normal; font-size: 9px; color: var(--dim); }
+.fam-24h b { font-size: 13px; font-weight: 700; color: var(--text); }
 .fam-24h em { font-style: normal; color: var(--dim); }
-.fam-7d { width: 96px; border-left: 1px solid rgba(255,255,255,.08); padding-left: 8px; }
+.fam-7d { width: 108px; border-left: 1px solid rgba(255,255,255,.08); padding-left: 10px; }
 /* MEV:instance 环比 Δ + Validator→Builder 关系表 */
 .mi-delta { font-family: var(--mono); font-size: 9px; width: 48px; text-align: right; flex-shrink: 0; }
 .vb-body { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; max-height: 430px; overflow: auto; }

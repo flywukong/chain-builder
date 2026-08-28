@@ -410,11 +410,21 @@ export default function MevPage({ state }) {
                         </>
                       );
                     }
+                    // 激活前 v2 只是个别 builder 的灰度标记,无协议意义 → 并入 bid 展示(总数口径不变)
+                    const mg = {
+                      step: bl.gas.step,
+                      buckets: {
+                        v2: [],
+                        v1: (bl.gas.buckets.v1 ?? []).map((x, i) => x + (bl.gas.buckets.v2?.[i] ?? 0)),
+                        local: bl.gas.buckets.local ?? [],
+                      },
+                      sum: { v2: 0, v1: (bl.gas.sum?.v1 ?? 0) + (bl.gas.sum?.v2 ?? 0), local: bl.gas.sum?.local ?? 0 },
+                    };
                     return (
                       <GasHistChart
-                        gas={bl.gas}
-                        counts={{ v1: bl.v1, v2: bl.v2, local: bl.local }}
-                        title={`激活前基线 · ${bl.total.toLocaleString()} 块(#${bl.from.toLocaleString()} 起,约 ${(bl.span * 0.45 / 86400).toFixed(1)} 天)`}
+                        gas={mg}
+                        counts={{ v1: bl.v1 + bl.v2, v2: 0, local: bl.local }}
+                        title={`激活前基线 · ${bl.total.toLocaleString()} 块(#${bl.from.toLocaleString()} 起,约 ${(bl.span * 0.45 / 86400).toFixed(1)} 天 · 灰度 v2 并入 bid)`}
                       />
                     );
                   })()}

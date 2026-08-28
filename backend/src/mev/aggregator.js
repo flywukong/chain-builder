@@ -120,8 +120,13 @@ export class MevAggregator extends EventEmitter {
     const hkPrevCut = Math.floor((now - 48 * HOUR) / HOUR);
     const hk7Cut = Math.floor((now - 7 * 24 * HOUR) / HOUR);
     const hk14Cut = Math.floor((now - 14 * 24 * HOUR) / HOUR);
+    const hk72Cut = Math.floor((now - 72 * HOUR) / HOUR);
+    const hk96Cut = Math.floor((now - 96 * HOUR) / HOUR);
+    const hk144Cut = Math.floor((now - 144 * HOUR) / HOUR);
     let dTotal = 0, dMev = 0, dV2 = 0, prevMev = 0, mev7 = 0, mev7Prev = 0, hours7 = 0;
+    let mev48 = 0, mev48Prev = 0, mev3 = 0, mev3Prev = 0;
     const famsNow = {}, famsPrev = {}, instsNow = {}, instsPrev = {}, fams7 = {}, fams7Prev = {};
+    const fams48 = {}, fams48Prev = {}, fams3 = {}, fams3Prev = {};
     const merge = (dst, src) => { for (const [k, n] of Object.entries(src || {})) dst[k] = (dst[k] || 0) + n; };
     for (const [hk, b] of Object.entries(this.day.buckets)) {
       if (+hk >= hkCut) {
@@ -131,9 +136,13 @@ export class MevAggregator extends EventEmitter {
         prevMev += b.mev;
         merge(famsPrev, b.fams); merge(instsPrev, b.insts);
       }
-      // 7d 与前一 7d 独立累加(与 24h 窗口重叠,不能挂进上面的 else 链)
+      // 各时间窗独立累加(相互重叠,不能挂进上面的 else 链)
       if (+hk >= hk7Cut) { mev7 += b.mev; hours7++; merge(fams7, b.fams); }
       else if (+hk >= hk14Cut) { mev7Prev += b.mev; merge(fams7Prev, b.fams); }
+      if (+hk >= hkPrevCut) { mev48 += b.mev; merge(fams48, b.fams); }            // 48h 窗(now-48h 起)
+      else if (+hk >= hk96Cut) { mev48Prev += b.mev; merge(fams48Prev, b.fams); }
+      if (+hk >= hk72Cut) { mev3 += b.mev; merge(fams3, b.fams); }                // 3d 窗
+      else if (+hk >= hk144Cut) { mev3Prev += b.mev; merge(fams3Prev, b.fams); }
     }
     const day24 = {
       total: dTotal,
@@ -162,14 +171,17 @@ export class MevAggregator extends EventEmitter {
     // 每 family 的 24h 份额 + 环比(Builder 分布面板的"当下"列)
     const famsDay = famsSorted.map(shareOf);
 
-    // 每 family 的 7d 份额 + 环比(vs 前一个 7d;需 14d 桶,积累期 prevPct=null)
-    const fams7d = Object.entries(fams7)
+    // 每 family 的窗口份额 + 环比(vs 前一个同长窗;桶不足时 prevPct=null)
+    const famsWin = (cur, tot, prev, prevTot) => Object.entries(cur)
       .sort((a, b) => b[1] - a[1])
       .map(([name, n]) => ({
         name, n,
-        pct: pct1(n, mev7),
-        prevPct: mev7Prev ? pct1(fams7Prev[name] || 0, mev7Prev) : null,
+        pct: pct1(n, tot),
+        prevPct: prevTot ? pct1(prev[name] || 0, prevTot) : null,
       }));
+    const fams7d = famsWin(fams7, mev7, fams7Prev, mev7Prev);
+    const fams48h = famsWin(fams48, mev48, fams48Prev, mev48Prev);
+    const fams3d = famsWin(fams3, mev3, fams3Prev, mev3Prev);
 
     // ── Builder instance 拆分(24h,family 内按实例)──
     const instances = Object.entries(instsNow)
@@ -234,6 +246,8 @@ export class MevAggregator extends EventEmitter {
       concentration,
       famsDay,
       fams7d,
+      fams48h,
+      fams3d,
       fams7dHours: hours7, // 7d 窗口内实际有数据的小时桶数(<168 = 积累中)
       instances,
       validatorBuilders,

@@ -281,11 +281,13 @@ export default function MevPage({ state }) {
         <div className="panel" style={{ maxWidth: 936 }}>
           <div className="panel-header">
             <span>Builder 分布</span>
-            <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右两列为 24h / 7d 份额与环比{(mev.fams7dHours ?? 168) < 160 ? ` · 7d 桶积累中 ${mev.fams7dHours}/168h` : ""}</span>
+            <span className="sub">历史累计{famSince ? ` · 自 ${famSince.getMonth() + 1}/${famSince.getDate()}` : ""} · {famTotal.toLocaleString()} 块 · 右列为 24h/48h/3d/7d 份额与环比{(mev.fams7dHours ?? 168) < 160 ? ` · 桶积累中 ${mev.fams7dHours}/168h` : ""}</span>
           </div>
           <div className="panel-body mev-bars">
             {fams.map(([f, c]) => {
               const d24 = (mev.famsDay ?? []).find((x) => x.name === f);
+              const d48 = (mev.fams48h ?? []).find((x) => x.name === f);
+              const d3 = (mev.fams3d ?? []).find((x) => x.name === f);
               const d7 = (mev.fams7d ?? []).find((x) => x.name === f);
               return (
                 <div key={f} className="ver-row">
@@ -293,6 +295,8 @@ export default function MevPage({ state }) {
                   <div className="ver-bar-track"><div className="ver-bar" style={{ width: `${(c / maxFam) * 100}%`, background: FAMILY_COLORS[f] || "#888" }} /></div>
                   <span className="ver-count">{c.toLocaleString()}<em>· {fmtPct(c, famTotal)}</em></span>
                   <span className="fam-24h">{d24 ? <><i>24h</i> <b>{d24.pct}%</b> {fmtDelta(d24.pct, d24.prevPct)}</> : <em>—</em>}</span>
+                  <span className="fam-24h fam-mid">{d48 ? <><i>48h</i> <b>{d48.pct}%</b> {fmtDelta(d48.pct, d48.prevPct)}</> : <em>—</em>}</span>
+                  <span className="fam-24h fam-mid">{d3 ? <><i>3d</i> <b>{d3.pct}%</b> {fmtDelta(d3.pct, d3.prevPct)}</> : <em>—</em>}</span>
                   <span className="fam-24h fam-7d">{d7 ? <><i>7d</i> <b>{d7.pct}%</b> {fmtDelta(d7.pct, d7.prevPct)}</> : <em>—</em>}</span>
                 </div>
               );

@@ -3,7 +3,6 @@ import { aiRequest } from "../lib/ai.js";
 import { AiText } from "../components/PanelAi.jsx";
 import { lookupValidator } from "../data/validators.js";
 import BidMetricsPanel from "../components/BidMetricsPanel.jsx";
-import GreedyMergePanel from "../components/GreedyMergePanel.jsx";
 import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
@@ -720,7 +719,6 @@ export default function MevPage({ state }) {
         <div className="mev-robot-anchor"><RobotWidget variant="mev" /></div>
 
         <BidMetricsPanel />
-        <GreedyMergePanel />
 
         <div className="ph-note">数据源：内置实时采集（WS newHeads + builder 地址识别）。四卡为 24h 小时桶,builder 分布为历史累计(重启续算;归因切换到 header 精确口径后从零重计),validator 榜为滚动 {mev.total} 块,最近出块为最近 20 块。BEP-675 (bid-block) 已随 Pasteur 在主网激活,v2 观测面板与路径分裂自激活时刻起统计(header 逐块精确口径),激活前的灰度数据已废弃。</div>
       </div>

@@ -225,8 +225,8 @@ const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "800000", 10
 // header.gasUsed 与 requestsHash 同在一次响应里 → 全量精确、零额外 RPC。
 const GAS_STEP = 2.5e6, GAS_BUCKETS = 26;
 const emptyGas = () => ({ v1: new Array(GAS_BUCKETS).fill(0), v2: new Array(GAS_BUCKETS).fill(0), local: new Array(GAS_BUCKETS).fill(0) });
-const FORK_SPLIT_VER = 2;   // 加 gas 直方图:版本升级 → 归零自激活块全量重扫(服务器一次性 ~1h)
-const emptyForkSplit = () => ({ v: FORK_SPLIT_VER, coveredTo: 0, v1: 0, v2: 0, local: 0, gas: emptyGas(), gasSum: { v1: 0, v2: 0, local: 0 } });
+const FORK_SPLIT_VER = 3;   // v3 加秒级打满段检测:版本升级 → 归零自激活块全量重扫(服务器一次性 ~1h)
+const emptyForkSplit = () => ({ v: FORK_SPLIT_VER, coveredTo: 0, v1: 0, v2: 0, local: 0, gas: emptyGas(), gasSum: { v1: 0, v2: 0, local: 0 }, bursts: [] });
 const forkSplitFile = path.join(dataDir, "fork-split.json");
 let forkSplit = emptyForkSplit();
 try {
@@ -240,6 +240,7 @@ try {
 // fork-split 与它共用同一 header 扫描,一并归零从激活块重扫,两边口径重新对齐
 if (bidBlockStore.discardedLegacy) forkSplit = emptyForkSplit();
 const saveForkSplit = () => { try { fs.writeFileSync(forkSplitFile, JSON.stringify(forkSplit)); } catch {} };
+let gasBurstCur = null;   // 进行中的秒级打满段(跨 batch/轮次接续;重启丢进行中段,可忽略)
 let forkSyncBusy = false;
 async function syncForkSplit() {
   if (forkSyncBusy) return;
@@ -273,6 +274,24 @@ async function syncForkSplit() {
         const gasUsed = parseInt(hd.gasUsed, 16) || 0;
         forkSplit.gas[pathKey][Math.min(GAS_BUCKETS - 1, Math.floor(gasUsed / GAS_STEP))]++;
         forkSplit.gasSum[pathKey] += gasUsed;
+        // 秒级打满段:逐块利用率 ≥90%(limit 取每块真值)的连续段,≥3 块入账。
+        // 扫描按块号严格顺序推进,跨 batch 用模块级 gasBurstCur 接续
+        const ratio = gasUsed / (parseInt(hd.gasLimit, 16) || 55e6);
+        if (ratio >= 0.9) {
+          if (gasBurstCur && n + i === gasBurstCur.to + 1) {
+            gasBurstCur.to = n + i;
+            if (ratio > gasBurstCur.max) gasBurstCur.max = ratio;
+            gasBurstCur.tEnd = parseInt(hd.timestamp, 16) * 1000;
+          } else {
+            gasBurstCur = { from: n + i, to: n + i, max: ratio, tEnd: parseInt(hd.timestamp, 16) * 1000 };
+          }
+        } else if (gasBurstCur) {
+          if (gasBurstCur.to - gasBurstCur.from + 1 >= 3) {
+            (forkSplit.bursts ??= []).push({ from: gasBurstCur.from, to: gasBurstCur.to, n: gasBurstCur.to - gasBurstCur.from + 1, maxPct: Math.round(gasBurstCur.max * 100), tEnd: gasBurstCur.tEnd });
+            if (forkSplit.bursts.length > 120) forkSplit.bursts = forkSplit.bursts.slice(-120);
+          }
+          gasBurstCur = null;
+        }
         forkSplit.coveredTo = n + i;
       }
       if (forkSplit.coveredTo % 4000 < 40) { saveForkSplit(); bidBlockStore.flush(); }   // 长回扫期间周期落盘
@@ -548,7 +567,11 @@ async function pollTimelines() {
   let ok = true;
   try { broadcast("reorgTimeline", await enrichReorgEvents(await fetchReorgTimeline(cfg.keterConfigPath, 30))); }
   catch (err) { ok = false; console.error("[reorg timeline poll]", err.message); keterMark("timelineOkAt", err); }
-  try { broadcast("trafficTimeline", await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath))); }
+  try {
+    const tt = await enrichEpisodes(await fetchTrafficTimeline(cfg.keterConfigPath));
+    tt.gasBursts = (forkSplit.bursts ?? []).slice(-40).reverse();   // 秒级打满段(链上逐块,自激活累计)
+    broadcast("trafficTimeline", tt);
+  }
   catch (err) { ok = false; console.error("[traffic timeline poll]", err.message); keterMark("timelineOkAt", err); }
   if (ok) keterMark("timelineOkAt");
 }

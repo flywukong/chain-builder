@@ -1592,6 +1592,13 @@ body::before {
 .hc-label { font-size: 11.5px; font-weight: 600; color: var(--text); letter-spacing: .3px; padding-left: 2px; }
 .hc-canvas { width: 100%; height: 215px; display: block; cursor: crosshair; }
 .tf-events { max-height: 336px; }
+/* 秒级打满段(分钟级事件列表下的小节) */
+.tf-bursts { margin-top: 10px; border-top: 1px dashed rgba(255,255,255,.08); padding-top: 8px; }
+.tf-burst-row { display: flex; align-items: baseline; gap: 10px; font-family: var(--mono); font-size: 10px; padding: 2px 0; }
+.tf-burst-row span { color: var(--muted); }
+.tf-burst-row b { color: var(--text); }
+.tf-burst-row em { font-style: normal; color: var(--text-dim); }
+.tf-burst-row i { font-style: normal; color: var(--orange); margin-left: auto; }
 .tf-ranges { display: inline-flex; gap: 4px; }
 .tf-range { font-family: var(--mono); font-size: 11px; padding: 5px 13px; border-radius: 6px; cursor: pointer;
   background: #14120c; border: 1px solid #26231a; color: var(--muted); transition: all .15s; }

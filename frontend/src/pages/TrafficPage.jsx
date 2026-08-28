@@ -591,6 +591,20 @@ function TrafficHistoryPanel({ tl, blockGas }) {
                 emptyText={`近 ${gasLabel} 无 gas≥${hotPct}%`}
                 onAnalyze={(e) => runAi({ episodeStart: e.start }, `事件归因 ${fmtT(e.start)}`, "gas")}
                 loading={ep.loading} busyLabel={ep.label} />
+              {/* 秒级打满:逐块 ≥90% 连续段(链上逐块检测)。分钟级均值口径抹平的瞬时脉冲在这里可见 */}
+              {(tl?.gasBursts ?? []).filter((b) => now - b.tEnd <= gasDays * 86400000).length > 0 && (
+                <div className="tf-bursts">
+                  <div className="re-title">秒级打满段(连续 ≥3 块逐块 ≥90% · 链上真值)</div>
+                  {(tl.gasBursts ?? []).filter((b) => now - b.tEnd <= gasDays * 86400000).slice(0, 8).map((b) => (
+                    <div key={b.from} className="tf-burst-row">
+                      <span>{fmtT(b.tEnd)}</span>
+                      <b>#{b.from.toLocaleString()} ~ #{b.to.toLocaleString()}</b>
+                      <em>{b.n} 块 ≈{Math.max(1, Math.round(b.n * 0.45))}s</em>
+                      <i>峰值 {b.maxPct}%</i>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {epResult("gas")}

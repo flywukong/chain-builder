@@ -28,8 +28,62 @@ const FAMILY_COLORS = {
   blockrazor: "#F0B90B", "48club": "#45B8FF", blockroute: "#38bdf8", jetbldr: "#22c55e",
   nodereal: "#f97316", txboost: "#ec4899", blockbus: "#5BC8D8", darwin: "#B6CC52",
   inblock: "#9A86F0", unknown: "#8A8F99", xzbuilder: "#8A8F99", trustnet: "#8A8F99",
-  local: "#6d675a",
+  flashblock: "#9A86F0", local: "#6d675a",
 };
+
+// 官方 builder 名单(bsc-mev-info ∪ good-will-alliance builder-list.toml,2026-08-31 同步)
+// 家族名沿用本面板体系(bloxroute 显示为 blockroute);地址小写,用于与 v2 观测地址求差集
+const OFFICIAL_BUILDERS = [
+  { f: "48club", i: "ap", a: "0x48a5ed9abc1a8fbe86cec4900483f43a7f2dbb48" },
+  { f: "48club", i: "eu", a: "0x487e5dfe70119c1b320b8219b190a6fa95a5bb48" },
+  { f: "48club", i: "us", a: "0x48fee1bb3823d72fdf80671ebad5646ae397bb48" },
+  { f: "48club", i: "x", a: "0x48b4bbebf0655557a461e91b8905b85864b8bb48" },
+  { f: "48club", i: "y", a: "0x4827b423d03a349b7519dda537e9a28d31ecbb48" },
+  { f: "48club", i: "z", a: "0x48b2665e5e9a343409199d70f7495c8ab660bb48" },
+  { f: "blockrazor", i: "dublin", a: "0x5532cdb3c0c4278f9848fc4560b495b70ba67455" },
+  { f: "blockrazor", i: "frankfurt", a: "0xba4233f6e478db76698b0a5000972af0196b7be1" },
+  { f: "blockrazor", i: "nyc", a: "0x539e24781f616f0d912b60813ab75b7b80b75c53" },
+  { f: "blockrazor", i: "relay", a: "0x49d91b1ab0cc6a1591c2e5863e602d7159d36149" },
+  { f: "blockrazor", i: "tokyo", a: "0x50061047b9c7150f0dc105f79588d1b07d2be250" },
+  { f: "blockrazor", i: "virginia", a: "0x0557e8cb169f90f6ef421a54e29d7dd0629ca597" },
+  { f: "blockrazor", i: "x", a: "0x488e37fcb2024a5b2f4342c7de636f0825de6448" },
+  { f: "blockroute", i: "dublin", a: "0xd4376fdc9b49d90e6526daa929f2766a33bffd52" },
+  { f: "blockroute", i: "frankfurt", a: "0x2873fc7ad9122933becb384f5856f0e87918388d" },
+  { f: "blockroute", i: "japan", a: "0x432101856a330aafdeb049dd5fa03a756b3f1c66" },
+  { f: "blockroute", i: "nyc", a: "0x2b217a4158933aade6d6494e3791d454b4d13ae7" },
+  { f: "blockroute", i: "singapore", a: "0xe1ec1aece7953ecb4539749b9aa2eef63354860a" },
+  { f: "blockroute", i: "virginia", a: "0x89434fc3a09e583f2cb4e47a8b8fe58de8be6a15" },
+  { f: "jetbldr", i: "ap", a: "0x36cb523286d57680efbbfb417c63653115bcebb5" },
+  { f: "jetbldr", i: "eu", a: "0x3ad6121407f6edb65c8b2a518515d45863c206a8" },
+  { f: "jetbldr", i: "us", a: "0x345324dc15f1cdcf9022e3b7f349e911fb823b4c" },
+  { f: "jetbldr", i: "dublin", a: "0xfd38358475078f81a45077f6e59dff8286e0dca1" },
+  { f: "jetbldr", i: "tokyo", a: "0x7f5fbfd8e2eb3160df4c96757deef29e26f969a3" },
+  { f: "jetbldr", i: "virginia", a: "0xa0cde9891c6966fce740817cc5576de2c669ab43" },
+  { f: "nodereal", i: "ap-1", a: "0x79102db16781dddff63f301c9be557fd1dd48fa0" },
+  { f: "nodereal", i: "ap-2", a: "0x5b526b45e833704d84b5c2eb0f41323da9466c48" },
+  { f: "nodereal", i: "eu-1", a: "0xd0d56b330a0dea077208b96910ce452fd77e1b6f" },
+  { f: "nodereal", i: "eu-2", a: "0xa547f87b2bade689a404544859314cbc01f2605e" },
+  { f: "nodereal", i: "us-1", a: "0x4f24ce4cd03a6503de97cf139af2c26347930b99" },
+  { f: "nodereal", i: "us-2", a: "0xfd3f1ad459d585c50cf4630649817c6e0cec7335" },
+  { f: "flashblock", i: "us", a: "0x9c6b0870752cdd1b3f9aac28c0207e8126f8e1b8" },
+  { f: "flashblock", i: "eu", a: "0x89b08890751b28511541f5fed08d7d964caae911" },
+  { f: "blockroute", i: "relay", a: "0x0da52e9673529b6e06f444fbbed2904a37f66415" },
+  { f: "blockroute", i: "x", a: "0x10353562e662e333c0c2007400284e0e21cf74ff" },
+  { f: "blockbus", i: "dublin", a: "0x3fc0c936c00908c07723ffbf2d536d6e0f62c3a4" },
+  { f: "blockbus", i: "tokyo", a: "0x17e9f0d7e45a500f0148b29c6c98efd19d95f138" },
+  { f: "blockbus", i: "virginia", a: "0x1319be8b8ec4aa81f501924bdcf365fbcaa8d753" },
+  { f: "blocksmith", i: "ap", a: "0x6dddf681c908705472d09b1d7036b2241b50e5c7" },
+  { f: "blocksmith", i: "eu", a: "0x76736159984ae865a9b9cc0df61484a49da68191" },
+  { f: "blocksmith", i: "us", a: "0x5054b21d8baea3d602dca8761b235ee10bc0231e" },
+  { f: "darwinbuilder", i: "ap", a: "0xa6d6086222812efd5292ff284b0f7ff2a2b86af4" },
+  { f: "darwinbuilder", i: "eu", a: "0x3265a3243ee84e667a73073504ca4cded1413d82" },
+  { f: "darwinbuilder", i: "us", a: "0xdf11cd23992fd48cf2d245ac144010673275f285" },
+  { f: "inblock", i: "ap", a: "0x9a3234b450518fada098388b88e00decad96ad38" },
+  { f: "inblock", i: "eu", a: "0xb49f86586a840ab9920d2f340a85586e50fd30a2" },
+  { f: "inblock", i: "us", a: "0x0f6d8b72f3687de6f2824903a83b3ba13c0e88a0" },
+  { f: "xzbuilder", i: "main", a: "0x812720cb4639550d7bdb1d8f2be463f4a9663762" },
+  { f: "trustnet", i: "main", a: "0x2d3cc0a25a05e6eb3d5d3ea21d72c8d71b436a7f" },
+];
 
 const fmtBbT = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -367,15 +421,54 @@ export default function MevPage({ state }) {
                       </div>
                     ));
                   })()}
-                  <div className="re-title" style={{ marginTop: 10 }}>实例明细</div>
-                  <div className="eb-list bb-inst-list">
-                    {bb.builders.map((b) => (
-                      <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
-                        <em className="bb-wrap">{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
-                        <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
-                        <b>{b.count.toLocaleString()}<em className="bb-pct">· {((b.count / bb.count) * 100).toFixed(1)}%</em></b>
+                  <div className="bb-inst-cols">
+                    <div>
+                      <div className="re-title" style={{ marginTop: 10 }}>实例明细</div>
+                      <div className="eb-list bb-inst-list">
+                        {bb.builders.map((b) => (
+                          <div key={b.addr ?? b.name} className="eb-miner" title={b.addr}>
+                            <em className="bb-wrap">{b.name ?? (b.addr || "").slice(0, 10) + "…"}</em>
+                            <span className="eb-mbar"><i style={{ width: `${(b.count / bb.builders[0].count) * 100}%` }} /></span>
+                            <b>{b.count.toLocaleString()}<em className="bb-pct">· {((b.count / bb.count) * 100).toFixed(1)}%</em></b>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                    <div className="bb-unsup">
+                      <div className="re-title" style={{ marginTop: 10 }}>未支持 BEP-675 Builder 列表</div>
+                      {(() => {
+                        const sent = new Set(bb.builders.map((b) => (b.addr || "").toLowerCase()));
+                        const famTotal = {}, missByFam = new Map();
+                        let missN = 0;
+                        for (const o of OFFICIAL_BUILDERS) famTotal[o.f] = (famTotal[o.f] || 0) + 1;
+                        for (const o of OFFICIAL_BUILDERS) {
+                          if (sent.has(o.a)) continue;
+                          missN++;
+                          const arr = missByFam.get(o.f) ?? [];
+                          arr.push(o.i);
+                          missByFam.set(o.f, arr);
+                        }
+                        if (!missN) return <div className="ph-note">名单内 {OFFICIAL_BUILDERS.length} 个实例均已发过 v2 请求</div>;
+                        const rows = [...missByFam.entries()].sort((a, b) => b[1].length - a[1].length);
+                        return (
+                          <>
+                            {rows.map(([f, list]) => (
+                              <div key={f} className="bb-unsup-row">
+                                <em style={{ color: FAMILY_COLORS[f] ?? FAMILY_COLORS[f.replace("builder", "")] ?? "var(--text)" }}>
+                                  {list.length === famTotal[f] ? `${f} 族` : f}
+                                </em>
+                                <span>{list.length === famTotal[f]
+                                  ? `全部实例(${list.length} 个)`
+                                  : `${list.join(" / ")}(${list.length}/${famTotal[f]})`}</span>
+                              </div>
+                            ))}
+                            <div className="bb-unsup-note">
+                              共 {missN}/{OFFICIAL_BUILDERS.length} 个官方注册实例未观测到 SendBidBlock · 名单:bnb-chain builder-list.toml
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
                 {/* 右:采用率趋势 + 出块路径分布 */}

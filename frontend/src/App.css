@@ -721,6 +721,12 @@ body::before {
   text-align: center; flex-shrink: 0; display: inline-block; background: rgba(255,255,255,.03); }
 .bb-inst-list { max-height: 300px; }
 .bb-pct { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
+/* 实例明细 | 未支持 BEP-675 列表 双列;右卡按家族分组,全族缺席折叠为一行 */
+.bb-inst-cols { display: grid; grid-template-columns: minmax(230px, 1.1fr) minmax(240px, 1fr); gap: 20px; align-items: start; }
+.bb-unsup-row { display: flex; gap: 10px; align-items: baseline; font-family: var(--mono); font-size: 11px; padding: 3px 0; }
+.bb-unsup-row em { font-style: normal; font-weight: 600; width: 118px; flex-shrink: 0; }
+.bb-unsup-row span { color: var(--muted); font-size: 10px; }
+.bb-unsup-note { font-size: 9.5px; color: var(--muted); margin-top: 8px; line-height: 1.6; border-top: 1px solid var(--border); padding-top: 6px; }
 /* v2 家族行(带 24h/3d/7d 列的紧凑版):count 列定宽右对齐防溢出挤压,窗口列缩窄缩字 */
 .eb-miner.v2fam .v2fam-n { width: 128px; min-width: 128px; text-align: right; flex: none; }
 .eb-miner.v2fam .fam-24h { width: 86px; font-size: 9.5px; gap: 3px; }

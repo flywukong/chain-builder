@@ -23,6 +23,94 @@ const CAT_META = {
 const CAT_KEYS = Object.keys(CAT_META);
 const TAIL_COLOR = "#5a5648";   // top5 之外的长尾统一灰
 
+// v2 activity(互斥,行为证据判定;地址标签不参与)
+const ACT_META = {
+  swap:    { label: "Swap",     color: "#4CA4D9" },
+  token:   { label: "代币转账", color: "#8B7CF6" },
+  native:  { label: "BNB 转账", color: "#D6A82F" },
+  predict: { label: "预测市场", color: "#8FAE5D" },
+  bridge:  { label: "Bridge",   color: "#B08968" },
+  deploy:  { label: "合约部署", color: "#7890A8" },
+  other:   { label: "其他调用", color: "#747D88" },
+};
+
+// 多维分布(v2 口径):activity 互斥(分母不含系统交易)+ 参与者/资产/资金流覆盖率 + 数据质量
+function DimPanel({ dim }) {
+  if (!dim?.total) {
+    return (
+      <div className="panel" style={{ maxWidth: 820 }}>
+        <div className="panel-header"><span>多维分布(新口径)</span></div>
+        <div className="panel-body"><div className="ph-note" style={{ margin: 10 }}>新口径数据自本次部署起积累,稍后刷新可见。</div></div>
+      </div>
+    );
+  }
+  const sysN = dim.acts.system?.n ?? 0;
+  const bizTotal = dim.total - sysN;
+  const gasTotal = Object.entries(dim.acts).reduce((s, [k, v]) => s + (k === "system" ? 0 : v.gas || 0), 0);
+  const rows = Object.keys(ACT_META).filter((k) => dim.acts[k]?.n > 0)
+    .sort((a, b) => (dim.acts[b]?.n ?? 0) - (dim.acts[a]?.n ?? 0));
+  const pct = (k) => (bizTotal ? +(((dim.acts[k]?.n ?? 0) / bizTotal) * 100).toFixed(1) : 0);
+  const gpct = (k) => (gasTotal ? +(((dim.acts[k]?.gas ?? 0) / gasTotal) * 100).toFixed(1) : 0);
+  const mTx = Math.max(0.1, ...rows.map(pct)), mGas = Math.max(0.1, ...rows.map(gpct));
+  const cov = (n) => (dim.total ? +((n / dim.total) * 100).toFixed(1) : 0);
+  const sinceStr = dim.since ? new Date(dim.since).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const covRow = (label, color, n, tip) => (
+    <div className="txn-cov-row" key={label}>
+      <span className="tcv-l" style={{ color }}>{label}{tip && <InfoTip text={tip} />}</span>
+      <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(cov(n), 100)}%`, background: color }} /></span>
+      <span className="tcv-v">{cov(n)}%<em>{(n ?? 0).toLocaleString()}</em></span>
+    </div>
+  );
+  return (
+    <div className="panel" style={{ maxWidth: 980 }}>
+      <div className="panel-header">
+        <span>多维分布(新口径)</span>
+        <span className="sub">动作互斥可合计 100% · 参与者/资产/资金流为可重叠覆盖率 · 自 {sinceStr} 积累 {bizTotal.toLocaleString()} 笔</span>
+      </div>
+      <div className="panel-body txn-dim-body">
+        <div className="txn-dim-left">
+          <div className="txn-dist-head">
+            <span>交易动作<InfoTip text="由当笔 receipt/事件/selector 现场判定,地址标签不参与;predict/bridge 需已核实地址与动作双命中。分母不含系统交易。" /></span>
+            <span className="tdr-r">笔数</span>
+            <span>笔数占比</span>
+            <span>Gas 占比</span>
+          </div>
+          {rows.map((k) => (
+            <div key={k} className="txn-dist-row txn-dim-row">
+              <span className="tdr-label" style={{ color: ACT_META[k].color }}>{ACT_META[k].label}</span>
+              <span className="tdr-count">{(dim.acts[k]?.n ?? 0).toLocaleString()}</span>
+              <span className="tdr-metric">
+                <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(pct(k) / mTx) * 100}%`, background: ACT_META[k].color }} /></span>
+                <span className="tdr-pct">{pct(k)}%</span>
+              </span>
+              <span className="tdr-metric">
+                <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(gpct(k) / mGas) * 100}%`, background: ACT_META[k].color, opacity: .55 }} /></span>
+                <span className="tdr-pct">{gpct(k)}%</span>
+              </span>
+            </div>
+          ))}
+          <div className="txn-dim-sys">系统交易 {sysN.toLocaleString()} 笔(不计入分布)· 合约部署含在上表</div>
+        </div>
+        <div className="txn-dim-right">
+          <div className="tcv-title">参与者覆盖率</div>
+          {covRow("Bot 特征命中", "#E58A55", dim.parts.bot ?? 0, "短 selector 或单块同发送方 ≥3 笔合格合约调用;是特征命中率,不等于真实 Bot 总量。")}
+          <div className="tcv-title">资产触达</div>
+          {covRow("稳定币", "#37A89A", dim.assets.stable ?? 0, "交易的 Transfer 事件或目标合约涉及已核实稳定币(USDT/USDC/FDUSD/USD1 等)。")}
+          {covRow("Meme", "#C875B2", dim.assets.meme ?? 0, "涉及已识别 meme launchpad 合约;外盘 meme token 表待建,当前为下限。")}
+          <div className="tcv-title">资金流(已知 CEX 地址)</div>
+          {covRow("CEX 充值", "#5FA8C7", dim.flows.cex_in ?? 0, "Transfer 收款方或交易接收方命中已知 CEX 热钱包;覆盖已知地址,非全量充提。")}
+          {covRow("CEX 提现", "#5FA8C7", dim.flows.cex_out ?? 0)}
+          {(dim.flows.cex_internal ?? 0) > 0 && covRow("CEX 内部", "#44758a", dim.flows.cex_internal)}
+          <div className="tcv-title">数据质量</div>
+          <div className="txn-dim-qual">
+            receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败交易 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const CAT_INFO = {
   token: "标准 ERC20 transfer/transferFrom，或仅产生 Transfer 事件的合约调用(批量分发/游戏/claim 等)。稳定币单独统计,不计入此类。",
   stable: "仅直接调用已知稳定币合约(USDT/USDC/BUSD/DAI 等)的交易计入,优先于代币转账。DeFi swap 中涉及稳定币仍归 DeFi。",
@@ -331,10 +419,12 @@ export default function TxnPage() {
           );
         })()}
 
+        <DimPanel dim={d?.dim} />
+
         <div className="panel" style={{ maxWidth: 900 }}>
           <div className="panel-header">
             <span>{hotLabel} 热门合约</span>
-            <span className="sub">标注(身份) · 分类(行为)+ 依据 · AI 标注带 ✦
+            <span className="sub">标注(身份) · 分类(行为)+ 依据 · ✦ = AI 候选标签,未经人工审计
               <span className="tf-ranges" style={{ marginLeft: 10 }}>
                 {[[1, "24H"], [7, "7天"], [30, "30天"]].map(([v, l]) => (
                   <button key={v} className={`tf-range ${hotDays === v ? "on" : ""}`} onClick={() => setHotDays(v)}>{l}</button>

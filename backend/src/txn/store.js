@@ -17,6 +17,8 @@ export class TxnStore {
     this.buckets = [];
     // 历史累计(不滚动,重启续算):since + blocks/txs + 分类 n/gas
     this.allTime = { since: Date.now(), blocks: 0, txs: 0, cats: {} };
+    // v2 多维累计:自 v2 分类器上线时刻分段起算(不与 v1 历史混口径)
+    this.allTime2 = { since: Date.now(), txs: 0, acts: {} };
     try {
       if (fs.existsSync(file)) {
         const raw = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -34,6 +36,7 @@ export class TxnStore {
         } else if (raw) {
           this.buckets = raw.buckets ?? [];
           this.allTime = raw.allTime ?? this.allTime;
+          if (raw.allTime2) this.allTime2 = raw.allTime2;
         }
       }
     } catch { this.buckets = []; }
@@ -76,6 +79,22 @@ export class TxnStore {
       this.allTime.txs++;
       const ac = (this.allTime.cats[c.cat] ??= { n: 0, gas: 0 });
       ac.n++; ac.gas += c.gas;
+      // v2 多维双写:activity 互斥挂 gas;parts/assets/flows 叠加只计笔数;质量位
+      if (c.act) {
+        const ae = ((b.acts ??= {})[c.act] ??= { n: 0, gas: 0 });
+        ae.n++; ae.gas += c.gas;
+        this.allTime2.txs++;
+        const a2 = (this.allTime2.acts[c.act] ??= { n: 0, gas: 0 });
+        a2.n++; a2.gas += c.gas;
+        for (const p of c.parts ?? []) (b.parts ??= {})[p] = (b.parts[p] || 0) + 1;
+        for (const s of c.assets ?? []) (b.assets ??= {})[s] = (b.assets[s] || 0) + 1;
+        for (const f of c.flows ?? []) (b.flows ??= {})[f] = (b.flows[f] || 0) + 1;
+        if (c.fail || c.rcptMiss) {
+          const q = (b.qual ??= { failed: 0, rcptMiss: 0 });
+          if (c.fail) q.failed++;
+          if (c.rcptMiss) q.rcptMiss++;
+        }
+      }
       if (c.to && ["other", "meme", "defi", "bot", "predict", "token", "infra"].includes(c.cat)) {
         const ct = (b.contracts[c.to] ??= { n: 0, gas: 0, cat: c.cat, sels: {}, swap: 0, xfer: 0 });
         ct.n++; ct.gas += c.gas;
@@ -108,7 +127,7 @@ export class TxnStore {
         ...(b.gp?.length > 120 ? { gp: b.gp.slice(-120) } : {}),
         ...(b.gp90?.length > 120 ? { gp90: b.gp90.slice(-120) } : {}),
       }));
-      fs.writeFileSync(this.file, JSON.stringify({ buckets: slim, allTime: this.allTime }));
+      fs.writeFileSync(this.file, JSON.stringify({ buckets: slim, allTime: this.allTime, allTime2: this.allTime2 }));
     } catch { /* non-fatal */ }
   }
 
@@ -273,6 +292,20 @@ export class TxnStore {
         catGas[c] = (catGas[c] ?? 0) + (v.gas || 0); gasTotal += (v.gas || 0);
       }
     }
+    // v2 多维窗口聚合(旧桶无这些字段,自 v2 上线的桶起有值)
+    const dim = { acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 }, total: 0, since: null };
+    for (const b of bWin) {
+      if (!b.acts) continue;
+      dim.since ??= b.t;
+      for (const [k, v] of Object.entries(b.acts)) {
+        const e = (dim.acts[k] ??= { n: 0, gas: 0 });
+        e.n += v.n || 0; e.gas += v.gas || 0; dim.total += v.n || 0;
+      }
+      for (const [k, v] of Object.entries(b.parts ?? {})) dim.parts[k] = (dim.parts[k] || 0) + v;
+      for (const [k, v] of Object.entries(b.assets ?? {})) dim.assets[k] = (dim.assets[k] || 0) + v;
+      for (const [k, v] of Object.entries(b.flows ?? {})) dim.flows[k] = (dim.flows[k] || 0) + v;
+      if (b.qual) { dim.qual.failed += b.qual.failed || 0; dim.qual.rcptMiss += b.qual.rcptMiss || 0; }
+    }
 
     // 环比:各类 tx 占比 today vs 昨日 vs 7d 日均(排除今日 partial 日)
     const dsort = Object.values(days).sort((a, b) => a.t - b.t);
@@ -312,6 +345,8 @@ export class TxnStore {
       catTrend,
       topContracts,
       learnedLabels: labelBook.learnedCount(),
+      dim,
+      allTime2: { since: this.allTime2.since, txs: this.allTime2.txs, acts: this.allTime2.acts },
     };
   }
 }

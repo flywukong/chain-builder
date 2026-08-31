@@ -1192,6 +1192,18 @@ body::before {
 .txn-page .panel-header > span:first-child { color: var(--gold); font-size: 13px; text-shadow: 0 0 10px rgba(240,185,11,.35); }
 .txn-dist-ctl { display: inline-flex; align-items: center; gap: 10px; }
 .txn-dist-head, .txn-dist-row { display: grid; grid-template-columns: 104px 62px 1fr 1fr 88px; align-items: center; gap: 12px; }
+/* 多维分布(v2):左 activity 4 列表 | 右覆盖率栈 */
+.txn-dim-body { display: grid; grid-template-columns: 1.45fr 1fr; gap: 24px; padding: 10px 14px; align-items: start; }
+.txn-dim-left .txn-dist-head, .txn-dist-row.txn-dim-row { grid-template-columns: 92px 66px 1fr 1fr; }
+.txn-dim-sys { font-size: 9.5px; color: var(--dim); margin-top: 8px; }
+.tcv-title { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 9px 0 3px; }
+.txn-dim-right .tcv-title:first-child { margin-top: 0; }
+.txn-cov-row { display: grid; grid-template-columns: 100px 1fr 96px; gap: 10px; align-items: center; font-size: 11px; font-family: var(--mono); padding: 2.5px 0; }
+.tcv-l { display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+.tcv-v { text-align: right; }
+.tcv-v em { font-style: normal; color: var(--dim); font-size: 9px; margin-left: 4px; }
+.txn-dim-qual { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+.txn-dim-qual b { color: var(--text); }
 .txn-dist-head { font-size: 8.5px; color: var(--dim); letter-spacing: .3px; padding-bottom: 4px; border-bottom: 1px solid #1c1a14; margin-bottom: 2px; }
 .txn-dist-head .tdr-r, .txn-dist-row .tdr-count { text-align: right; }
 .txn-dist-head span { display: flex; align-items: center; }

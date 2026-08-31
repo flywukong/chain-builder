@@ -30,7 +30,7 @@ const SESSION_GAP_BLOCKS = 1200;   // ~9 分钟
 const SAVE_MIN_DIRTY = 50;
 const SAVE_MIN_MS = 30_000;
 const HOUR_MS = 3600e3;
-const HOURS_RETAIN_MS = 8 * 86400e3;   // 小时桶留 8 天(供 24h/7d 份额列与采用率趋势)
+const HOURS_RETAIN_MS = 15 * 86400e3;   // 小时桶留 15 天(供 24h/3d/7d 份额列的环比与采用率趋势)
 const BLOCKS_PER_HOUR = 8000;          // 450ms 出块 → 每小时链上总块数,采用率分母
 
 // 把一批(升序)块折叠进会话列表;sessions 就地修改

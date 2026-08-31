@@ -325,7 +325,7 @@ export default function MevPage({ state }) {
               <div className="v2x-cols">
                 {/* 左:家族份额 + 实例明细(旧版样式,自激活累计) */}
                 <div>
-                  <div className="re-title">BUILDER 家族份额(同家实例汇总)</div>
+                  <div className="re-title">BUILDER 家族份额(同家实例汇总 · 右列为 24h/3d/7d 份额与环比)</div>
                   {(() => {
                     const famsM = new Map();
                     for (const b of bb.builders) {
@@ -333,11 +333,37 @@ export default function MevPage({ state }) {
                       famsM.set(f, (famsM.get(f) ?? 0) + b.count);
                     }
                     const rows = [...famsM.entries()].sort((a, x) => x[1] - a[1]);
+                    // 时间窗份额(小时桶,按家族折叠);offset = 前一同长窗(环比)
+                    const now = Date.now();
+                    const winAgg = (ms, offset = 0) => {
+                      const m = new Map(); let tot = 0;
+                      const hi = now - offset, lo = hi - ms;
+                      for (const h of bb.hourly ?? []) {
+                        if (h.t < lo || h.t >= hi) continue;
+                        tot += h.total;
+                        for (const [n, c] of Object.entries(h.byName)) { const f = famOf(n); m.set(f, (m.get(f) || 0) + c); }
+                      }
+                      return { m, tot };
+                    };
+                    const wins = [
+                      ["24h", winAgg(864e5), winAgg(864e5, 864e5)],
+                      ["3d", winAgg(3 * 864e5), winAgg(3 * 864e5, 3 * 864e5)],
+                      ["7d", winAgg(7 * 864e5), winAgg(7 * 864e5, 7 * 864e5)],
+                    ];
+                    const pctIn = (w, f) => (w.tot ? +(((w.m.get(f) || 0) / w.tot) * 100).toFixed(1) : null);
                     return rows.map(([f, c]) => (
                       <div key={f} className="eb-miner">
                         <em style={{ color: FAMILY_COLORS[f] || "var(--text)" }}>{f}</em>
                         <span className="eb-mbar"><i style={{ width: `${(c / rows[0][1]) * 100}%`, background: FAMILY_COLORS[f] || undefined }} /></span>
                         <b>{c.toLocaleString()}<em className="bb-pct">· {((c / bb.count) * 100).toFixed(1)}%</em></b>
+                        {wins.map(([lbl, w, wp], i) => {
+                          const p = pctIn(w, f), pp = pctIn(wp, f);
+                          return (
+                            <span key={lbl} className={`fam-24h${i > 0 ? " fam-mid" : ""}`}>
+                              {p != null ? <><i>{lbl}</i> <b>{p}%</b> {fmtDelta(p, pp)}</> : <em>—</em>}
+                            </span>
+                          );
+                        })}
                       </div>
                     ));
                   })()}

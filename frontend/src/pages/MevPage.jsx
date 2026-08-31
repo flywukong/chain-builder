@@ -150,26 +150,26 @@ function UnsupBuilders({ builders }) {
   );
 }
 
-// V2 采用率趋势(24h 小时线 + 7d 均值虚线基准);丢弃当前未满小时,末点即最近完整小时
+// BEP-675 采用率趋势(3d 小时线 + 7d 均值虚线基准);丢弃当前未满小时,末点即最近完整小时
 function V2TrendChart({ hourly, bph }) {
   const now = Date.now();
   const curHk = Math.floor(now / 3600e3);
   const done = (hourly ?? []).filter((h) => Math.floor(h.t / 3600e3) < curHk);
-  const h24 = done.filter((h) => h.t >= now - 25 * 3600e3);
+  const hw = done.filter((h) => h.t >= now - 73 * 3600e3);
   const h7 = done.filter((h) => h.t >= now - 7 * 86400e3);
-  if (h24.length < 3) return <div className="ph-note">小时序列积累中(部署后自动补齐)…</div>;
+  if (hw.length < 3) return <div className="ph-note">小时序列积累中(部署后自动补齐)…</div>;
   const rate = (h) => Math.min(100, (h.total / bph) * 100);
   const avg7 = h7.reduce((s, h) => s + rate(h), 0) / h7.length;
-  const cur = rate(h24[h24.length - 1]);
+  const cur = rate(hw[hw.length - 1]);
   const W = 320, H = 104;
-  const px = (i) => (i / (h24.length - 1)) * W;
+  const px = (i) => (i / (hw.length - 1)) * W;
   const py = (r) => 4 + (H - 8) * (1 - r / 100);
-  const pts = h24.map((h, i) => `${px(i).toFixed(1)},${py(rate(h)).toFixed(1)}`).join(" ");
-  const fmtH = (t) => new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  const pts = hw.map((h, i) => `${px(i).toFixed(1)},${py(rate(h)).toFixed(1)}`).join(" ");
+  const fmtH = (t) => new Date(t).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
   return (
     <>
       <div className="v2x-trend-head">
-        <span className="re-title">V2 采用率趋势(24h · 小时)</span>
+        <span className="re-title re-t-big">BEP-675 采用率趋势(3d · 小时)</span>
         <b>{cur.toFixed(1)}%</b>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="v2x-svg" preserveAspectRatio="none">
@@ -177,8 +177,8 @@ function V2TrendChart({ hourly, bph }) {
         <line x1="0" x2={W} y1={py(avg7)} y2={py(avg7)} stroke="#8A8F99" strokeWidth="1" strokeDasharray="4 3" />
         <polyline points={pts} fill="none" stroke="#F0B90B" strokeWidth="1.6" />
       </svg>
-      <div className="v2x-axis"><span>{fmtH(h24[0].t)}</span><span>{fmtH(h24[Math.floor(h24.length / 2)].t)}</span><span>{fmtH(h24[h24.length - 1].t)}</span></div>
-      <div className="v2x-legend"><i className="v2x-li" /> V2 采用率 <i className="v2x-li dash" /> 7d 均值 {avg7.toFixed(1)}%<span className="v2x-note">分母 = 每小时链上总块数(450ms/块)</span></div>
+      <div className="v2x-axis"><span>{fmtH(hw[0].t)}</span><span>{fmtH(hw[Math.floor(hw.length / 2)].t)}</span><span>{fmtH(hw[hw.length - 1].t)}</span></div>
+      <div className="v2x-legend"><i className="v2x-li" /> BEP-675 采用率 <i className="v2x-li dash" /> 7d 均值 {avg7.toFixed(1)}%<span className="v2x-note">分母 = 每小时链上总块数(450ms/块)</span></div>
     </>
   );
 }
@@ -496,7 +496,7 @@ export default function MevPage({ state }) {
                     ];
                     return (
                       <div className="v2x-card">
-                        <div className="re-title">出块路径分布(自激活累计)</div>
+                        <div className="re-title re-t-big">出块路径分布(自激活累计)</div>
                         <div className="bb-fork-bar">
                           {rows.map(([k, , p, c]) => <i key={k} style={{ width: `${p}%`, background: c }} title={`${k} ${p}%`} />)}
                         </div>

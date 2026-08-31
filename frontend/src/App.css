@@ -1758,6 +1758,7 @@ body::before {
 /* Reorg 事件分级 */
 .re-title.re-t-severe { color: var(--red); }
 .re-title.re-t-watch { color: var(--orange); }
+.re-title.re-t-big { color: #fff; font-size: 15px; letter-spacing: .4px; }
 .re-row.re-severe { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.06); }
 .re-row.re-watch { border-color: rgba(249,115,22,.4); background: rgba(249,115,22,.05); }
 /* 空块三栏:计数 | Top validator | 最近列表 */

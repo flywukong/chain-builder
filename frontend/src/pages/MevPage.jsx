@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
-import { AiText } from "../components/PanelAi.jsx";
+import { AiText, usePanelAi, AiButton, AiResult } from "../components/PanelAi.jsx";
 import { lookupValidator } from "../data/validators.js";
 import BidMetricsPanel from "../components/BidMetricsPanel.jsx";
 import RobotWidget from "../components/RobotWidget.jsx";
@@ -105,9 +105,8 @@ const famOf = (name) => {
   return BB_FAMILY_ALIAS[w] ?? w;
 };
 
-// 未支持 BEP-675 builder:官方名单地址 − v2 观测地址;默认折叠为标题格,点击展开明细
-function UnsupBuilders({ builders }) {
-  const [open, setOpen] = useState(false);
+// 官方名单 − v2 观测地址差集(未支持列表与 AI 汇总共用)
+function unsupSummary(builders) {
   const sent = new Set(builders.map((b) => (b.addr || "").toLowerCase()));
   const famTotal = {}, missByFam = new Map();
   let missN = 0;
@@ -119,6 +118,13 @@ function UnsupBuilders({ builders }) {
     arr.push(o.i);
     missByFam.set(o.f, arr);
   }
+  return { total: OFFICIAL_BUILDERS.length, joined: OFFICIAL_BUILDERS.length - missN, missN, missByFam, famTotal };
+}
+
+// 未支持 BEP-675 builder:官方名单地址 − v2 观测地址;默认折叠为标题格,点击展开明细
+function UnsupBuilders({ builders }) {
+  const [open, setOpen] = useState(false);
+  const { missN, famTotal, missByFam } = unsupSummary(builders);
   const rows = [...missByFam.entries()].sort((a, b) => b[1].length - a[1].length);
   return (
     <div className="bb-unsup">
@@ -249,6 +255,14 @@ export default function MevPage({ state }) {
   // 坏块 bidblock 归因(2 台灰度探针机:metric + BAD BLOCK 日志)
   const [bad, setBad] = useState(null);
   const [badTab, setBadTab] = useState("3d");    // 事故表时间窗:24h / 3d / 7d / All,默认 3d
+  const [forkWin, setForkWin] = useState("all"); // 出块路径分布时间窗:自激活累计(默认)/ 24h / 3d / 5d / 7d
+  // BEP-675 3d AI 汇总:官方名单接入对照由前端算好随请求携带
+  const bbAi = usePanelAi("/api/ai/bidblock", "~40s", () => {
+    if (!bb?.builders) return {};
+    const u = unsupSummary(bb.builders);
+    return { unsupported: { total: u.total, joined: u.joined, missN: u.missN,
+      families: [...u.missByFam.entries()].map(([f, l]) => ({ family: f, missing: l.length, of: u.famTotal[f] })) } };
+  });
   const [badQ, setBadQ] = useState("");          // 事故表搜索:builder/validator/块高/hash
   const [badOpen, setBadOpen] = useState(null);  // 展开的事故行(hash)
   const [badPage, setBadPage] = useState(-1);    // 事故表分页:-1=收起(仅前10),≥0=展开后的页码(10/页)
@@ -416,8 +430,10 @@ export default function MevPage({ state }) {
               })()}
             </span>
             <span className="sub">判据 header.RequestsHash version=2 · Pasteur 已激活 · 自激活累计</span>
+            <AiButton ai={bbAi} label="AI 汇总(3d)" />
           </div>
           <div className="panel-body">
+            <AiResult ai={bbAi} title="BEP-675 · 最近 3 天汇总" />
             {!bb || bb.count === 0 ? (
               <div className="ph-note">激活时刻以来暂无 bid-block 标记块(回扫可能仍在进行,首次部署自激活块补齐约需数分钟)。</div>
             ) : (
@@ -489,23 +505,51 @@ export default function MevPage({ state }) {
                   </div>
                   {bb.fork?.total > 0 && (() => {
                     const f = bb.fork;
+                    let v1 = f.v1, v2 = f.v2, local = f.local;
+                    if (forkWin !== "all") {
+                      const ms = { "24h": 864e5, "3d": 3 * 864e5, "5d": 5 * 864e5, "7d": 7 * 864e5 }[forkWin];
+                      const cut = (Date.now() - ms) / 3600e3;   // fork.hours 键 = UTC 秒/3600
+                      v1 = v2 = local = 0;
+                      for (const [hk, h] of Object.entries(f.hours ?? {})) {
+                        if (+hk < cut) continue;
+                        v1 += h.v1 || 0; v2 += h.v2 || 0; local += h.local || 0;
+                      }
+                    }
+                    const total = v1 + v2 + local;
+                    const pct = (n) => (total ? +((n / total) * 100).toFixed(1) : 0);
+                    const maxN = Math.max(v1, v2, local, 1);
                     const rows = [
-                      ["BidBlock (V2)", f.v2, f.v2Pct, "#FF9F1C"],
-                      ["Bid (V1)", f.v1, f.v1Pct, "var(--green)"],
-                      ["Local", f.local, f.localPct, "#8A8F99"],
+                      ["Bid (V1)", v1, "var(--green)"],
+                      ["BidBlock (V2)", v2, "#FF9F1C"],
+                      ["Local", local, "#8A8F99"],
                     ];
                     return (
                       <div className="v2x-card">
-                        <div className="re-title re-t-big">出块路径分布(自激活累计)</div>
+                        <div className="v2x-fork-head">
+                          <span className="re-title re-t-big">出块路径分布</span>
+                          <span className="tf-ranges">
+                            {[["all", "自激活累计"], ["24h", "24h"], ["3d", "3d"], ["5d", "5d"], ["7d", "7d"]].map(([k, l]) => (
+                              <button key={k} className={`tf-range ${forkWin === k ? "on" : ""}`} onClick={() => setForkWin(k)}>{l}</button>
+                            ))}
+                          </span>
+                        </div>
                         <div className="bb-fork-bar">
-                          {rows.map(([k, , p, c]) => <i key={k} style={{ width: `${p}%`, background: c }} title={`${k} ${p}%`} />)}
+                          {rows.map(([k, n, c]) => <i key={k} style={{ width: `${pct(n)}%`, background: c }} title={`${k} ${pct(n)}%`} />)}
                         </div>
-                        <div className="v2x-fork-leg">
-                          {rows.map(([k, n, p, c]) => (
-                            <div key={k}><i style={{ background: c }} /><em>{k}</em><b>{n.toLocaleString()}</b><span>{p}%</span></div>
-                          ))}
+                        {rows.map(([k, n, c]) => (
+                          <div key={k} className="v2x-fork-row">
+                            <i style={{ background: c }} />
+                            <em>{k}</em>
+                            <span className="vfr-track"><span style={{ width: `${Math.max((n / maxN) * 100, n ? 0.5 : 0)}%`, background: c }} /></span>
+                            <b>{n.toLocaleString()}</b>
+                            <span className="vfr-pct">{pct(n)}%</span>
+                          </div>
+                        ))}
+                        <div className="bb-fork-total">
+                          {forkWin === "all"
+                            ? <>总计 {total.toLocaleString()} 块 · 自激活累计 · 覆盖至 #{f.coveredTo.toLocaleString()}</>
+                            : <>窗口 {total.toLocaleString()} 块 · 最近 {forkWin}(小时桶聚合)</>}
                         </div>
-                        <div className="bb-fork-total">总计 {f.total.toLocaleString()} 块 · 覆盖至 #{f.coveredTo.toLocaleString()}</div>
                       </div>
                     );
                   })()}

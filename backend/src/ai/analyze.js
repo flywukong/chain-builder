@@ -472,6 +472,26 @@ export async function runContractLabeling(candidates) {
   return JSON.parse(m[0]);
 }
 
+// ── BEP-675 (SendBidBlock) 3 天采用情况汇总 ──
+export async function runBidBlockAnalysis(data) {
+  const prompt = [
+    "你是 BSC 主网 BEP-675(SendBidBlock,builder 直发全块、validator 零重执行密封)采用情况分析师。基于最近 3 天观测数据输出中文汇总,markdown,320 字以内,直接正文。",
+    "",
+    "数据字段:unsupported=官方注册 builder 名单与接入对照(total 官方实例总数/joined 已接入/missN 未接入/families 各家未接入明细);instances3d=近 3d 各实例出块数;families3d=近 3d 家族份额;path3d=近 3d 出块路径(v2=bidblock/v1=bid/local);adoptionPct3d=v2 占全链块数比例;cumulative=自 Pasteur 激活累计;badBlocks=坏块观测(如有)。",
+    "",
+    "必须覆盖(用小标题分段):",
+    "1. **接入面**:官方注册实例接入 BEP-675 的数量与比例(joined/total),近 3d 实际活跃实例数;点名整族未接入的家族。",
+    "2. **格局**:近 3d 家族份额前三名及占比,集中度一句话(top1+top2 合计);与累计口径有明显差异时点出。",
+    "3. **路径**:v2/v1/local 三路径 3d 占比,v2 采用率;趋势一句话。",
+    "4. **其他**:值得注意的信号(尾部实例起量/某家份额突变/坏块事件等),没有就说平稳。",
+    "数字直接引用数据,不编造;族名保持英文(48club/blockrazor 等)。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 1), "```",
+  ].join("\n");
+  return spawnClaude(prompt, { timeoutMs: 180_000 });
+}
+
 // ── 链上流量特征总结(7 天交易分类数据)──
 export async function runTxnFeatureAnalysis(data) {
   const prompt = [

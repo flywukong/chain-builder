@@ -27,7 +27,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runSlashEventAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runSlashEventAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, runBidBlockAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -229,8 +229,8 @@ const BIDBLOCK_BACKFILL = parseInt(process.env.BIDBLOCK_BACKFILL ?? "800000", 10
 // header.gasUsed 与 requestsHash 同在一次响应里 → 全量精确、零额外 RPC。
 const GAS_STEP = 2.5e6, GAS_BUCKETS = 26;
 const emptyGas = () => ({ v1: new Array(GAS_BUCKETS).fill(0), v2: new Array(GAS_BUCKETS).fill(0), local: new Array(GAS_BUCKETS).fill(0) });
-const FORK_SPLIT_VER = 3;   // v3 加秒级打满段检测:版本升级 → 归零自激活块全量重扫(服务器一次性 ~1h)
-const emptyForkSplit = () => ({ v: FORK_SPLIT_VER, coveredTo: 0, v1: 0, v2: 0, local: 0, gas: emptyGas(), gasSum: { v1: 0, v2: 0, local: 0 }, bursts: [] });
+const FORK_SPLIT_VER = 4;   // v4 加路径小时桶(24h/3d/5d/7d 窗口视图):版本升级 → 归零自激活块全量重扫(服务器一次性 ~1h)
+const emptyForkSplit = () => ({ v: FORK_SPLIT_VER, coveredTo: 0, v1: 0, v2: 0, local: 0, gas: emptyGas(), gasSum: { v1: 0, v2: 0, local: 0 }, bursts: [], hours: {} });
 const forkSplitFile = path.join(dataDir, "fork-split.json");
 let forkSplit = emptyForkSplit();
 try {
@@ -278,6 +278,9 @@ async function syncForkSplit() {
         const gasUsed = parseInt(hd.gasUsed, 16) || 0;
         forkSplit.gas[pathKey][Math.min(GAS_BUCKETS - 1, Math.floor(gasUsed / GAS_STEP))]++;
         forkSplit.gasSum[pathKey] += gasUsed;
+        const fhk = Math.floor(parseInt(hd.timestamp, 16) / 3600);
+        const fhb = ((forkSplit.hours ??= {})[fhk] ??= { v1: 0, v2: 0, local: 0 });
+        fhb[pathKey]++;
         // 秒级打满段:逐块利用率 ≥90%(limit 取每块真值)的连续段,≥3 块入账。
         // 扫描按块号严格顺序推进,跨 batch 用模块级 gasBurstCur 接续
         const ratio = gasUsed / (parseInt(hd.gasLimit, 16) || 55e6);
@@ -1054,6 +1057,7 @@ app.get("/api/bidblock",  async () => {
       total: fTotal, coveredTo: forkSplit.coveredTo,
       v1: forkSplit.v1, v2: forkSplit.v2, local: forkSplit.local,
       v1Pct: fPct(forkSplit.v1), v2Pct: fPct(forkSplit.v2), localPct: fPct(forkSplit.local),
+      hours: forkSplit.hours ?? {},
       gas: { step: GAS_STEP, buckets: forkSplit.gas, sum: forkSplit.gasSum },
       // 激活前基线(一次性扫描,done=false 时带进度)
       baseline: {
@@ -1720,6 +1724,46 @@ app.get("/api/ai/ask", async (req) => {
 });
 
 // MEV 状态分析:24h 小时桶口径(占比/集中度/家族与实例份额环比),与 MEV 页四卡对齐
+// BEP-675 3 天汇总:接入实例面 + 家族份额 + 出块路径 + 坏块(unsupported 对照由前端携带官方名单差集)
+aiRoutes("bidblock", "/api/ai/bidblock", async (body) => {
+  const v = bidBlockStore.view();
+  if (!v.count) throw new Error("bid-block 观测数据积累中,请稍候");
+  const now = Date.now();
+  const cut3 = now - 3 * 864e5;
+  const inst = {}; let tot3 = 0;
+  for (const h of v.hourly ?? []) {
+    if (h.t < cut3) continue;
+    tot3 += h.total;
+    for (const [n, c] of Object.entries(h.byName)) inst[n] = (inst[n] || 0) + c;
+  }
+  const fams = {};
+  for (const [n, c] of Object.entries(inst)) {
+    const w = (n ?? "?").split(" ")[0].toLowerCase();
+    const f = w === "puissant" ? "48club" : w;
+    fams[f] = (fams[f] || 0) + c;
+  }
+  const path3 = { v1: 0, v2: 0, local: 0 };
+  const cutHk = cut3 / 3600e3;
+  for (const [hk, h] of Object.entries(forkSplit.hours ?? {})) {
+    if (+hk < cutHk) continue;
+    path3.v1 += h.v1 || 0; path3.v2 += h.v2 || 0; path3.local += h.local || 0;
+  }
+  const pTot = path3.v1 + path3.v2 + path3.local;
+  let badBlocks = null;
+  try { badBlocks = badBidWatch?._recentAgg?.(3 * 864e5, getBuilderName) ?? null; } catch {}
+  return runBidBlockAnalysis({
+    window: "3d",
+    unsupported: body?.unsupported ?? null,
+    activeInstances3d: Object.keys(inst).length,
+    totalV2Blocks3d: tot3,
+    instances3d: Object.fromEntries(Object.entries(inst).sort((a, b) => b[1] - a[1]).slice(0, 24)),
+    families3d: Object.fromEntries(Object.entries(fams).sort((a, b) => b[1] - a[1])),
+    path3d: path3,
+    adoptionPct3d: pTot ? +((path3.v2 / pTot) * 100).toFixed(1) : null,
+    cumulative: { v2Blocks: v.count, since: v.statsSince, coveredTo: forkSplit.coveredTo },
+    badBlocks,
+  });
+});
 aiRoutes("mev", "/api/ai/mev", async () => {
   const m = mevAgg.getStats();
   if (!m) throw new Error("MEV 窗口尚未积累数据,请稍候");

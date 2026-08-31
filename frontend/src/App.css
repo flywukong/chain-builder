@@ -752,6 +752,15 @@ body::before {
 .v2x-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 .v2x-right { display: flex; flex-direction: column; gap: 14px; }
 .v2x-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+/* 出块路径分布:窗口 tabs + 三行(v1/v2/local)行式布局 */
+.v2x-fork-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.v2x-fork-row { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; padding: 3.5px 0; }
+.v2x-fork-row > i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.v2x-fork-row em { font-style: normal; width: 104px; flex: none; }
+.vfr-track { flex: 1; height: 7px; background: rgba(255,255,255,.05); border-radius: 3px; overflow: hidden; }
+.vfr-track span { display: block; height: 100%; border-radius: 3px; }
+.v2x-fork-row b { width: 86px; text-align: right; flex: none; }
+.vfr-pct { width: 48px; text-align: right; color: var(--muted); flex: none; }
 .v2x-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .v2x-th, .v2x-tr { display: grid; grid-template-columns: 18px minmax(0, 1.2fr) 72px minmax(0, 1.1fr) 48px 48px 54px;
   gap: 8px; align-items: center; padding: 4px 0; font-family: var(--mono); font-size: 10.5px; }

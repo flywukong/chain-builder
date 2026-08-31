@@ -232,16 +232,22 @@ function GasHistChart({ gas, counts, title }) {
         ))}
       </svg>
       <div className="gasx-stats">
-        {series.map((s) => (
-          <div key={s.key}>
-            <i style={{ background: s.color }} />
-            <em>{s.label}</em>
-            <span>p75 <b>{pctile(s.arr, s.tot, 0.75)}M</b></span>
-            <span>p95 <b>{pctile(s.arr, s.tot, 0.95)}M</b></span>
-            <span>p99 <b>{pctile(s.arr, s.tot, 0.99)}M</b></span>
-            <span>均值 <b>{counts[s.key] ? ((gas.sum?.[s.key] ?? 0) / counts[s.key] / 1e6).toFixed(1) : "—"}M</b></span>
-          </div>
-        ))}
+        {series.map((s) => {
+          // 打满:gasUsed ≥50M(2.5M 桶粒度下最接近 55M limit 的 90% 打满口径)
+          const fullN = s.arr.slice(Math.floor(50e6 / gas.step)).reduce((a, b) => a + b, 0);
+          const fullPct = s.tot ? (fullN / s.tot) * 100 : 0;
+          return (
+            <div key={s.key}>
+              <i style={{ background: s.color }} />
+              <em>{s.label}</em>
+              <span>p75 <b>{pctile(s.arr, s.tot, 0.75)}M</b></span>
+              <span>p95 <b>{pctile(s.arr, s.tot, 0.95)}M</b></span>
+              <span>p99 <b>{pctile(s.arr, s.tot, 0.99)}M</b></span>
+              <span>均值 <b>{counts[s.key] ? ((gas.sum?.[s.key] ?? 0) / counts[s.key] / 1e6).toFixed(1) : "—"}M</b></span>
+              <span title="gasUsed ≥50M(55M limit 的 ~91%)的块占比">打满 <b>{fullPct >= 1 ? fullPct.toFixed(1) : fullPct.toFixed(2)}%</b></span>
+            </div>
+          );
+        })}
       </div>
     </>
   );

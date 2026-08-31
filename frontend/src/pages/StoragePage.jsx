@@ -218,7 +218,7 @@ export default function StoragePage() {
         <div className="stat-cards st-cards">
           <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{INSPECT_META.totalTiB} TiB</div><div className="sc-l">DB 总量 · {INSPECT_META.totalItems} items</div></div>
           <div className="stat-card"><div className="sc-v" style={{ color: "#3FB8A0" }}>{stateLast.v} TiB</div><div className="sc-l">State 合计 · {stateLast.delta}</div></div>
-          <div className="stat-card"><div className="sc-v" style={{ color: "#3FB8A0" }}>{snapLast.v} GiB</div><div className="sc-l">Snapshot · {snapLast.delta}(storage 占 93%)</div></div>
+          <div className="stat-card"><div className="sc-v" style={{ color: "#3FB8A0" }}>{snapLast.v} GiB</div><div className="sc-l">Snapshot · {snapLast.delta}(storage 占 94%)</div></div>
           <div className="stat-card"><div className="sc-v">{nonLast.v} GiB</div><div className="sc-l">Trie+Code+状态历史 · {nonLast.delta}</div></div>
         </div>
 
@@ -257,9 +257,10 @@ export default function StoragePage() {
           <div className="panel-header"><span>State 数据增长 · 环比</span><span className="sub">月增按扫描区间折算</span></div>
           <div className="panel-body st-growth-body">
             <div className="st-verdict">
-              最近区间(04-07 → 06-23)月增 <b>+49 GiB</b>,较上一区间(+39)回升 <b>+26%</b>;
-              snapshot 增速平稳(+16/月),增量主要来自纯 trie + 状态历史(+34/月)。
-              按当前速率,<b>12 个月后 state ≈ 2.12 TiB</b>,24 个月 ≈ 2.70 TiB。
+              最近区间(06-23 → 08-24)月增 <b>+72 GiB</b>,较上一区间(+49)提速 <b>+47%</b>;
+              snapshot 增速上行(+22/月),纯 trie + 状态历史同步加速(+50/月),
+              与同期链上交易量放大一致(tx index 两月 +9.9 亿笔)。
+              按当前速率,<b>12 个月后 state ≈ 2.54 TiB</b>,24 个月 ≈ 3.38 TiB。
             </div>
             <div className="st-gtables">
               <GrowthTable title="State 合计 (TiB)" rows={STATE_HISTORY.total} unit="" />

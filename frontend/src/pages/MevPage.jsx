@@ -352,10 +352,10 @@ export default function MevPage({ state }) {
                     ];
                     const pctIn = (w, f) => (w.tot ? +(((w.m.get(f) || 0) / w.tot) * 100).toFixed(1) : null);
                     return rows.map(([f, c]) => (
-                      <div key={f} className="eb-miner">
+                      <div key={f} className="eb-miner v2fam">
                         <em style={{ color: FAMILY_COLORS[f] || "var(--text)" }}>{f}</em>
                         <span className="eb-mbar"><i style={{ width: `${(c / rows[0][1]) * 100}%`, background: FAMILY_COLORS[f] || undefined }} /></span>
-                        <b>{c.toLocaleString()}<em className="bb-pct">· {((c / bb.count) * 100).toFixed(1)}%</em></b>
+                        <b className="v2fam-n">{c.toLocaleString()}<em className="bb-pct">· {((c / bb.count) * 100).toFixed(1)}%</em></b>
                         {wins.map(([lbl, w, wp], i) => {
                           const p = pctIn(w, f), pp = pctIn(wp, f);
                           return (

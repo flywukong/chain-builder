@@ -721,6 +721,12 @@ body::before {
   text-align: center; flex-shrink: 0; display: inline-block; background: rgba(255,255,255,.03); }
 .bb-inst-list { max-height: 300px; }
 .bb-pct { font-style: normal; color: var(--muted); font-size: 9px; margin-left: 3px; }
+/* v2 家族行(带 24h/3d/7d 列的紧凑版):count 列定宽右对齐防溢出挤压,窗口列缩窄缩字 */
+.eb-miner.v2fam .v2fam-n { width: 128px; min-width: 128px; text-align: right; flex: none; }
+.eb-miner.v2fam .fam-24h { width: 86px; font-size: 9.5px; gap: 3px; }
+.eb-miner.v2fam .fam-24h i { font-size: 8px; }
+.eb-miner.v2fam .fam-24h b { width: auto; min-width: 0; font-size: 11px; text-align: right; flex: none; }
+.eb-miner.v2fam .fam-mid { width: 80px; padding-left: 6px; }
 .bb-addrs { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; font-size: 9px; color: var(--muted); }
 .bb-addrs em { font-style: normal; color: var(--text-dim); }
 .bb-addrs code { font-family: var(--mono); font-size: 8.5px; word-break: break-all; }

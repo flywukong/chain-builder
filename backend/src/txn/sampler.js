@@ -9,10 +9,11 @@ import { classifyBlock } from "./classifier.js";
 const BLOCK_MS = 450;
 
 export class TxnSampler {
-  constructor({ provider, store, labelBook, intervalMs = 60_000, concurrency = 10, maxPerTick = 300 }) {
+  constructor({ provider, store, labelBook, journal = null, intervalMs = 60_000, concurrency = 10, maxPerTick = 300 }) {
     this.provider = provider;
     this.store = store;
     this.labelBook = labelBook;
+    this.journal = journal;   // FactJournal:可重放分类事实(v2 维度热更新/回滚的输入)
     this.intervalMs = intervalMs;
     this.concurrency = concurrency;
     this.maxPerTick = maxPerTick;   // 落后超过此数直接跳到最新(保新弃旧,统计口径可容忍)
@@ -53,9 +54,10 @@ export class TxnSampler {
               // 块级 gas price 分位(gwei):p50=常规价(1/3 交易用 0.05 默认价,天然平稳);
               // p90=高价单水位(MEV 抢跑/拥堵时先动的信号)
               const gps = block.transactions.map((tx) => Number(BigInt(tx.gasPrice ?? 0)) / 1e9).filter((v) => v > 0).sort((a, b) => a - b);
+              const t = parseInt(block.timestamp, 16) * 1000;
               results.push({
-                t: parseInt(block.timestamp, 16) * 1000,
-                classified: classifyBlock(block.transactions, receipts, this.labelBook),
+                t,
+                classified: classifyBlock(block.transactions, receipts, this.labelBook, t, heights[i]),
                 blockGp: gps.length ? +gps[Math.floor(gps.length / 2)].toFixed(3) : null,
                 blockGp90: gps.length ? +gps[Math.min(Math.floor(gps.length * 0.9), gps.length - 1)].toFixed(3) : null,
               });
@@ -67,6 +69,10 @@ export class TxnSampler {
 
       for (const r of results) this.store.addBlock(r.t, r.classified, r.blockGp, r.blockGp90);
       this.store.flush();
+      if (this.journal) {
+        try { this.journal.append(results.flatMap((r) => r.classified.map((c) => c.fact).filter(Boolean))); }
+        catch (e) { console.warn("[txn facts]", e.message); }
+      }
       this.lastBlock = tip;
       if (failed) console.warn(`[txn sampler] ${failed}/${heights.length} blocks failed this tick`);
     } finally {

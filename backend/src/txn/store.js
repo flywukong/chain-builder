@@ -6,7 +6,7 @@
 
 import fs from "fs";
 import path from "path";
-import { CATS } from "./classifier.js";
+import { CATS, CLASSIFIER_V2_VER } from "./classifier.js";
 
 const WINDOW_MS = 30 * 24 * 3600 * 1000;
 const HOUR = 3600 * 1000;
@@ -81,6 +81,7 @@ export class TxnStore {
       ac.n++; ac.gas += c.gas;
       // v2 多维双写:activity 互斥挂 gas;parts/assets/flows 叠加只计笔数;质量位
       if (c.act) {
+        b.v2v = CLASSIFIER_V2_VER;
         const ae = ((b.acts ??= {})[c.act] ??= { n: 0, gas: 0 });
         ae.n++; ae.gas += c.gas;
         this.allTime2.txs++;
@@ -129,6 +130,53 @@ export class TxnStore {
       }));
       fs.writeFileSync(this.file, JSON.stringify({ buckets: slim, allTime: this.allTime, allTime2: this.allTime2 }));
     } catch { /* non-fatal */ }
+  }
+
+  // 是否存在旧版本 v2 数据(分类器/verified 表升级后重启,journal 覆盖窗口内待重放)
+  needsReplay() {
+    return this.buckets.some((b) => b.acts && (b.v2v ?? 0) !== CLASSIFIER_V2_VER);
+  }
+
+  // 从 FactJournal 重放,重算窗口内各小时桶的 v2 维度并差量修正 allTime2。
+  // v1(cats/txs/contracts)不重放;journal 覆盖不完整的小时(<98% 笔数)与当前小时跳过。
+  async replayV2(journal, labelBook, classifyFn) {
+    const cov = journal.coverage();
+    if (!cov) return { replaced: 0, skipped: 0, facts: 0 };
+    const agg = new Map();
+    const facts = await journal.replay(cov.fromMs, cov.toMs, (f) => {
+      const v2 = classifyFn(f, labelBook);
+      const hk = Math.floor(f.t / HOUR);
+      let a = agg.get(hk);
+      if (!a) agg.set(hk, (a = { txs: 0, acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 } }));
+      a.txs++;
+      const e = (a.acts[v2.act] ??= { n: 0, gas: 0 });
+      e.n++; e.gas += f.g;
+      for (const p of v2.parts) a.parts[p] = (a.parts[p] || 0) + 1;
+      for (const s of v2.assets) a.assets[s] = (a.assets[s] || 0) + 1;
+      for (const fl of v2.flows) a.flows[fl] = (a.flows[fl] || 0) + 1;
+      if (v2.fail) a.qual.failed++;
+      if (v2.rcptMiss) a.qual.rcptMiss++;
+    });
+    const curHk = Math.floor(Date.now() / HOUR);
+    let replaced = 0, skipped = 0;
+    for (const [hk, a] of agg) {
+      const b = this.buckets.find((x) => x.t === hk * HOUR);
+      if (!b) { skipped++; continue; }
+      if (hk === curHk || a.txs < b.txs * 0.98) { skipped++; continue; }
+      const keys = new Set([...Object.keys(b.acts ?? {}), ...Object.keys(a.acts)]);
+      for (const k of keys) {
+        const oldE = b.acts?.[k], newE = a.acts[k];
+        const at = (this.allTime2.acts[k] ??= { n: 0, gas: 0 });
+        at.n += (newE?.n || 0) - (oldE?.n || 0);
+        at.gas += (newE?.gas || 0) - (oldE?.gas || 0);
+        this.allTime2.txs += (newE?.n || 0) - (oldE?.n || 0);
+      }
+      b.acts = a.acts; b.parts = a.parts; b.assets = a.assets; b.flows = a.flows; b.qual = a.qual;
+      b.v2v = CLASSIFIER_V2_VER;
+      replaced++;
+    }
+    if (replaced) { this._dirty = true; this.flush(); }
+    return { replaced, skipped, facts };
   }
 
   // Hot "other" contracts over recent hours — AI labeling candidates.

@@ -33,6 +33,8 @@ import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
 import { LargeTxStore, LARGE_TX_RECORD_MIN } from "./txn/largeTxStore.js";
 import { TxnSampler } from "./txn/sampler.js";
+import { FactJournal } from "./txn/facts.js";
+import { classifyFactV2 } from "./txn/classifier.js";
 import { lookupSelectors } from "./txn/siglookup.js";
 import { getAddrIntel, getCachedIntel } from "./txn/addrIntel.js";
 import { loadConfig } from "./config.js";
@@ -66,7 +68,9 @@ const slashEvents  = new SlashEventStore(path.join(dataDir, "slash-events-15d-v2
 const labelBook  = new LabelBook(path.join(dataDir, "contract-labels.json"));
 const txnStore   = new TxnStore(path.join(dataDir, "txn-7d.json"));
 const largeTxStore = new LargeTxStore(path.join(dataDir, "large-tx-3d.json"));
-const txnSampler = new TxnSampler({ provider, store: txnStore, labelBook });
+// 可重放事实日志(默认 24h 滚动,FACT_RETAIN_H 可调):规则/verified 表升级后重算最近窗口
+const factJournal = new FactJournal(path.join(dataDir, "txnfacts"), parseInt(process.env.FACT_RETAIN_H, 10) || 24);
+const txnSampler = new TxnSampler({ provider, store: txnStore, labelBook, journal: factJournal });
 
 // validatorSlashed(address) 事件扫描(SlashIndicator 0x…1001)
 const SLASH_ADDR  = "0x0000000000000000000000000000000000001001";
@@ -643,6 +647,17 @@ async function pollContractLabels(retry = true) {
 }
 setTimeout(pollContractLabels, 10 * 60_000);           // 首跑等采样积累
 setInterval(pollContractLabels, 2 * 3600_000);         // 2h 一轮加速收编长尾;无候选时空转不耗 AI
+
+// v2 分类器/verified 表升级检测:桶版本落后于 CLASSIFIER_V2_VER 时,自动重放 journal 重算窗口
+async function replayIfStale(force = false) {
+  try {
+    if (!force && !txnStore.needsReplay()) return null;
+    const r = await txnStore.replayV2(factJournal, labelBook, classifyFactV2);
+    console.log(`[txn replay] facts=${r.facts} buckets replaced=${r.replaced} skipped=${r.skipped}`);
+    return r;
+  } catch (e) { console.error("[txn replay]", e.message); return { error: e.message }; }
+}
+setTimeout(() => replayIfStale(), 90_000);   // 等首轮采样落定后再检查
 scanSlashEvents();
 setInterval(scanSlashEvents, 60_000);
 
@@ -1865,6 +1880,7 @@ app.get("/api/txn", async (req) => {
   }
   return v;
 });
+app.post("/api/txn/replay", async () => (await replayIfStale(true)) ?? { skipped: "up-to-date" });
 aiRoutes("txn", "/api/ai/txn", async (body) => {
   const days = Math.min(Math.max(Number(body?.days) || 7, 1), 7);   // 默认 7 天(机器人默认总结同口径)
   const v = txnStore.view(labelBook, days);

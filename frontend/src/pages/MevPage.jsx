@@ -533,23 +533,31 @@ export default function MevPage({ state }) {
                             ))}
                           </span>
                         </div>
-                        <div className="bb-fork-bar">
-                          {rows.map(([k, n, c]) => <i key={k} style={{ width: `${pct(n)}%`, background: c }} title={`${k} ${pct(n)}%`} />)}
-                        </div>
-                        {rows.map(([k, n, c]) => (
-                          <div key={k} className="v2x-fork-row">
-                            <i style={{ background: c }} />
-                            <em>{k}</em>
-                            <span className="vfr-track"><span style={{ width: `${Math.max((n / maxN) * 100, n ? 0.5 : 0)}%`, background: c }} /></span>
-                            <b>{n.toLocaleString()}</b>
-                            <span className="vfr-pct">{pct(n)}%</span>
+                        {total === 0 ? (
+                          <div className="ph-note" style={{ margin: "8px 0", maxWidth: "none" }}>
+                            该窗口暂无数据:全量重扫按块高自激活块(8/25)顺序推进,尚未扫到最近 {forkWin} 的区块,追平链头后自动补齐(全程约 1 小时)。可先看「自激活累计」。
                           </div>
-                        ))}
-                        <div className="bb-fork-total">
-                          {forkWin === "all"
-                            ? <>总计 {total.toLocaleString()} 块 · 自激活累计 · 覆盖至 #{f.coveredTo.toLocaleString()}</>
-                            : <>窗口 {total.toLocaleString()} 块 · 最近 {forkWin}(小时桶聚合)</>}
-                        </div>
+                        ) : (
+                          <>
+                            <div className="bb-fork-bar">
+                              {rows.map(([k, n, c]) => <i key={k} style={{ width: `${pct(n)}%`, background: c }} title={`${k} ${pct(n)}%`} />)}
+                            </div>
+                            {rows.map(([k, n, c]) => (
+                              <div key={k} className="v2x-fork-row">
+                                <i style={{ background: c }} />
+                                <em>{k}</em>
+                                <span className="vfr-track"><span style={{ width: `${Math.max((n / maxN) * 100, n ? 0.5 : 0)}%`, background: c }} /></span>
+                                <b>{n.toLocaleString()}</b>
+                                <span className="vfr-pct">{pct(n)}%</span>
+                              </div>
+                            ))}
+                            <div className="bb-fork-total">
+                              {forkWin === "all"
+                                ? <>总计 {total.toLocaleString()} 块 · 自激活累计 · 覆盖至 #{f.coveredTo.toLocaleString()}</>
+                                : <>窗口 {total.toLocaleString()} 块 · 最近 {forkWin}(小时桶聚合)</>}
+                            </div>
+                          </>
+                        )}
                       </div>
                     );
                   })()}

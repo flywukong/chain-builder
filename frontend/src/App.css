@@ -752,6 +752,7 @@ body::before {
 .v2x-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 .v2x-right { display: flex; flex-direction: column; gap: 14px; }
 .v2x-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.v2x-cur-tag { font-style: normal; font-size: 9px; font-weight: 400; color: var(--muted); margin-right: 6px; letter-spacing: .3px; }
 /* 出块路径分布:窗口 tabs + 三行(v1/v2/local)行式布局 */
 .v2x-fork-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
 .v2x-fork-row { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; padding: 3.5px 0; }

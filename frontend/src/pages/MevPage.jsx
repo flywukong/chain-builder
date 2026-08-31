@@ -176,7 +176,7 @@ function V2TrendChart({ hourly, bph }) {
     <>
       <div className="v2x-trend-head">
         <span className="re-title re-t-big">BEP-675 采用率趋势(3d · 小时)</span>
-        <b>{cur.toFixed(1)}%</b>
+        <b title="最后一个完整小时的 v2 采用率(瞬时值,非窗口均值)"><em className="v2x-cur-tag">最近 1h</em>{cur.toFixed(1)}%</b>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="v2x-svg" preserveAspectRatio="none">
         {[25, 50, 75].map((g) => <line key={g} x1="0" x2={W} y1={py(g)} y2={py(g)} stroke="rgba(255,255,255,.06)" strokeWidth="1" />)}

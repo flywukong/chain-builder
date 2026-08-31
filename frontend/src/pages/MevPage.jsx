@@ -105,6 +105,51 @@ const famOf = (name) => {
   return BB_FAMILY_ALIAS[w] ?? w;
 };
 
+// 未支持 BEP-675 builder:官方名单地址 − v2 观测地址;默认折叠为标题格,点击展开明细
+function UnsupBuilders({ builders }) {
+  const [open, setOpen] = useState(false);
+  const sent = new Set(builders.map((b) => (b.addr || "").toLowerCase()));
+  const famTotal = {}, missByFam = new Map();
+  let missN = 0;
+  for (const o of OFFICIAL_BUILDERS) famTotal[o.f] = (famTotal[o.f] || 0) + 1;
+  for (const o of OFFICIAL_BUILDERS) {
+    if (sent.has(o.a)) continue;
+    missN++;
+    const arr = missByFam.get(o.f) ?? [];
+    arr.push(o.i);
+    missByFam.set(o.f, arr);
+  }
+  const rows = [...missByFam.entries()].sort((a, b) => b[1].length - a[1].length);
+  return (
+    <div className="bb-unsup">
+      <button className="bb-unsup-head" onClick={() => setOpen((v) => !v)}>
+        <i className={`bb-unsup-arrow${open ? " open" : ""}`}>▸</i>
+        <span>未支持 BEP-675 Builder 列表</span>
+        <b>{missN}/{OFFICIAL_BUILDERS.length} 实例</b>
+      </button>
+      {open && (missN === 0
+        ? <div className="ph-note">名单内 {OFFICIAL_BUILDERS.length} 个实例均已发过 v2 请求</div>
+        : (
+          <div className="bb-unsup-body">
+            {rows.map(([f, list]) => (
+              <div key={f} className="bb-unsup-row">
+                <em style={{ color: FAMILY_COLORS[f] ?? FAMILY_COLORS[f.replace("builder", "")] ?? "var(--text)" }}>
+                  {list.length === famTotal[f] ? `${f} 族` : f}
+                </em>
+                <span>{list.length === famTotal[f]
+                  ? `全部实例(${list.length} 个)`
+                  : `${list.join(" / ")}(${list.length}/${famTotal[f]})`}</span>
+              </div>
+            ))}
+            <div className="bb-unsup-note">
+              共 {missN}/{OFFICIAL_BUILDERS.length} 个官方注册实例未观测到 SendBidBlock · 名单:bnb-chain builder-list.toml
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 // V2 采用率趋势(24h 小时线 + 7d 均值虚线基准);丢弃当前未满小时,末点即最近完整小时
 function V2TrendChart({ hourly, bph }) {
   const now = Date.now();
@@ -434,41 +479,7 @@ export default function MevPage({ state }) {
                         ))}
                       </div>
                     </div>
-                    <div className="bb-unsup">
-                      <div className="re-title" style={{ marginTop: 10 }}>未支持 BEP-675 Builder 列表</div>
-                      {(() => {
-                        const sent = new Set(bb.builders.map((b) => (b.addr || "").toLowerCase()));
-                        const famTotal = {}, missByFam = new Map();
-                        let missN = 0;
-                        for (const o of OFFICIAL_BUILDERS) famTotal[o.f] = (famTotal[o.f] || 0) + 1;
-                        for (const o of OFFICIAL_BUILDERS) {
-                          if (sent.has(o.a)) continue;
-                          missN++;
-                          const arr = missByFam.get(o.f) ?? [];
-                          arr.push(o.i);
-                          missByFam.set(o.f, arr);
-                        }
-                        if (!missN) return <div className="ph-note">名单内 {OFFICIAL_BUILDERS.length} 个实例均已发过 v2 请求</div>;
-                        const rows = [...missByFam.entries()].sort((a, b) => b[1].length - a[1].length);
-                        return (
-                          <>
-                            {rows.map(([f, list]) => (
-                              <div key={f} className="bb-unsup-row">
-                                <em style={{ color: FAMILY_COLORS[f] ?? FAMILY_COLORS[f.replace("builder", "")] ?? "var(--text)" }}>
-                                  {list.length === famTotal[f] ? `${f} 族` : f}
-                                </em>
-                                <span>{list.length === famTotal[f]
-                                  ? `全部实例(${list.length} 个)`
-                                  : `${list.join(" / ")}(${list.length}/${famTotal[f]})`}</span>
-                              </div>
-                            ))}
-                            <div className="bb-unsup-note">
-                              共 {missN}/{OFFICIAL_BUILDERS.length} 个官方注册实例未观测到 SendBidBlock · 名单:bnb-chain builder-list.toml
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
+                    <UnsupBuilders builders={bb.builders} />
                   </div>
                 </div>
                 {/* 右:采用率趋势 + 出块路径分布 */}

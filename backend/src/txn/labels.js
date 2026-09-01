@@ -6,7 +6,7 @@
  * `cat` 为旧口径兼容字段(双写期间旧分类器仍消费);v2 语义在 roles/actorTypes/assetTypes/actions。
  *
  * 条目: { name, cat, status, entity?, roles?, actorTypes?, assetTypes?,
- *         actions?: {selector→activity} | null(null=过渡启发式:有非 Approval 日志即算动作), src? }
+ *         actions?: {selector→activity} | null(null=仅有身份、不可终判交易动作), src? }
  */
 
 import fs from "fs";
@@ -34,7 +34,7 @@ export const STATIC_LABELS = {
   "0x1adb950d8bb3da4be104211d5ab038628e477fe6": V({ name: "Wombat Router", cat: "defi", entity: "Wombat", roles: ["router"] }),
 
   // ── prediction market(dev.predict.fun deployed-contracts;PancakeSwap Prediction 为官方知名合约)──
-  // actions 未逐一配齐前用过渡启发式(见 classifier verifiedAction)
+  // actions 未逐一配齐前仅保留身份/展示名,不参与 activity 终判。
   "0x76f42e5520e62ad88f8fe583cbb4bff27eec2531": V({ name: "predict.fun OptimisticOracle", cat: "predict", entity: "predict.fun", roles: ["oracle"], actions: null }),
   "0x09f683d8a144c4ac296d770f839098c3377410c5": V({ name: "predict.fun Vault", cat: "predict", entity: "predict.fun", roles: ["vault"], actions: null }),
   "0xf4aa30b537882eca7e69defb68d6f631cda77b00": V({ name: "predict.fun WithdrawalHelper", cat: "predict", entity: "predict.fun", actions: null }),
@@ -109,7 +109,7 @@ export const STATIC_LABELS = {
 export const CEX_SET = new Set(Object.entries(STATIC_LABELS).filter(([, v]) => v.actorTypes?.includes("cex")).map(([a]) => a));
 const ASSET_OF = new Map(Object.entries(STATIC_LABELS).flatMap(([a, v]) =>
   v.assetTypes?.includes("stable") ? [[a, "stable"]] : v.assetTypes?.includes("meme") ? [[a, "meme"]] : []));
-// verified predict/bridge:activity 需地址∧动作双命中(actions 配齐前用过渡启发式)
+// verified predict/bridge:activity 需地址∧动作双命中;actions=null 不参与终判。
 const VERIFIED_ACTION = new Map(Object.entries(STATIC_LABELS).flatMap(([a, v]) =>
   v.cat === "predict" || v.cat === "bridge" ? [[a, { act: v.cat, actions: v.actions ?? null }]] : []));
 

@@ -7,7 +7,7 @@
  * 存储:data/txnfacts/<hourKey>.ndjson 按小时分区追加;整点后异步 gzip 轮转,
  * 超过保留窗口整文件删除。~400B/笔裸,gzip 后约 1~1.5GB/天,默认保留 24h。
  *
- * fact 字段(FACT_SCHEMA_VER=1):
+ * fact 字段(FACT_SCHEMA_VER=2):
  *   b 块号  i tx 序  t 毫秒时间  f from  o to(null=部署)  s selector(null=短 input)
  *   g gasUsed  st status(1/0)  rc receipt 可用(1/0)  lg 日志总数
  *   sw Swap 事件数  xf Transfer 事件数  na 非 Approval 日志数
@@ -19,7 +19,7 @@ import fs from "fs";
 import path from "path";
 import zlib from "zlib";
 
-export const FACT_SCHEMA_VER = 1;
+export const FACT_SCHEMA_VER = 2;
 const HOUR = 3600e3;
 const ADDR_CAP = 20;   // 超大空投截断:仅影响极端交易的资产/资金流触达判定,统计可忽略
 
@@ -50,9 +50,11 @@ export function extractFact(tx, rc, tMs, blockNum, txIndex, qualCounts) {
     }
   }
   return {
+    v: FACT_SCHEMA_VER,
     b: blockNum, i: txIndex, t: tMs, f: from, o: to, s: sel,
-    g: rc ? Number(rc.gasUsed) : Number(tx.gas ?? 0),
-    st: rc ? (rc.status === "0x0" ? 0 : 1) : 1,
+    // receipt 缺失时 gasUsed/status 都是未知,不能拿 gas limit 冒充实际消耗。
+    g: rc ? Number(rc.gasUsed) : null,
+    st: rc ? (rc.status === "0x0" ? 0 : 1) : null,
     rc: rc ? 1 : 0,
     lg: rc?.logs?.length ?? 0,
     sw, xf, na,

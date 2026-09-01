@@ -15,7 +15,7 @@ const T_SWAP_V3   = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115
 const T_TRANSFER  = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 // v2 分类器版本:规则/verified 表变更时 bump,重启后自动重放 journal 覆盖窗口
-export const CLASSIFIER_V2_VER = 1;
+export const CLASSIFIER_V2_VER = 2;
 
 // BSC 系统合约(core/systemcontracts/const.go 全集;1004 TokenHub 归 bridge)
 const SYSTEM_ADDRS = new Set([
@@ -110,17 +110,19 @@ export function classifyFactV2(f, labelBook) {
 
   // activity
   let act;
-  if (!f.o) act = "deploy";
+  if (!f.rc) act = "receipt_missing";                       // 证据不完整,不猜行为
+  else if (!f.o) act = "deploy";
   else if (SYSTEM_ADDRS.has(f.o)) act = "system";
   else {
     const va = labelBook.verifiedAction(f.o);
-    // 双命中:actions 表精确匹配 selector;actions 未配齐(null)时过渡启发式 =
-    // 成功且有非 Approval 日志(排除 admin/approve/失败调用)
-    const hit = va && (va.actions ? !!va.actions[f.s] : (!failed && f.na > 0));
+    // 双命中必须是 verified 地址 + 精确 selector/event 动作表。
+    // actions 未配置时宁可落 other/token,不能用“任意非 Approval 日志”冒充动作证据。
+    const hit = !!(va?.actions && f.s && va.actions[f.s]);
     if (hit) act = va.act;                                     // predict | bridge
     else if (f.sw > 0) act = "swap";
     else if (isPlain || (f.s == null && f.lg === 0 && f.g <= 30000)) act = "native";
     else if (isTokenXfer || f.xf > 0) act = "token";
+    else if (failed) act = "failed_unknown";
     else act = "other";
   }
 
@@ -148,4 +150,4 @@ export function classifyFactV2(f, labelBook) {
 }
 
 export const CATS = ["meme", "defi", "predict", "bot", "stable", "bnb", "token", "cex", "bridge", "infra", "system", "other"];
-export const ACTS = ["swap", "token", "native", "predict", "bridge", "deploy", "system", "other"];
+export const ACTS = ["swap", "token", "native", "predict", "bridge", "deploy", "system", "receipt_missing", "failed_unknown", "other"];

@@ -72,7 +72,10 @@ const largeTxStore = new LargeTxStore(path.join(dataDir, "large-tx-3d.json"));
 // 可重放事实日志(默认 24h 滚动,FACT_RETAIN_H 可调):规则/verified 表升级后重算最近窗口
 const labelCloud = new LabelCloud(path.join(dataDir, "label-cloud-cache.json"));   // NodeReal 标签库:AI 证据 + 热门合约补名(不参与统计)
 const factJournal = new FactJournal(path.join(dataDir, "txnfacts"), parseInt(process.env.FACT_RETAIN_H, 10) || 24);
-const txnSampler = new TxnSampler({ provider, store: txnStore, labelBook, journal: factJournal });
+const txnSampler = new TxnSampler({
+  provider, store: txnStore, labelBook, journal: factJournal,
+  stateFile: path.join(dataDir, "txn-sampler-state.json"),
+});
 
 // validatorSlashed(address) 事件扫描(SlashIndicator 0x…1001)
 const SLASH_ADDR  = "0x0000000000000000000000000000000000001001";
@@ -667,7 +670,7 @@ async function replayIfStale(force = false) {
     return r;
   } catch (e) { console.error("[txn replay]", e.message); return { error: e.message }; }
 }
-setTimeout(() => replayIfStale(), 90_000);   // 等首轮采样落定后再检查
+setTimeout(() => replayIfStale(), 1_000);    // 启动即恢复 journal 可覆盖的当前版本窗口
 scanSlashEvents();
 setInterval(scanSlashEvents, 60_000);
 
@@ -1924,6 +1927,7 @@ app.get("/api/txn", async (req) => {
   const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 30);
   const hot = Math.min(Math.max(parseInt(req.query?.hot, 10) || 1, 1), 30);   // 热门合约独立窗口(24h/7d/30d)
   const v = txnStore.view(labelBook, days, hot);
+  v.collector = txnSampler.status();
   labelCloud.resolve((v.topContracts ?? []).filter((c) => !c.name).map((c) => c.addr)).catch(() => {});
   for (const c of v.topContracts ?? []) {
     if (!c.name) { const lc = labelCloud.get(c.addr); if (lc?.name) { c.name = lc.name; c.lc = true; } }

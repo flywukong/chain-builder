@@ -26,34 +26,42 @@ const TAIL_COLOR = "#5a5648";   // top5 之外的长尾统一灰
 // v2 activity(互斥,行为证据判定;地址标签不参与)
 const ACT_META = {
   swap:    { label: "Swap",     color: "#4CA4D9" },
-  token:   { label: "代币转账", color: "#8B7CF6" },
+  token:   { label: "Token 事件/调用", color: "#8B7CF6" },
   native:  { label: "BNB 转账", color: "#D6A82F" },
   predict: { label: "预测市场", color: "#8FAE5D" },
   bridge:  { label: "Bridge",   color: "#B08968" },
   deploy:  { label: "合约部署", color: "#7890A8" },
+  receipt_missing: { label: "Receipt 缺失", color: "#A86F45" },
+  failed_unknown: { label: "失败调用(未识别)", color: "#B45A62" },
   other:   { label: "其他调用", color: "#747D88" },
 };
 
-// 多维分布(v2 口径):activity 互斥(分母不含系统交易)+ 参与者/资产/资金流覆盖率 + 数据质量
-function DimPanel({ dim }) {
+// v2 主面板:一条互斥行为分布 + 三组可重叠特征。把口径和质量放在图前面。
+function DimPanel({ dim, collector, range, setRange }) {
+  const [metric, setMetric] = useState("tx");
   if (!dim?.total) {
     return (
-      <div className="panel" style={{ maxWidth: 820 }}>
-        <div className="panel-header"><span>多维分布(新口径)</span></div>
+      <div className="panel txn-dim-panel" style={{ maxWidth: 1230 }}>
+        <div className="panel-header"><span>交易行为与特征(V2)</span></div>
         <div className="panel-body"><div className="ph-note" style={{ margin: 10 }}>新口径数据自本次部署起积累,稍后刷新可见。</div></div>
       </div>
     );
   }
   const sysN = dim.acts.system?.n ?? 0;
-  const bizTotal = dim.total - sysN;
+  const bizTotal = dim.denominators?.businessTx ?? (dim.total - sysN);
   const gasTotal = Object.entries(dim.acts).reduce((s, [k, v]) => s + (k === "system" ? 0 : v.gas || 0), 0);
   const rows = Object.keys(ACT_META).filter((k) => dim.acts[k]?.n > 0)
     .sort((a, b) => (dim.acts[b]?.n ?? 0) - (dim.acts[a]?.n ?? 0));
   const pct = (k) => (bizTotal ? +(((dim.acts[k]?.n ?? 0) / bizTotal) * 100).toFixed(1) : 0);
   const gpct = (k) => (gasTotal ? +(((dim.acts[k]?.gas ?? 0) / gasTotal) * 100).toFixed(1) : 0);
-  const mTx = Math.max(0.1, ...rows.map(pct)), mGas = Math.max(0.1, ...rows.map(gpct));
-  const cov = (n) => (dim.total ? +((n / dim.total) * 100).toFixed(1) : 0);
+  const shownPct = metric === "gas" ? gpct : pct;
+  const cov = (n) => (bizTotal ? +((n / bizTotal) * 100).toFixed(1) : 0);
   const sinceStr = dim.since ? new Date(dim.since).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const coverage = dim.meta?.coveragePct;
+  const receiptsKnown = dim.denominators?.receiptKnownTx ?? Math.max(0, dim.total - (dim.qual?.rcptMiss ?? 0));
+  const receiptPct = dim.total ? +((receiptsKnown / dim.total) * 100).toFixed(2) : 0;
+  const successPct = dim.total ? +(((dim.total - (dim.qual?.failed ?? 0)) / dim.total) * 100).toFixed(2) : 0;
+  const backlog = collector?.backlogBlocks;
   const covRow = (label, color, n, tip) => (
     <div className="txn-cov-row" key={label}>
       <span className="tcv-l" style={{ color }}>{label}{tip && <InfoTip text={tip} />}</span>
@@ -62,48 +70,73 @@ function DimPanel({ dim }) {
     </div>
   );
   return (
-    <div className="panel" style={{ maxWidth: 980 }}>
+    <div className="panel txn-dim-panel" style={{ maxWidth: 1230 }}>
       <div className="panel-header">
-        <span>多维分布(新口径)</span>
-        <span className="sub">动作互斥可合计 100% · 参与者/资产/资金流为可重叠覆盖率 · 自 {sinceStr} 积累 {bizTotal.toLocaleString()} 笔</span>
+        <span>交易行为与特征(V2)</span>
+        <span className="txn-dist-ctl">
+          <span className="sub">行为互斥合计 100% · 特征可重叠 · 自 {sinceStr} 有效积累</span>
+          <span className="tf-ranges">
+            {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"]].map(([v, label]) => (
+              <button key={v} className={`tf-range ${range === v ? "on" : ""}`} onClick={() => setRange(v)}>{label}</button>
+            ))}
+          </span>
+        </span>
       </div>
-      <div className="panel-body txn-dim-body">
-        <div className="txn-dim-left">
-          <div className="txn-dist-head">
-            <span>交易动作<InfoTip text="由当笔 receipt/事件/selector 现场判定,地址标签不参与;predict/bridge 需已核实地址与动作双命中。分母不含系统交易。" /></span>
-            <span className="tdr-r">笔数</span>
-            <span>笔数占比</span>
-            <span>Gas 占比</span>
-          </div>
-          {rows.map((k) => (
-            <div key={k} className="txn-dist-row txn-dim-row">
-              <span className="tdr-label" style={{ color: ACT_META[k].color }}>{ACT_META[k].label}</span>
-              <span className="tdr-count">{(dim.acts[k]?.n ?? 0).toLocaleString()}</span>
-              <span className="tdr-metric">
-                <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(pct(k) / mTx) * 100}%`, background: ACT_META[k].color }} /></span>
-                <span className="tdr-pct">{pct(k)}%</span>
-              </span>
-              <span className="tdr-metric">
-                <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(gpct(k) / mGas) * 100}%`, background: ACT_META[k].color, opacity: .55 }} /></span>
-                <span className="tdr-pct">{gpct(k)}%</span>
+      <div className="panel-body">
+        <div className="txn-quality-strip">
+          <span><em>采集连续性</em><b className={coverage == null ? "warn" : coverage >= 99.9 ? "ok" : "bad"}>{coverage == null ? "待建立" : `${coverage}%`}</b></span>
+          <span><em>Receipt 完整</em><b className={receiptPct >= 99.99 ? "ok" : "bad"}>{receiptPct}%</b></span>
+          <span><em>执行成功</em><b>{successPct}%</b></span>
+          <span><em>业务交易</em><b>{bizTotal.toLocaleString()}</b></span>
+          <span><em>采集积压</em><b className={backlog > 0 ? "warn" : "ok"}>{backlog == null ? "—" : `${backlog.toLocaleString()} 块`}</b></span>
+          {collector?.lastError && <span className="txn-quality-error" title={collector.lastError.error}><em>最近错误</em><b>#{collector.lastError.height}</b></span>}
+          {collector?.stateError && <span className="txn-quality-error" title={collector.stateError}><em>水位写盘</em><b>失败</b></span>}
+        </div>
+
+        <div className="txn-activity-stack" aria-label="交易行为百分比分布">
+          {rows.map((k) => <i key={k} title={`${ACT_META[k].label} ${pct(k)}%`} style={{ width: `${pct(k)}%`, background: ACT_META[k].color }} />)}
+        </div>
+
+        <div className="txn-dim-body">
+          <div className="txn-dim-left">
+            <div className="txn-dim-section-head">
+              <span>主行为<InfoTip text="每笔交易只选一个 primary activity。依据当笔 input/receipt/logs 判定；地址标签仅提供候选协议/角色，不能直接决定行为。分母不含系统交易。" /></span>
+              <span className="txn-metric-toggle">
+                <button className={metric === "tx" ? "on" : ""} onClick={() => setMetric("tx")}>笔数</button>
+                <button className={metric === "gas" ? "on" : ""} onClick={() => setMetric("gas")}>Gas</button>
               </span>
             </div>
-          ))}
-          <div className="txn-dim-sys">系统交易 {sysN.toLocaleString()} 笔(不计入分布)· 合约部署含在上表</div>
-        </div>
-        <div className="txn-dim-right">
-          <div className="tcv-title">参与者覆盖率</div>
-          {covRow("Bot 特征命中", "#E58A55", dim.parts.bot ?? 0, "短 selector 或单块同发送方 ≥3 笔合格合约调用;是特征命中率,不等于真实 Bot 总量。")}
-          <div className="tcv-title">资产触达</div>
-          {covRow("稳定币", "#37A89A", dim.assets.stable ?? 0, "交易的 Transfer 事件或目标合约涉及已核实稳定币(USDT/USDC/FDUSD/USD1 等)。")}
-          {covRow("Meme", "#C875B2", dim.assets.meme ?? 0, "涉及已识别 meme launchpad 合约;外盘 meme token 表待建,当前为下限。")}
-          <div className="tcv-title">资金流(已知 CEX 地址)</div>
-          {covRow("CEX 充值", "#5FA8C7", dim.flows.cex_in ?? 0, "Transfer 收款方或交易接收方命中已知 CEX 热钱包;覆盖已知地址,非全量充提。")}
-          {covRow("CEX 提现", "#5FA8C7", dim.flows.cex_out ?? 0)}
-          {(dim.flows.cex_internal ?? 0) > 0 && covRow("CEX 内部", "#44758a", dim.flows.cex_internal)}
-          <div className="tcv-title">数据质量</div>
-          <div className="txn-dim-qual">
-            receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败交易 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>
+            <div className="txn-action-head"><span>类型</span><span>笔数</span><span>{metric === "gas" ? "Gas 占比" : "笔数占比"}</span></div>
+            {rows.map((k) => (
+              <div key={k} className="txn-action-row">
+                <span className="tdr-label" style={{ color: ACT_META[k].color }}><i style={{ background: ACT_META[k].color }} />{ACT_META[k].label}</span>
+                <span className="tdr-count">{(dim.acts[k]?.n ?? 0).toLocaleString()}</span>
+                <span className="tdr-metric">
+                  <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(shownPct(k), 100)}%`, background: ACT_META[k].color }} /></span>
+                  <span className="tdr-pct">{shownPct(k)}%</span>
+                </span>
+              </div>
+            ))}
+            <div className="txn-dim-sys">系统交易 {sysN.toLocaleString()} 笔单列,不进入上方业务行为分母；失败交易按已观察到的动作归类,无法确认时进入“失败调用”。</div>
+          </div>
+
+          <div className="txn-dim-right">
+            <div className="txn-feature-group">
+              <div className="tcv-title">自动化特征(非 Bot 总量)</div>
+              {covRow("疑似自动化", "#E58A55", dim.parts.bot ?? 0, "短 selector 或同块同发送方 ≥3 笔合格合约调用；只表示规则命中率，既有误报也有漏报。")}
+            </div>
+            <div className="txn-feature-group">
+              <div className="tcv-title">资产触达</div>
+              {covRow("稳定币", "#37A89A", dim.assets.stable ?? 0, "Transfer 日志地址或目标合约命中已核实稳定币表；是交易触达率，不代表稳定币交易类型。")}
+              {covRow("Meme Launchpad", "#C875B2", dim.assets.meme ?? 0, "当前覆盖已识别 launchpad/相关资产，外盘 meme token 尚不完整，因此是下限。")}
+            </div>
+            <div className="txn-feature-group">
+              <div className="tcv-title">已知 CEX 地址资金流</div>
+              {covRow("流入 CEX", "#5FA8C7", dim.flows.cex_in ?? 0, "Transfer 的接收方命中已知 CEX 热钱包。它是地址覆盖流入，不等于全平台充值量。")}
+              {covRow("流出 CEX", "#5FA8C7", dim.flows.cex_out ?? 0, "Transfer 的发送方命中已知 CEX 热钱包。它是地址覆盖流出，不等于全平台提现量。")}
+              {(dim.flows.cex_internal ?? 0) > 0 && covRow("CEX 地址间", "#44758a", dim.flows.cex_internal)}
+            </div>
+            <div className="txn-dim-qual">V2 规则版本 {(dim.meta?.classifierVersions ?? []).join(", ") || "—"} · receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>{(dim.meta?.excludedStaleBuckets ?? 0) > 0 && <> · 已隔离旧版本桶 <b>{dim.meta.excludedStaleBuckets}</b></>}</div>
           </div>
         </div>
       </div>
@@ -269,13 +302,35 @@ function Conclusion({ d, label = "24h" }) {
   );
 }
 
+function DimConclusion({ dim, collector, label }) {
+  if (!dim?.total) return null;
+  const bizTotal = dim.denominators?.businessTx ?? Math.max(0, dim.total - (dim.acts?.system?.n ?? 0));
+  const rows = Object.entries(dim.acts ?? {}).filter(([k]) => k !== "system").sort((a, b) => (b[1]?.n ?? 0) - (a[1]?.n ?? 0));
+  const [top] = rows;
+  const topPct = top && bizTotal ? +((top[1].n / bizTotal) * 100).toFixed(1) : 0;
+  const coverage = dim.meta?.coveragePct;
+  return (
+    <div className="txn-conclusion">
+      <span className="tc-ico">📌</span>
+      <span>
+        过去 {label} 记录 <b>{bizTotal.toLocaleString()}</b> 笔业务交易；主行为以
+        {top && <> <b style={{ color: ACT_META[top[0]]?.color }}>{ACT_META[top[0]]?.label ?? top[0]}</b> 为主(<b>{topPct}%</b>)</>}。
+        采集连续性 <b>{coverage == null ? "正在建立基线" : `${coverage}%`}</b>
+        {collector?.backlogBlocks > 0 ? <>，仍有 <b>{collector.backlogBlocks.toLocaleString()}</b> 个区块积压</> : ""}。
+        “疑似自动化/资产触达/CEX 流向”是可重叠特征，不与主行为争抢分类。
+      </span>
+    </div>
+  );
+}
+
 export default function TxnPage() {
   const [d, setD] = useState(null);
   const [openAddr, setOpenAddr] = useState(null);   // 展开完整地址 + 复制
-  const [distMode, setDistMode] = useState("1");    // 分类分布口径:1/3/7 天 / all(历史累计)
+  const [distMode, setDistMode] = useState("1");    // V2 全局窗口:1/3/7/30 天
+  const [legacyAll, setLegacyAll] = useState(false);
   const { s: ai, run: runAi } = TxnAiBox();
-  const distDays = distMode === "all" ? 1 : Number(distMode);
-  const distLabel = distMode === "all" ? "历史累计" : distMode === "1" ? "24H" : `${distMode}天`;
+  const distDays = Number(distMode);
+  const distLabel = distMode === "1" ? "24H" : `${distMode}天`;
 
   const clickAddr = (addr) => {
     navigator.clipboard?.writeText(addr).catch(() => {});
@@ -289,7 +344,7 @@ export default function TxnPage() {
   // 分布面板:判定规则折叠 + 窗口跟随的 AI 解读
   const [rulesOpen, setRulesOpen] = useState(false);
   const distAi = usePanelAi("/api/ai/txn-dist", "~30s",
-    () => (distMode === "all" ? { mode: "all" } : { days: Number(distMode) }));
+    () => ({ days: Number(distMode) }));
 
   useEffect(() => {
     let alive = true;
@@ -303,7 +358,6 @@ export default function TxnPage() {
   const pct = (c) => d?.catPct24?.[c] ?? 0;
   const cnt = (c) => d?.catCount24?.[c] ?? 0;
   const gpct = (c) => d?.catGasPct24?.[c] ?? 0;
-  const trend = (c) => d?.catTrend?.[c] ?? {};
   const maxTop = Math.max(1, ...(d?.topContracts ?? []).map((c) => c.n));
 
   // 分类按 24h 笔数排序,统一用于 图/图例/列表;top5 高亮,其余合并灰
@@ -333,7 +387,7 @@ export default function TxnPage() {
       <div className="subpage-head">
         <div>
           <h1>⇄ Txn 分析</h1>
-          <p>全量覆盖:每分钟并发抓取过去一分钟全部区块 · 规则 + AI 归类 · 7 天滚动 · 已学习 {d?.learnedLabels ?? 0} 个合约标签</p>
+          <p>连续区块水位 + 完整 receipts · 行为/参与者/资产/资金流分维统计 · 可重放事实窗口 · 已学习 {d?.learnedLabels ?? 0} 个候选标签</p>
         </div>
         <div className="ai-bar">
           <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading}>
@@ -343,7 +397,7 @@ export default function TxnPage() {
       </div>
 
       <div className="subpage-body">
-        <Conclusion d={d} label={distMode === "all" ? "24H" : distLabel} />
+        <DimConclusion dim={d?.dim} collector={d?.collector} label={distLabel} />
         {ai.err && <div className="ai-err" style={{ maxWidth: 900 }}>⚠ {ai.err}</div>}
         {ai.text && (
           <div className="panel" style={{ maxWidth: 900 }}>
@@ -352,13 +406,26 @@ export default function TxnPage() {
           </div>
         )}
 
-        {/* KPI 数字统一白色;黄只给总量,分类靠标签前小色点识别 */}
+        {/* 主 KPI 只使用 V2 分维口径,不再拿旧互斥 cat 的 Bot/DeFi/Meme 混在同一层。 */}
         <div className="stat-cards">
-          <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{(d?.total24 ?? 0).toLocaleString()}</div><div className="sc-l">{distMode === "all" ? "24H" : distLabel} 交易(全量)</div></div>
-          <div className="stat-card"><div className="sc-v">{pct("meme")}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.meme.color }} />Meme</div></div>
-          <div className="stat-card"><div className="sc-v">{pct("defi")}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.defi.color }} />DeFi</div></div>
-          <div className="stat-card"><div className="sc-v">{pct("bot")}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.bot.color }} />Bot(高频/夹子)</div></div>
+          {(() => {
+            const biz = d?.dim?.denominators?.businessTx ?? 0;
+            const ratio = (n) => biz ? +((100 * (n ?? 0)) / biz).toFixed(1) : 0;
+            return <>
+              <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{biz.toLocaleString()}</div><div className="sc-l">{distLabel} 业务交易</div></div>
+              <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.acts?.swap?.n)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: ACT_META.swap.color }} />Swap 主行为</div></div>
+              <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.assets?.stable)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.stable.color }} />稳定币触达</div></div>
+              <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.parts?.bot)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.bot.color }} />疑似自动化命中</div></div>
+            </>;
+          })()}
         </div>
+
+        <DimPanel dim={d?.dim} collector={d?.collector} range={distMode} setRange={setDistMode} />
+
+        <details className="txn-legacy">
+          <summary>查看旧版单分类口径(仅兼容历史趋势，不作为主结论)</summary>
+          <div className="txn-legacy-body">
+            <Conclusion d={d} label={legacyAll ? "历史累计" : distLabel} />
 
         <div className="panel" style={{ maxWidth: 900 }}>
           <div className="panel-header"><span>7 天流量结构</span><span className="sub">每日分类占比(归一化 100%) · 全量</span></div>
@@ -376,14 +443,12 @@ export default function TxnPage() {
         </div>
 
         {(() => {
-          // 分布口径切换:24h vs 历史累计(持久化,重启续算)
-          const at = distMode === "all" ? d?.allTime : null;
+          // 旧版单 cat 仅用于历史兼容；时间窗口沿用页面 V2，另可查看累计。
+          const at = legacyAll ? d?.allTime : null;
           const dcnt = (c) => (at ? at.catCount?.[c] ?? 0 : cnt(c));
           const dpct = (c) => (at ? at.catPct?.[c] ?? 0 : pct(c));
           const dgpct = (c) => (at ? at.catGasPct?.[c] ?? 0 : gpct(c));
           const rows = CAT_KEYS.filter((c) => dcnt(c) > 0).sort((a, b) => dcnt(b) - dcnt(a));
-          const mTx = Math.max(0.1, ...rows.map(dpct));
-          const mGas = Math.max(0.1, ...rows.map(dgpct));
           const sinceStr = at?.since ? `${new Date(at.since).getMonth() + 1}/${new Date(at.since).getDate()}` : null;
           return (
             <div className="panel txn-dist-xl" style={{ maxWidth: 1230 }}>
@@ -394,9 +459,7 @@ export default function TxnPage() {
                     {at ? `自 ${sinceStr} · ${at.total.toLocaleString()} 笔累计` : `${d?.total24?.toLocaleString() ?? "…"} 笔 · 全量`}
                   </span>
                   <span className="tf-ranges">
-                    {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"], ["all", "历史累计"]].map(([m, l]) => (
-                      <button key={m} className={`tf-range ${distMode === m ? "on" : ""}`} onClick={() => setDistMode(m)}>{l}</button>
-                    ))}
+                    <button className={`tf-range ${legacyAll ? "on" : ""}`} onClick={() => setLegacyAll((v) => !v)}>{legacyAll ? `返回 ${distLabel}` : "历史累计"}</button>
                     <button className={`tf-range ${rulesOpen ? "on" : ""}`} onClick={() => setRulesOpen((v) => !v)}>ⓘ 判定规则</button>
                   </span>
                   <AiButton ai={distAi} label={`AI 解读(${distLabel})`} />
@@ -419,10 +482,9 @@ export default function TxnPage() {
                   <span className="tdr-r">笔数</span>
                   <span>笔数占比</span>
                   <span>Gas 占比<InfoTip text="按各类交易消耗的 gasUsed 总量占比,反映对区块执行资源的占用(而非笔数)。DeFi swap / 复杂合约调用 gas 重,BNB 转账 / 稳定币转账 gas 轻。gasPrice 相近时≈手续费占比。" /></span>
-                  <span className="tdr-r">{at ? "环比" : distMode === "1" ? "环比 vs 7d" : "今日环比 vs 7d"}</span>
+                  <span className="tdr-r">{at ? "环比" : `较前${distLabel}`}</span>
                 </div>
                 {rows.map((c) => {
-                  const t = trend(c);
                   return (
                     <div key={c} className="txn-dist-row">
                       <span className="tdr-label" style={{ color: CAT_META[c].color }}>
@@ -430,17 +492,17 @@ export default function TxnPage() {
                       </span>
                       <span className="tdr-count">{dcnt(c).toLocaleString()}</span>
                       <span className="tdr-metric">
-                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(dpct(c) / mTx) * 100}%`, background: CAT_META[c].color }} /></span>
+                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(dpct(c), 100)}%`, background: CAT_META[c].color }} /></span>
                         <span className="tdr-pct">{dpct(c)}%</span>
                       </span>
                       <span className="tdr-metric">
-                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${(dgpct(c) / mGas) * 100}%`, background: CAT_META[c].color, opacity: .55 }} /></span>
+                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(dgpct(c), 100)}%`, background: CAT_META[c].color, opacity: .55 }} /></span>
                         <span className="tdr-pct">{dgpct(c)}%</span>
                       </span>
                       {at
                         ? <span className="tdr-trend" style={{ color: "var(--dim)" }}>—</span>
-                        : <span className="tdr-trend" title={`较昨日 ${t.dYest == null ? "—" : (t.dYest > 0 ? "+" : "") + t.dYest + "pp"} · 较 7d 日均 ${t.dAvg7 == null ? "—" : (t.dAvg7 > 0 ? "+" : "") + t.dAvg7 + "pp"}`}>
-                            <Delta v={t.dAvg7} />
+                        : <span className="tdr-trend" title="当前窗口较前一个等长窗口">
+                            <Delta v={d?.catWindowDelta?.[c]} />
                           </span>}
                     </div>
                   );
@@ -450,7 +512,8 @@ export default function TxnPage() {
           );
         })()}
 
-        <DimPanel dim={d?.dim} />
+          </div>
+        </details>
 
         <div className="panel" style={{ maxWidth: 900 }}>
           <div className="panel-header">
@@ -495,8 +558,8 @@ export default function TxnPage() {
         </div>
 
         <div className="ph-note" style={{ maxWidth: 900 }}>
-          管线:每分钟并发抓取过去一分钟全部区块(~133 块,含 receipts)→ 规则分类(知名地址库 / 事件签名 / 21000 gas 纯转账 / 高频合约调用判 bot)→
-          未识别热门合约每 2h 交给 AI 归类,结果写入标签库持续积累。全量覆盖,数字为真实笔数。
+          管线:从持久化连续水位并发追取区块与完整 receipts → 写入可重放事实窗口 → V2 行为规则与身份/资产标签分开聚合。
+          只有“采集连续性”和“Receipt 完整”均达标的区间才可视为全量；AI 候选标签不直接决定交易主行为。
         </div>
       </div>
       <div className="mev-robot-anchor"><RobotWidget variant="txn" /></div>

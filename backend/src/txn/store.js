@@ -57,8 +57,24 @@ export class TxnStore {
     return b;
   }
 
-  addBlock(now, classified, blockGp = null, blockGp90 = null) {
+  addBlock(now, classified, blockGp = null, blockGp90 = null, blockNum = null) {
     const b = this._bucket(now);
+    if (Number.isFinite(blockNum)) {
+      // 持久化紧凑区块区间，使 sampler 状态文件落后/崩溃重启时重抓也不会重复计数。
+      const ranges = (b.blockRanges ??= []);
+      if (ranges.some(([lo, hi]) => blockNum >= lo && blockNum <= hi)) return false;
+      ranges.push([blockNum, blockNum]);
+      ranges.sort((x, y) => x[0] - y[0]);
+      const merged = [];
+      for (const [lo, hi] of ranges) {
+        const last = merged.at(-1);
+        if (last && lo <= last[1] + 1) last[1] = Math.max(last[1], hi);
+        else merged.push([lo, hi]);
+      }
+      b.blockRanges = merged;
+      b.minBlock = b.minBlock == null ? blockNum : Math.min(b.minBlock, blockNum);
+      b.maxBlock = b.maxBlock == null ? blockNum : Math.max(b.maxBlock, blockNum);
+    }
     b.blocks++;
     // 块级 gas price 分位(gwei)蓄水池抽样:gp=块中位(常规价),gp90=块 p90(高价单水位)
     if (typeof blockGp === "number") {
@@ -75,18 +91,21 @@ export class TxnStore {
     for (const c of classified) {
       b.txs++;
       const cat = (b.cats[c.cat] ??= { n: 0, gas: 0 });
-      cat.n++; cat.gas += c.gas;
+      cat.n++; cat.gas += Number.isFinite(c.gas) ? c.gas : 0;
       this.allTime.txs++;
       const ac = (this.allTime.cats[c.cat] ??= { n: 0, gas: 0 });
-      ac.n++; ac.gas += c.gas;
+      ac.n++; ac.gas += Number.isFinite(c.gas) ? c.gas : 0;
       // v2 多维双写:activity 互斥挂 gas;parts/assets/flows 叠加只计笔数;质量位
       if (c.act) {
-        b.v2v = CLASSIFIER_V2_VER;
+        // 分类器热升级发生在小时中途时保留 stale 标记,等待 journal 原子重算整桶；
+        // 不能只改版本号后把同一小时的新旧规则混在一起。
+        if (b.acts && b.v2v != null && b.v2v !== CLASSIFIER_V2_VER) b.v2mixed = true;
+        else b.v2v = CLASSIFIER_V2_VER;
         const ae = ((b.acts ??= {})[c.act] ??= { n: 0, gas: 0 });
-        ae.n++; ae.gas += c.gas;
+        ae.n++; ae.gas += Number.isFinite(c.gas) ? c.gas : 0;
         this.allTime2.txs++;
         const a2 = (this.allTime2.acts[c.act] ??= { n: 0, gas: 0 });
-        a2.n++; a2.gas += c.gas;
+        a2.n++; a2.gas += Number.isFinite(c.gas) ? c.gas : 0;
         for (const p of c.parts ?? []) (b.parts ??= {})[p] = (b.parts[p] || 0) + 1;
         for (const s of c.assets ?? []) (b.assets ??= {})[s] = (b.assets[s] || 0) + 1;
         for (const f of c.flows ?? []) (b.flows ??= {})[f] = (b.flows[f] || 0) + 1;
@@ -98,7 +117,7 @@ export class TxnStore {
       }
       if (c.to && ["other", "meme", "defi", "bot", "predict", "token", "infra"].includes(c.cat)) {
         const ct = (b.contracts[c.to] ??= { n: 0, gas: 0, cat: c.cat, sels: {}, swap: 0, xfer: 0 });
-        ct.n++; ct.gas += c.gas;
+        ct.n++; ct.gas += Number.isFinite(c.gas) ? c.gas : 0;
         // 特征供 AI 归类:top selector / Swap / Transfer 事件计数
         if (c.sel && c.sel !== "0x") { ct.sels ??= {}; ct.sels[c.sel] = (ct.sels[c.sel] || 0) + 1; }
         ct.swap = (ct.swap || 0) + (c.swap || 0);
@@ -106,6 +125,7 @@ export class TxnStore {
       }
     }
     this._save();
+    return true;
   }
 
   // 全量抓块下每分钟 addBlock ~133 次,写盘节流为 3s 内最多一次;flush() 立即落盘
@@ -150,19 +170,18 @@ export class TxnStore {
       if (!a) agg.set(hk, (a = { txs: 0, acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 } }));
       a.txs++;
       const e = (a.acts[v2.act] ??= { n: 0, gas: 0 });
-      e.n++; e.gas += f.g;
+      e.n++; e.gas += f.rc && Number.isFinite(f.g) ? f.g : 0;
       for (const p of v2.parts) a.parts[p] = (a.parts[p] || 0) + 1;
       for (const s of v2.assets) a.assets[s] = (a.assets[s] || 0) + 1;
       for (const fl of v2.flows) a.flows[fl] = (a.flows[fl] || 0) + 1;
       if (v2.fail) a.qual.failed++;
       if (v2.rcptMiss) a.qual.rcptMiss++;
     });
-    const curHk = Math.floor(Date.now() / HOUR);
     let replaced = 0, skipped = 0;
     for (const [hk, a] of agg) {
       const b = this.buckets.find((x) => x.t === hk * HOUR);
       if (!b) { skipped++; continue; }
-      if (hk === curHk || a.txs < b.txs * 0.98) { skipped++; continue; }
+      if (a.txs < b.txs * 0.98) { skipped++; continue; }
       const keys = new Set([...Object.keys(b.acts ?? {}), ...Object.keys(a.acts)]);
       for (const k of keys) {
         const oldE = b.acts?.[k], newE = a.acts[k];
@@ -172,7 +191,7 @@ export class TxnStore {
         this.allTime2.txs += (newE?.n || 0) - (oldE?.n || 0);
       }
       b.acts = a.acts; b.parts = a.parts; b.assets = a.assets; b.flows = a.flows; b.qual = a.qual;
-      b.v2v = CLASSIFIER_V2_VER;
+      b.v2v = CLASSIFIER_V2_VER; delete b.v2mixed;
       replaced++;
     }
     if (replaced) { this._dirty = true; this.flush(); }
@@ -341,10 +360,30 @@ export class TxnStore {
       }
     }
     // v2 多维窗口聚合(旧桶无这些字段,自 v2 上线的桶起有值)
-    const dim = { acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 }, total: 0, since: null };
+    const dim = {
+      acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 },
+      total: 0, since: null,
+      meta: { requestedDays: winMs / (24 * HOUR), blocks: 0, trackedBlocks: 0, minBlock: null, maxBlock: null, classifierVersions: [], excludedStaleBuckets: 0, excludedVersions: [] },
+      denominators: {},
+    };
+    const dimVers = new Set(), staleVers = new Set();
     for (const b of bWin) {
       if (!b.acts) continue;
+      // 规则升级后绝不把旧版本桶静默混进新口径。事实日志能覆盖的桶由 replayV2
+      // 重算；更早数据保留在旧口径，但 V2 主面板从新版本断点重新累计。
+      if (b.v2v !== CLASSIFIER_V2_VER || b.v2mixed) {
+        dim.meta.excludedStaleBuckets++;
+        if (b.v2v != null) staleVers.add(b.v2v);
+        continue;
+      }
       dim.since ??= b.t;
+      dim.meta.blocks += b.blocks || 0;
+      if (b.minBlock != null && b.maxBlock != null) {
+        dim.meta.trackedBlocks += b.blocks || 0;
+        dim.meta.minBlock = dim.meta.minBlock == null ? b.minBlock : Math.min(dim.meta.minBlock, b.minBlock);
+        dim.meta.maxBlock = dim.meta.maxBlock == null ? b.maxBlock : Math.max(dim.meta.maxBlock, b.maxBlock);
+      }
+      if (b.v2v != null) dimVers.add(b.v2v);
       for (const [k, v] of Object.entries(b.acts)) {
         const e = (dim.acts[k] ??= { n: 0, gas: 0 });
         e.n += v.n || 0; e.gas += v.gas || 0; dim.total += v.n || 0;
@@ -354,6 +393,40 @@ export class TxnStore {
       for (const [k, v] of Object.entries(b.flows ?? {})) dim.flows[k] = (dim.flows[k] || 0) + v;
       if (b.qual) { dim.qual.failed += b.qual.failed || 0; dim.qual.rcptMiss += b.qual.rcptMiss || 0; }
     }
+    const sysN = dim.acts.system?.n || 0;
+    dim.denominators = {
+      allTx: dim.total,
+      businessTx: Math.max(0, dim.total - sysN),
+      knownGasTx: Math.max(0, dim.total - dim.qual.rcptMiss),
+      receiptKnownTx: Math.max(0, dim.total - dim.qual.rcptMiss),
+    };
+    dim.meta.classifierVersions = [...dimVers].sort((a, b) => a - b);
+    dim.meta.excludedVersions = [...staleVers].sort((a, b) => a - b);
+    if (dim.meta.minBlock != null && dim.meta.maxBlock != null) {
+      dim.meta.expectedBlocks = dim.meta.maxBlock - dim.meta.minBlock + 1;
+      dim.meta.gapBlocks = Math.max(0, dim.meta.expectedBlocks - dim.meta.trackedBlocks);
+      dim.meta.coveragePct = dim.meta.expectedBlocks
+        ? +Math.min(100, (100 * dim.meta.trackedBlocks) / dim.meta.expectedBlocks).toFixed(2)
+        : null;
+    } else {
+      dim.meta.expectedBlocks = null;
+      dim.meta.gapBlocks = null;
+      dim.meta.coveragePct = null;
+    }
+
+    // 选择窗口与前一个等长窗口比较,避免“30d 占比”旁边展示“今日 vs 7d”。
+    const prevTotals = {}, prevBuckets = this.buckets.filter((b) => b.t >= now - 2 * winMs && b.t < now - winMs);
+    let prevTxs = 0;
+    for (const b of prevBuckets) {
+      prevTxs += b.txs || 0;
+      for (const [c, v] of Object.entries(b.cats ?? {})) prevTotals[c] = (prevTotals[c] || 0) + (v.n || 0);
+    }
+    const catWindowDelta = Object.fromEntries(CATS.map((c) => {
+      if (!total24 || !prevTxs) return [c, null];
+      const cur = 100 * (catTotals[c] || 0) / total24;
+      const prev = 100 * (prevTotals[c] || 0) / prevTxs;
+      return [c, +(cur - prev).toFixed(1)];
+    }));
 
     // 环比:各类 tx 占比 today vs 昨日 vs 7d 日均(排除今日 partial 日)
     const dsort = Object.values(days).sort((a, b) => a.t - b.t);
@@ -391,6 +464,7 @@ export class TxnStore {
       catCount24: Object.fromEntries(CATS.map((c) => [c, catTotals[c] ?? 0])),
       catGasPct24: Object.fromEntries(CATS.map((c) => [c, gasTotal ? +((100 * (catGas[c] ?? 0)) / gasTotal).toFixed(1) : 0])),
       catTrend,
+      catWindowDelta,
       topContracts,
       learnedLabels: labelBook.learnedCount(),
       dim,

@@ -1226,6 +1226,21 @@ body::before {
 .tdr-fill { display: block; height: 100%; border-radius: 3px; }
 .tdr-pct { width: 42px; text-align: right; color: var(--muted); flex-shrink: 0; }
 .tdr-trend { text-align: right; }
+/* 交易类型分布放大版(仅该面板):列宽/字体/条形整体放大,信息密度不变可读性更好 */
+.txn-dist-xl .txn-dist-head, .txn-dist-xl .txn-dist-row:not(.txn-dim-row) { grid-template-columns: 150px 100px 1fr 1fr 112px; gap: 18px; }
+.txn-dist-xl .txn-dist-row { font-size: 12px; padding: 3px 0; }
+.txn-dist-xl .txn-dist-head { font-size: 10px; }
+.txn-dist-xl .tdr-track { height: 9px; border-radius: 4px; }
+.txn-dist-xl .tdr-pct { width: 54px; font-size: 12px; }
+.txn-dist-xl .txn-delta { font-size: 11px; }
+.txn-dist-xl .info-tip { font-size: 11px; }
+/* 判定规则折叠表 */
+.txn-rules { border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; margin: 4px 0 8px; background: rgba(255,255,255,.015); }
+.txn-rules-note { font-size: 11px; color: var(--muted); line-height: 1.7; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.txn-rule-row { display: grid; grid-template-columns: 20px 92px 1fr; gap: 12px; padding: 4px 0; font-size: 11.5px; line-height: 1.65; align-items: baseline; }
+.txn-rule-row b { color: var(--gold); font-family: var(--mono); }
+.txn-rule-row em { font-style: normal; font-weight: 700; color: var(--text); }
+.txn-rule-row span { color: var(--muted); }
 .txn-delta { font-family: var(--mono); font-size: 9.5px; }
 .txn-delta.up { color: #22c55e; }
 .txn-delta.down { color: #ef4444; }

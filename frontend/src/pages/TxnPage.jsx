@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { aiRequest } from "../lib/ai.js";
-import { AiText } from "../components/PanelAi.jsx";
+import { AiText, usePanelAi, AiButton, AiResult } from "../components/PanelAi.jsx";
 import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
@@ -114,8 +114,20 @@ function DimPanel({ dim }) {
 const CAT_INFO = {
   token: "标准 ERC20 transfer/transferFrom，或仅产生 Transfer 事件的合约调用(批量分发/游戏/claim 等)。稳定币单独统计,不计入此类。",
   stable: "仅直接调用已知稳定币合约(USDT/USDC/BUSD/DAI 等)的交易计入,优先于代币转账。DeFi swap 中涉及稳定币仍归 DeFi。",
-  bot: "单块内同一发送方 ≥3 笔的高频合约调用,或 gas 优化短 selector 的 MEV 机器人。纯转账/标准 transfer 即使高频也不计入。",
+  bot: "两条行为特征,命中任一即算:① 函数选择器前三字节全零(0x000000xx)——MEV bot 为省 gas 的惯用写法,正常应用不会这么写;② 同一发送方在同一个块(450ms)内发出 ≥3 笔合约调用——人手做不到。纯 BNB 转账和标准代币转账即使高频也不算。注意:夹子/套利等主流 MEV 通常每块只发 1 笔,不会被这两条命中,所以此数是下限,真实 bot 量高于它。",
 };
+
+// v1 互斥分类的判定规则(与 backend/src/txn/classifier.js 优先级链一致;命中即停)
+const CLASSIFY_RULES = [
+  ["1", "系统交易", "接收方是 BSC 系统合约(0x…1000~2006、0x…3000,共 16 个固定地址,每块 1 笔 validator 分账)"],
+  ["2", "CEX 充提", "发送方或接收方命中已知交易所热钱包(Binance/OKX/Gate 等 12 个,人工核实;充值方向覆盖不全,详见多维面板)"],
+  ["3", "地址标签", "接收方在标签库中 → 按标签定类:预测市场(predict.fun)、稳定币(USDT/USDC/FDUSD 等 7 个)、Meme(four.meme)、Bridge(TokenHub)、Infra(builder 支付)、DeFi(PancakeSwap Router 等)。标签库 = 70 条人工核实 + AI 学得(带 ✦,未经完整审计)"],
+  ["4", "Bot", "① 选择器前三字节全零(0x000000xx,MEV 省 gas 惯例);② 同发送方同块 ≥3 笔合约调用(450ms 内人手做不到)。纯转账/标准代币转账不计入;单发型 MEV 不会命中,数字是下限"],
+  ["5", "DeFi", "回执含 UniswapV2/V3 风格 Swap 事件(直调池子、聚合器等未被标签命中的兜底)"],
+  ["6", "BNB 转账", "恰好 21000 gas 的原生转账;或空 calldata、无事件、≤30k gas(简单合约钱包收款)"],
+  ["7", "代币转账", "transfer/transferFrom 选择器,或回执含 Transfer 事件(含 NFT 转移/mint/空投,未细分)"],
+  ["8", "其他", "以上全部未命中的残差(含合约部署);该类突增通常意味着新热点合约出现,会进入 AI 归类队列"],
+];
 
 function InfoTip({ text }) {
   return <span className="info-tip" tabIndex={0}>ⓘ<span className="info-pop">{text}</span></span>;
@@ -274,6 +286,11 @@ export default function TxnPage() {
   const [hotDays, setHotDays] = useState(1);
   const hotLabel = hotDays === 1 ? "24H" : `${hotDays}天`;
 
+  // 分布面板:判定规则折叠 + 窗口跟随的 AI 解读
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const distAi = usePanelAi("/api/ai/txn-dist", "~30s",
+    () => (distMode === "all" ? { mode: "all" } : { days: Number(distMode) }));
+
   useEffect(() => {
     let alive = true;
     const pull = () => fetch(API + `/api/txn?days=${distDays}&hot=${hotDays}`).then((r) => r.json())
@@ -369,7 +386,7 @@ export default function TxnPage() {
           const mGas = Math.max(0.1, ...rows.map(dgpct));
           const sinceStr = at?.since ? `${new Date(at.since).getMonth() + 1}/${new Date(at.since).getDate()}` : null;
           return (
-            <div className="panel" style={{ maxWidth: 820 }}>
+            <div className="panel txn-dist-xl" style={{ maxWidth: 1230 }}>
               <div className="panel-header">
                 <span>{at ? "历史累计交易类型分布" : `${distLabel} 交易类型分布`}</span>
                 <span className="txn-dist-ctl">
@@ -380,10 +397,23 @@ export default function TxnPage() {
                     {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"], ["all", "历史累计"]].map(([m, l]) => (
                       <button key={m} className={`tf-range ${distMode === m ? "on" : ""}`} onClick={() => setDistMode(m)}>{l}</button>
                     ))}
+                    <button className={`tf-range ${rulesOpen ? "on" : ""}`} onClick={() => setRulesOpen((v) => !v)}>ⓘ 判定规则</button>
                   </span>
+                  <AiButton ai={distAi} label={`AI 解读(${distLabel})`} />
                 </span>
               </div>
               <div className="panel-body txn-dist">
+                <AiResult ai={distAi} title={`交易类型分布 · ${distLabel}`} />
+                {rulesOpen && (
+                  <div className="txn-rules">
+                    <div className="txn-rules-note">
+                      每笔交易按 1→8 顺序逐条判定,<b>命中即停</b>(靠前类别优先),只归入一类。想看"动作/参与者/资产"分开统计的口径,见下方「多维分布」面板。
+                    </div>
+                    {CLASSIFY_RULES.map(([n, cat, rule]) => (
+                      <div key={n} className="txn-rule-row"><b>{n}</b><em>{cat}</em><span>{rule}</span></div>
+                    ))}
+                  </div>
+                )}
                 <div className="txn-dist-head">
                   <span>类别</span>
                   <span className="tdr-r">笔数</span>

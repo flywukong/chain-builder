@@ -27,7 +27,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runSlashEventAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runLargeTxAnalysis, runBidBlockAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runSlashEventAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runTxnDistAnalysis, runLargeTxAnalysis, runBidBlockAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -1934,6 +1934,16 @@ app.get("/api/txn", async (req) => {
   return v;
 });
 app.post("/api/txn/replay", async () => (await replayIfStale(true)) ?? { skipped: "up-to-date" });
+// 交易类型分布面板解读:跟随面板窗口(1/3/7/30 天或历史累计)
+aiRoutes("txnDist", "/api/ai/txn-dist", async (body) => {
+  const mode = body?.mode === "all" ? "all" : Math.min(Math.max(Number(body?.days) || 1, 1), 30);
+  const v = txnStore.view(labelBook, mode === "all" ? 1 : mode);
+  if (!v.total24) throw new Error("采样数据积累中,请稍后再试");
+  const data = mode === "all"
+    ? { windowLabel: "历史累计(自部署)", catPct: v.allTime.catPct, catGasPct: v.allTime.catGasPct, catCount: v.allTime.catCount, total: v.allTime.total, catTrend: null, topContracts: (v.topContracts ?? []).slice(0, 8) }
+    : { windowLabel: mode === 1 ? "最近 24 小时" : `最近 ${mode} 天`, catPct: v.catPct24, catGasPct: v.catGasPct24, catCount: v.catCount24, total: v.total24, catTrend: v.catTrend, topContracts: (v.topContracts ?? []).slice(0, 8) };
+  return runTxnDistAnalysis(data);
+});
 aiRoutes("txn", "/api/ai/txn", async (body) => {
   const days = Math.min(Math.max(Number(body?.days) || 7, 1), 7);   // 默认 7 天(机器人默认总结同口径)
   const v = txnStore.view(labelBook, days);

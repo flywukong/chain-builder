@@ -492,6 +492,27 @@ export async function runBidBlockAnalysis(data) {
   return spawnClaude(prompt, { timeoutMs: 180_000 });
 }
 
+// ── 交易类型分布解读(窗口 1/3/7/30 天或历史累计)──
+export async function runTxnDistAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网交易结构分析师。基于${data.windowLabel}的交易分类分布,输出中文解读,markdown,280 字以内,直接正文。`,
+    "",
+    "分类含义:meme=已识别 launchpad 调用, defi=DEX/借贷(含 Swap 事件), predict=预测市场, bot=高频/短选择器行为命中, stable=稳定币合约调用, bnb=纯 BNB 转账, token=代币转账, cex=已知交易所热钱包充提, bridge=跨链, infra=builder 支付, system=系统交易, other=未识别。",
+    "数据字段:catPct=笔数占比%, catGasPct=gas 占比%, catCount=笔数, catTrend={dYest 较昨日, dAvg7 较 7 日均值}(pp,null=历史不足), topContracts=窗口热门合约。",
+    "",
+    "要求:",
+    "1. 结构一句话:前三大类及占比;",
+    "2. 笔数 vs gas 背离:哪些类笔数少但吃资源(swap/合约类)、哪些类笔数多但 gas 轻(转账类),点出最大背离项;",
+    "3. 变化:catTrend 中 |dAvg7|≥2pp 的类,说明升降及可能载体(结合 topContracts);无明显变化就说结构稳定;",
+    "4. 口径提醒一句:bot 为特征命中率下限、cex 为已知地址口径,数字保守。",
+    "不编造;数字直接引用。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 1), "```",
+  ].join("\n");
+  return spawnClaude(prompt, { timeoutMs: 180_000 });
+}
+
 // ── 链上流量特征总结(7 天交易分类数据)──
 export async function runTxnFeatureAnalysis(data) {
   const prompt = [

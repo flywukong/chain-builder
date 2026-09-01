@@ -207,6 +207,7 @@ const intelHint = (it) => {
 const reasonOf = (c) => {
   const it = c.intel || {};
   if (it.verifiedName) return `BscScan: ${it.verifiedName}`;
+  if (c.lc) return "NodeReal 标签库(dune)";
   if (c.cat === "infra") return "Builder 支付地址";
   if (c.swap > 0) return "含 Swap 事件";
   if (it.type === "EIP-7702") return "7702 委托钱包";
@@ -444,7 +445,7 @@ export default function TxnPage() {
               <div key={c.addr} className="txn-crow">
                 <span className="tcr-id">
                   {c.name
-                    ? <span className="tcr-name">{c.name}{c.ai && <em className="txn-ai">✦</em>}</span>
+                    ? <span className="tcr-name">{c.name}{c.ai && <em className="txn-ai">✦</em>}{c.lc && <em className="txn-ai" title="NodeReal 标签库">◈</em>}</span>
                     : <span className="tcr-unnamed">未命名{intelHint(c.intel) && <em className="txn-hint">· {intelHint(c.intel)}</em>}</span>}
                 </span>
                 <span className={`txn-addr ${openAddr === c.addr ? "open" : ""}`} title={`${c.addr}（点击复制）`} onClick={() => clickAddr(c.addr)}>

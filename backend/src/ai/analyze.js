@@ -453,7 +453,7 @@ export async function runContractLabeling(candidates) {
     "你是 BSC 主网链上数据分析师。下面是近 24h 交易采样中调用量最高的未识别合约,请逐个归类。",
     "",
     "分类 cat 只能取:meme(meme 币/发射台)| defi(DEX/借贷/质押/聚合器)| predict(预测市场,如 predict.fun/ConditionalTokens/CTF 类)| bot(套利/夹子/keeper/oracle 机器人)| infra(MEV builder/relay 支付结算地址,如 BlockRazor Payment)| bridge | cex | token(普通代币/批量分发)| other(无法判断)。",
-    "每个候选带特征:n=调用次数, swapLogs=Swap 事件数, transferLogs=Transfer 事件数, topSelectors=高频方法选择器(可能带反查出的方法签名), addrType=地址形态, codeSize=字节码大小, nonce=发送计数, balanceBNB=余额, verifiedName=BscScan verified 合约名。",
+    "每个候选带特征:n=调用次数, swapLogs=Swap 事件数, transferLogs=Transfer 事件数, topSelectors=高频方法选择器(可能带反查出的方法签名), addrType=地址形态, codeSize=字节码大小, nonce=发送计数, balanceBNB=余额, verifiedName=BscScan verified 合约名, labelCloud=NodeReal 标签库(dune 同步)的 {name,entity,entityType,tags}——存在时可信度最高,直接据其定名归类(confidence ≥0.85)。",
     "地址情报判据(优先级高):verifiedName 存在直接据其定名归类;addrType='EOA' 且 nonce 极高 + 有 BNB 收支 → 支付/结算地址(如 builder payment,归 infra,不是 bot);addrType='EIP-7702' 被高频调用 → bot(自动化钱包);addrType='contract' + codeSize 小 + 单一 selector 极高频 → bot(keeper/oracle/搬砖合约);codeSize 大 + 多方法 + 高 swapLogs → defi。",
     "判断依据优先级:1) 你认识的知名 BSC 合约地址直接定名;2) topSelectors 里的方法签名语义(updatePrices/fulfill/perform → bot(keeper/oracle);matchOrders/swap/trade/execute → defi;checkIn/claim/airdrop/mint → token(活动分发);deposit/withdraw/stake → defi);3) swapLogs 高 → defi 或 bot(调用方集中/selector 非标准偏 bot,分散偏 defi 聚合器);4) 无事件且单一 selector 极高频 → bot;5) transferLogs 高而无 swap → token;6) vanity 地址(0x0000…/连续重复)偏 bot。",
     "不认识且特征不明的填 other,禁止编造名字;认识的给出名字。",

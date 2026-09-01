@@ -34,6 +34,7 @@ import { TxnStore } from "./txn/store.js";
 import { LargeTxStore, LARGE_TX_RECORD_MIN } from "./txn/largeTxStore.js";
 import { TxnSampler } from "./txn/sampler.js";
 import { FactJournal } from "./txn/facts.js";
+import { LabelCloud } from "./txn/labelCloud.js";
 import { classifyFactV2 } from "./txn/classifier.js";
 import { lookupSelectors } from "./txn/siglookup.js";
 import { getAddrIntel, getCachedIntel } from "./txn/addrIntel.js";
@@ -69,6 +70,7 @@ const labelBook  = new LabelBook(path.join(dataDir, "contract-labels.json"));
 const txnStore   = new TxnStore(path.join(dataDir, "txn-7d.json"));
 const largeTxStore = new LargeTxStore(path.join(dataDir, "large-tx-3d.json"));
 // 可重放事实日志(默认 24h 滚动,FACT_RETAIN_H 可调):规则/verified 表升级后重算最近窗口
+const labelCloud = new LabelCloud(path.join(dataDir, "label-cloud-cache.json"));   // NodeReal 标签库:AI 证据 + 热门合约补名(不参与统计)
 const factJournal = new FactJournal(path.join(dataDir, "txnfacts"), parseInt(process.env.FACT_RETAIN_H, 10) || 24);
 const txnSampler = new TxnSampler({ provider, store: txnStore, labelBook, journal: factJournal });
 
@@ -640,6 +642,11 @@ async function pollContractLabels(retry = true) {
       c.addrType = it.type; c.codeSize = it.codeSize; c.nonce = it.nonce; c.balanceBNB = it.balanceBNB;
       if (it.verifiedName) c.verifiedName = it.verifiedName;
     });
+    // NodeReal 标签库证据(dune 同步;命中率低但命中即高可信)
+    try {
+      await labelCloud.resolve(candidates.map((c) => c.addr));
+      for (const c of candidates) { const lc = labelCloud.get(c.addr); if (lc) c.labelCloud = lc; }
+    } catch { /* 尽力而为 */ }
     const labeled = await runContractLabeling(candidates);
     const n = labelBook.addLearned(labeled);
     console.log(`[txn labels] learned ${n}/${candidates.length} (total ${labelBook.learnedCount()})`);
@@ -1917,7 +1924,9 @@ app.get("/api/txn", async (req) => {
   const days = Math.min(Math.max(parseInt(req.query?.days, 10) || 1, 1), 30);
   const hot = Math.min(Math.max(parseInt(req.query?.hot, 10) || 1, 1), 30);   // 热门合约独立窗口(24h/7d/30d)
   const v = txnStore.view(labelBook, days, hot);
+  labelCloud.resolve((v.topContracts ?? []).filter((c) => !c.name).map((c) => c.addr)).catch(() => {});
   for (const c of v.topContracts ?? []) {
+    if (!c.name) { const lc = labelCloud.get(c.addr); if (lc?.name) { c.name = lc.name; c.lc = true; } }
     const it = getCachedIntel(c.addr);
     if (it) c.intel = { type: it.type, codeSize: it.codeSize, nonce: it.nonce, verifiedName: it.verifiedName };
     else getAddrIntel(provider, c.addr, { bscscanKey: cfg.bscscanKey }).catch(() => {});

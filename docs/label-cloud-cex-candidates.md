@@ -1,0 +1,1131 @@
+# Label Cloud CEX 地址候选(人工审计用)
+
+> 来源:bsc-trace-bk addresses-by-entity(type=CEX)· 拉取 2026-09-01
+> 注意:该库缺主力热钱包(Binance Hot 8 等均不在),此清单为长尾候选,须逐条核实(BscScan 标签/链上行为)后才可进 verified 注册表;未审计前不参与任何统计。
+
+## KickEX(entity_id=311,1 地址)
+
+- `0x352bdabe484499e4c25c3536cc3eda1edbc5ad29`(EOA)
+
+## Celsuis(entity_id=310,1 地址)
+
+- `0x3473779fd4d366774fe7d2ceb089b30d94d7f1d1`(EOA)
+
+## Prime Trust(entity_id=308,2 地址)
+
+- `0x352e0242a58c4f43dc40f3ee9a2ea14ccc6bb2ea`(EOA)
+- `0x33fe7ad77394281e43cc82d86ad0cbb5b9e9575d`(EOA)
+
+## SouthXchange(entity_id=306,1 地址)
+
+- `0x324cc2c9fb379ea7a0d1c0862c3b48ca28d174a4`(EOA)
+
+## Anchorage Digital(entity_id=302,1 地址)
+
+- `0x3161b9660cc36c00dfc36307de2b8c53960164dc`(EOA)
+
+## BitKeep(entity_id=297,1 地址)
+
+- `0x2f2dd99235cb728fc79af575f1325eaa270f0c99`(合约)
+
+## TigerGaming(entity_id=296,1 地址)
+
+- `0x2f19e5c3c66c44e6405d4c200fe064ece9bc253a`(EOA)
+
+## Emirex(entity_id=295,1 地址)
+
+- `0x2f006050f172f3c2a85f5e72a5a2c6c67790d6b7`(EOA)
+
+## Anycoin Direct(entity_id=294,1 地址)
+
+- `0x2e9db1a176426062a546dbe7877e8a381f9a4171`(EOA)
+
+## ShapeShift(entity_id=293,2 地址)
+
+- `0x2f155ddefc29c414c94b801b91f55b257231825e`(EOA)
+- `0x2e46956565cebdcbbb39ecd22af02e1916a2fe37`(EOA)
+
+## Bitbee(entity_id=291,1 地址)
+
+- `0x2b49ce21ad2004cfb3d0b51b2e8ec0406d632513`(EOA)
+
+## QuantaEx(entity_id=287,1 地址)
+
+- `0x2a048d9a8ffdd239f063b09854976c3049ae659c`(EOA)
+
+## Newton(entity_id=286,2 地址)
+
+- `0x2db1d8cdf1abe8c70b531a790cdf2ff38aecf652`(EOA)
+- `0x29fd24dad196010e726703a8fdcd8b9aa281a378`(EOA)
+
+## eToro(entity_id=285,1 地址)
+
+- `0x2953452df5d7285b9a3a8a1e876a4bacb09a976e`(EOA)
+
+## BitGo(entity_id=284,1 地址)
+
+- `0x294c6f1ec18494abe9f608ecd97a307c80586775`(EOA)
+
+## CoinsPaid(entity_id=282,1 地址)
+
+- `0x292f04a44506c2fd49bac032e1ca148c35a478c8`(EOA)
+
+## BiteBTC(entity_id=281,1 地址)
+
+- `0x28ebe764b8f9a853509840645216d3c2c0fd774b`(EOA)
+
+## RenrenBit(entity_id=280,1 地址)
+
+- `0x28c9386ebab8d52ead4a327e6423316435b2d4fc`(EOA)
+
+## Remitano(entity_id=279,1 地址)
+
+- `0x2819c144d5946404c0516b6f817a960db37d4929`(EOA)
+
+## Tokenize Xchange(entity_id=278,2 地址)
+
+- `0x2c2f95dc8d3558f490cc0ca431a3bef0b1e13ac8`(EOA)
+- `0x27d7f6147a8748454b88be685c2804f96bf69db1`(EOA)
+
+## DIFX(entity_id=276,1 地址)
+
+- `0x276766330ea4447289df29648474d1bbdb3fee90`(EOA)
+
+## Hotbit(entity_id=273,2 地址)
+
+- `0x2acdb44596e2b6ffbbf62614c9aad9cd04980248`(EOA)
+- `0x274f3c32c90517975e29dfc209a23f315c1e5fc7`(EOA)
+
+## Phemex(entity_id=271,2 地址)
+
+- `0x35d2d03607b9155b42cf673102fe58251ac4f644`(EOA)
+- `0x2710eb8b7f29def9fc856c87aeb64d05d068da3a`(EOA)
+
+## Bitbank(entity_id=269,1 地址)
+
+- `0x265c27c849b0e1a62636f6007e8a74dc2a2584aa`(合约)
+
+## YouHodler(entity_id=268,2 地址)
+
+- `0x2f1f7fc76e6cf5ab3e186a2a2fd4fc31952a77cc`(EOA)
+- `0x260ee8f2b0c167e0cd6119b2df923fd061dc1093`(EOA)
+
+## FTX(entity_id=266,2 地址)
+
+- `0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2`(EOA)
+- `0x25eaff5b179f209cf186b1cdcbfa463a69df4c45`(EOA)
+
+## Bibox(entity_id=263,1 地址)
+
+- `0x24d55bf5031d46b8ebb656e905e3cce759ea526f`(EOA)
+
+## Livecoin.net(entity_id=261,1 地址)
+
+- `0x243bec9256c9a3469da22103891465b47583d9f1`(EOA)
+
+## AlterDice(entity_id=260,1 地址)
+
+- `0x2425b5c48327da2a8be22e57207ae8056c3f42ee`(EOA)
+
+## Blockchain.com(entity_id=257,1 地址)
+
+- `0x23f4569002a5a07f0ecf688142eeb6bcd883eef8`(EOA)
+
+## Azbit(entity_id=255,1 地址)
+
+- `0x22682575e073736ed25258409b09e0e7af6d9c61`(EOA)
+
+## Coinsbit(entity_id=252,2 地址)
+
+- `0x252c8bbef63101ebca22c27951175c6b33c86b07`(EOA)
+- `0x21dd5c13925407e5bcec3f27ab11a355a9dafbe3`(EOA)
+
+## Thodex(entity_id=250,1 地址)
+
+- `0x214989c36c5fd378bcbb27f70315049e3d8aa74c`(EOA)
+
+## Binance US(entity_id=249,3 地址)
+
+- `0x34ea4138580435b5a521e460035edb19df1938c1`(EOA)
+- `0x21d45650db732ce5df77685d6021d7d5d1da807f`(EOA)
+- `0x211ee0129a67e7d44514152eb43d9f31103ac46b`(EOA)
+
+## XeggeX(entity_id=247,1 地址)
+
+- `0x20ffe0d07d7f7c2c21a24537538b4cde06c9048a`(EOA)
+
+## Coinstore(entity_id=246,1 地址)
+
+- `0x20664cacdcfeb318c8e145a03c75e34bc2cc4a3b`(EOA)
+
+## Voyager(entity_id=245,1 地址)
+
+- `0x203520f4ec42ea39b03f62b20e20cf17db5fdfa7`(EOA)
+
+## CEX.IO(entity_id=244,1 地址)
+
+- `0x1f973b233f5ebb1e5d7cfe51b9ae4a32415a3a08`(EOA)
+
+## QuadrigaCX(entity_id=241,1 地址)
+
+- `0x1e143b2588705dfea63a17f2032ca123df995ce0`(EOA)
+
+## CoinDCX(entity_id=238,4 地址)
+
+- `0x35efe40ceddb8dfa27f0c3e4cd65b711c29cb5d8`(EOA)
+- `0x2e5129e77c928d96b5a70c0effb97ee6e95d77b6`(EOA)
+- `0x29a62a542b6ea441abb6f03c2bca54ad72ff750c`(EOA)
+- `0x2407b9b9662d970ece2224a0403d3b15c7e4d1fe`(EOA)
+
+## Uphold(entity_id=237,2 地址)
+
+- `0x340d693ed55d7ba167d184ea76ea2fd092a35bdc`(EOA)
+- `0x1c727a55ea3c11b0ab7d3a361fe0f3c47ce6de5d`(EOA)
+
+## BTC-Alpha Exchange(entity_id=236,1 地址)
+
+- `0x1c00d840ccaa67c494109f46e55cfeb2d8562f5c`(EOA)
+
+## Zipmex(entity_id=234,2 地址)
+
+- `0x1fd5daa9bb707afb8a3197def72005757f8d1e36`(EOA)
+- `0x1bdac750132eb91e569f6fd2582d2d67f6f1ea0c`(EOA)
+
+## Cryptopia(entity_id=232,2 地址)
+
+- `0x2984581ece53a4390d1f568673cf693139c97049`(EOA)
+- `0x1b3d794bbeecd9240f46dbb3b79f4f71a972e00a`(EOA)
+
+## Delta Exchange(entity_id=230,1 地址)
+
+- `0x1a7574d48c4960278e89b7e7e069e5b9809d7b67`(EOA)
+
+## Cryptal(entity_id=229,1 地址)
+
+- `0x1a0324046933dda97f0296fccff033966278b532`(EOA)
+
+## Coinhako(entity_id=228,2 地址)
+
+- `0x1d1bd550197c7c0787b9ad0aea9c1cca66ee0e90`(EOA)
+- `0x19d97aa29cd33bd966d52e2bc9dfc719f2bb9ae1`(EOA)
+
+## Ultimate Champions(entity_id=227,1 地址)
+
+- `0x18b7517cf34a3277f3db3381c3b2679cc3dc1116`(EOA)
+
+## Coincheck(entity_id=226,1 地址)
+
+- `0x189b9cbd4aff470af2c0102f365fc1823d857965`(EOA)
+
+## CoinList(entity_id=225,1 地址)
+
+- `0x187c0e0aa33282096b39a33457939f1dc3ea8e0f`(合约)
+
+## AlphaPo(entity_id=223,1 地址)
+
+- `0x183a6cf1fc6504138d92c9d663094ee774f80038`(EOA)
+
+## Paxful(entity_id=222,1 地址)
+
+- `0x17f1a51da68d27c94d2a51d92b27b5bd4718b986`(EOA)
+
+## BigONE(entity_id=220,2 地址)
+
+- `0x1a84b64cc85bfab627da6537cbe8e9e26c0b3ed0`(EOA)
+- `0x17bc58b788808dab201a9a90817ff3c168bf3d61`(EOA)
+
+## Coins.ph(entity_id=219,1 地址)
+
+- `0x17ac1517c30d5cd7f065cb28c4703431bb69d47d`(EOA)
+
+## WhiteBIT(entity_id=217,2 地址)
+
+- `0x33eac50b7faf4b8842a621d0475335693f5d21fe`(EOA)
+- `0x1689a089aa12d6cbbd88bc2755e4c192f8702000`(EOA)
+
+## Coinone(entity_id=216,3 地址)
+
+- `0x35da6abcb08f2b6164fe380bb6c47bd8f2304d55`(EOA)
+- `0x1e2fcfd26d36183f1a5d90f0e6296915b02bcb40`(EOA)
+- `0x167a9333bf582556f35bd4d16a7e80e191aa6476`(EOA)
+
+## BtcTurk(entity_id=215,3 地址)
+
+- `0x2ee555c9006a9dc4674f01e0d4dfc58e013708f0`(EOA)
+- `0x1c17622cfa9b6fd2043a76dfc39a5b5a109aa708`(EOA)
+- `0x16769e533352798deb664ba570230a758346ca1a`(EOA)
+
+## BTSE(entity_id=213,1 地址)
+
+- `0x1619d743d7dc612e99d5d94ebd6b9695d46f0bf3`(EOA)
+
+## xs2.exchange(entity_id=211,1 地址)
+
+- `0x15c5312e24482547ff35899afedcaeb572ecb029`(EOA)
+
+## Galaxy Digital(entity_id=210,2 地址)
+
+- `0x33566c9d8be6cf0b23795e0d380e112be9d75836`(EOA)
+- `0x15abb66ba754f05cbc0165a64a11cded1543de48`(EOA)
+
+## Coinbase Prime(entity_id=209,2 地址)
+
+- `0x1e7016f7c23859d097668c27b72c170ed7129a10`(EOA)
+- `0x1565f0c48c06bc006095591a4c3fe4a6f39712cf`(EOA)
+
+## NDAX(entity_id=207,1 地址)
+
+- `0x14c4017f81675f7ac1321218d4a385a2d3117328`(EOA)
+
+## Mercado Bitcoin(entity_id=202,1 地址)
+
+- `0x13cef1478ef9a2773acdf53505d064c69e3014c6`(EOA)
+
+## OPNX(entity_id=199,2 地址)
+
+- `0x2335919e01fa45744815290ee255dc0c066c47d3`(EOA)
+- `0x134530e94d8c603ca627c114d2d5b206d652e895`(EOA)
+
+## BitForex(entity_id=195,2 地址)
+
+- `0x29873bd158430e2dfa878604a833e355c74e8a1c`(EOA)
+- `0x1272d6e200de4b7385517dc6d59de64479196c4e`(EOA)
+
+## BTC Markets(entity_id=192,1 地址)
+
+- `0x122f90062549ff778806a15fa3b2a66973b9ea1c`(EOA)
+
+## bitFlyer(entity_id=186,1 地址)
+
+- `0x111cff45948819988857bbf1966a0399e0d1141e`(EOA)
+
+## Trade.io(entity_id=185,1 地址)
+
+- `0x1119aaefb02bf12b84d28a5d8ea48ec3c90ef1db`(EOA)
+
+## Bitso(entity_id=183,3 地址)
+
+- `0x29d5527caa78f1946a409fa6acaf14a0a4a0274b`(EOA)
+- `0x20beea119e70255a8c36e4009c94aedb1f8b8eea`(EOA)
+- `0x10f76b23ec27d4d7faa53de69c79d0788933601e`(EOA)
+
+## Nominex(entity_id=180,3 地址)
+
+- `0x2d8b192ead2f402867323b072d143d44435edd74`(合约)
+- `0x26804231a528c894ab6790530b237449a817da6a`(合约)
+- `0x10298be5abf74d111d133dc3493dc4c6a9fd924b`(合约)
+
+## Zonda(entity_id=179,1 地址)
+
+- `0x0ff24158220a14398f047a80a513617ddc4f5289`(EOA)
+
+## Fairdesk(entity_id=177,1 地址)
+
+- `0x0f69fd9fee9d01034d612497fcf07e1f5ab9ed3c`(EOA)
+
+## Aeroswap(entity_id=175,2 地址)
+
+- `0x1907c554b170d355e39c9ee9ae1dbc4a7333035d`(EOA)
+- `0x0e8d02ae96b229f112f37502c2a26d66bdbcff1f`(EOA)
+
+## LBank(entity_id=174,6 地址)
+
+- `0x356dc48d74f107cfbfd61790b0808cda6a0d364f`(EOA)
+- `0x25b63c988310de90031b84975ae13a6015ca6a16`(EOA)
+- `0x22f83e4b9cb95cb99b88e8f4f15ea598c74c2788`(EOA)
+- `0x124d9bf2fecbc16b54ec4accdb14d44c2144f012`(EOA)
+- `0x120051a72966950b8ce12eb5496b5d1eeec1541b`(EOA)
+- `0x0e80abb31ace45ae26f9a2943acaab72e77de9be`(EOA)
+
+## ChainUp(entity_id=173,3 地址)
+
+- `0x1f8f16a29251fa399d89e1005e3f95427bf5b1de`(EOA)
+- `0x10349daae3d75babbc00b4ec70416590dedaa7e8`(EOA)
+- `0x0e747eb2ff0f26fb77c3a1ea67ee07fac2dbb783`(EOA)
+
+## CoinTiger(entity_id=172,1 地址)
+
+- `0x0e58a7652143a0a275750e5ac57a4fb14eb4a18d`(EOA)
+
+## ZB.com(entity_id=171,2 地址)
+
+- `0x231568baa78111377f097bb087241f8379fa18f4`(EOA)
+- `0x0e394d3facf0ce3bd5fcce584e16e0cbac164346`(EOA)
+
+## WazirX(entity_id=170,4 地址)
+
+- `0x305dcaea67a9d4152e54e68060c89db05fd67a7b`(EOA)
+- `0x196eeecf1a247ed7cadfb39a3125a321f8642aad`(EOA)
+- `0x0e293a9e57d22f6ec575b376e3e3bd8e642fd5fc`(EOA)
+- `0x27fd43babfbe83a81d14665b1a6fb8030a60c9b4`(合约)
+
+## Abra(entity_id=169,2 地址)
+
+- `0x1fad1b0f35181b71917409d3841009a2fdb8acc9`(EOA)
+- `0x0e0066aca9ef6b8102d8dbc66ab0091f9370a7cb`(EOA)
+
+## Bit-Z(entity_id=168,2 地址)
+
+- `0x30146933a3a0babc74ec0b3403bec69281ba5914`(EOA)
+- `0x0de4b2be45ae233d5f782a5c70dfc8bfab736528`(EOA)
+
+## EXMO(entity_id=167,4 地址)
+
+- `0x1fd6267f0d86f62d88172b998390afee2a1f54b6`(EOA)
+- `0x147a95fa1cceccc20b341824952106cb0ee1eded`(EOA)
+- `0x12227dfe5363cbe55919e230653810de0ff317e2`(EOA)
+- `0x0db79bbb99defc2356d82848a459a5a13869eb3f`(EOA)
+
+## AltCoinTrader(entity_id=166,2 地址)
+
+- `0x1bc972db7b169c2d79719485803af1a23645108d`(EOA)
+- `0x0da044b16bb53ab6d6691e25b1ec7ad380fa5fa7`(EOA)
+
+## Woo Network(entity_id=165,2 地址)
+
+- `0x1326a1f39746726fdcfe88d83effe5451606ae85`(EOA)
+- `0x0d83f81bc9f1e8252f87a4109bbf0d90171c81df`(EOA)
+
+## COSS Exchange(entity_id=164,1 地址)
+
+- `0x0d6b5a54f940bf3d52e438cab785981aaefdf40c`(EOA)
+
+## Korbit(entity_id=159,5 地址)
+
+- `0x2864de013415b6c2c7a96333183b20f0f9cc7532`(EOA)
+- `0x223674cc4433a50caddf13c65f92151d75996e41`(EOA)
+- `0x34296db8da4ddd088a09f228b23270238e08b1be`(合约)
+- `0x2d386ad07d45ae4d3497be2d7881c74ca1932f83`(合约)
+- `0x0c01089aedc45ab0f43467cceca6b4d3e4170bea`(合约)
+
+## Coinmetro(entity_id=158,2 地址)
+
+- `0x1e7b450322e42b53d55abc795913537fd680fe0c`(EOA)
+- `0x0bc7b31bf8ffac8213e496102167fe73fc30937a`(EOA)
+
+## Cobinhood(entity_id=157,1 地址)
+
+- `0x0bb9fc3ba7bcf6e5d6f6fc15123ff8d5f96cee00`(EOA)
+
+## Bitfinex(entity_id=156,7 地址)
+
+- `0x30a2ebf10f34c6c4874b0bdd5740690fd2f3b70c`(EOA)
+- `0x28140cb1ac771d4add91ee23788e50249c10263d`(EOA)
+- `0x1b8766d041567eed306940c587e21c06ab968663`(EOA)
+- `0x1b29dd8ff0eb3240238bf97cafd6edea05d5ba82`(EOA)
+- `0x1151314c646ce4e0efd76d1af4760ae66a9fe30f`(EOA)
+- `0x0cd76cd43992c665fdc2d8ac91b935ca3165e782`(EOA)
+- `0x0b73f67a49273fc4b9a65dbd25d7d0918e734e63`(EOA)
+
+## MoonPay(entity_id=155,4 地址)
+
+- `0x22f6cc8738308a8c92a6a71ea67832463d1fec0d`(EOA)
+- `0x151b381058f91cf871e7ea1ee83c45326f61e96d`(EOA)
+- `0x1440ec793ae50fa046b95bfeca5af475b6003f9e`(EOA)
+- `0x0b5c4a7fcda49e0a8661419bb55b86161a86db2a`(EOA)
+
+## BitoPro(entity_id=152,5 地址)
+
+- `0x2ddbbf0627f0709c1a2880f5b1ab09d00eaad177`(EOA)
+- `0x1dfeff70fbcc5949b29faf52196f0711e4915b2c`(EOA)
+- `0x16905697103cd4ad6a22193b242941b62f660bbc`(EOA)
+- `0x1622f344f3114c200c5ccbbd26925a6dfcb66b03`(EOA)
+- `0x0b01450061e68c4f0f89167efead245a3d393750`(EOA)
+
+## Bullish(entity_id=150,2 地址)
+
+- `0x100ae042ef0ea159ecc3513e9a378ff21f3829ba`(EOA)
+- `0x0ac9fce7636af8fa933068a3a5ecb71f8177c4f3`(EOA)
+
+## Crypto.com(entity_id=148,10 地址)
+
+- `0x2d17db18b41c92e64abaefb7e35ed70ed45b6dc8`(EOA)
+- `0x2c2301fdb0bfa06eaabaa0122cbceb2265337c25`(EOA)
+- `0x24eb3a39856723138796c5068a17ba4fb15cd25e`(EOA)
+- `0x20fa1822a87d4e7a3ccf20f86e716ef3772ecff1`(EOA)
+- `0x187b2d576ba7ec2141c180a96edd0f202492f36b`(EOA)
+- `0x17e49502febdf7b3bd3a9842a325036d729b7654`(EOA)
+- `0x1714400ff23db4af24f9fd64e7039e6597f18c2b`(EOA)
+- `0x0ecc16d3fa38e1a59c10e44cda4e2e9d9941275a`(EOA)
+- `0x0ccd677659c05d51284b4bfa3bfcfa4a044b9ee2`(EOA)
+- `0x0a80992f815973ad7e7a9c340760fed41d96c450`(EOA)
+
+## Tidex(entity_id=147,2 地址)
+
+- `0x3613ef1125a078ef96ffc898c4ec28d73c5b8c52`(EOA)
+- `0x0a73573cf2903d2d8305b1ecb9e9730186a312ae`(EOA)
+
+## SwissBorg(entity_id=146,1 地址)
+
+- `0x0a52368d5a7e70d8c927f75ea6618c2c468031d4`(EOA)
+
+## CoinBene(entity_id=145,3 地址)
+
+- `0x33683b94334eebc9bd3ea85ddbda4a86fb461405`(EOA)
+- `0x194a0d4139bd1ea6f471dd6b7c3a241479292ac6`(EOA)
+- `0x0a33fa8d5037940c33bea55df21e3a101f16f784`(EOA)
+
+## Wirex(entity_id=144,2 地址)
+
+- `0x2f13d388b85e0ecd32e7c3d7f36d1053354ef104`(EOA)
+- `0x0a1820f0ff7dc9fce0a4f0b589ee14ddae88233c`(合约)
+
+## MaskEX(entity_id=141,9 地址)
+
+- `0x33fe5557e90a872a065f2acfd973847e33fc4532`(EOA)
+- `0x32fffc894503eba55af4c371fd50198e7356d780`(EOA)
+- `0x2161217d22fac0188775432f8ba32f1d4272dd19`(EOA)
+- `0x1349907c197731c5ed98d8442309a15107cb6bad`(EOA)
+- `0x0feabb61f67e859811aafce83a5ab780f8c53c0a`(EOA)
+- `0x0ce92d3a15908b53371ff1afcae800f28142250c`(EOA)
+- `0x0c78fd926a8fc9cfc682bdc6b411942d9c7edb7a`(EOA)
+- `0x0b3c7bce764e6f1b52443e30fcb4f34997a0674c`(EOA)
+- `0x09b1806df13062b5f653beda6998972cabcf7009`(EOA)
+
+## Cryptonator(entity_id=139,1 地址)
+
+- `0x0975ca9f986eee35f5cbba2d672ad9bc8d2a0844`(EOA)
+
+## Nobitex(entity_id=138,2 地址)
+
+- `0x2264783b2ae3cadee4e8a76b8e60dc4af1b1f82b`(EOA)
+- `0x09672f26cc257f7b216710864c98ab1841453e4a`(EOA)
+
+## Bitcasino(entity_id=137,1 地址)
+
+- `0x094b4cf43908f0adb3dbdb5025f52470aac3b160`(EOA)
+
+## CoinSpot(entity_id=136,6 地址)
+
+- `0x33a64dcdfa041befebc9161a3e0c6180cd94fa89`(EOA)
+- `0x32e567e8b527d3194c60ea3c6a5c009d58a0b36d`(EOA)
+- `0x32143a02fb6484d18c79fa0401c9bf760dd3de68`(EOA)
+- `0x235186179440b58a23ccf2601529223ce7ce09ba`(EOA)
+- `0x20312e96b1a0568ac31c6630844a962383cc66c2`(EOA)
+- `0x09363887a4096b142f3f6b58a7eed2f1a0ff7343`(EOA)
+
+## CoinW(entity_id=135,4 地址)
+
+- `0x2d6323cc438b96f0ae942280762cc507b5398563`(EOA)
+- `0x204828c049aabc79405510bd287e066a64c1f307`(EOA)
+- `0x107c5b03713d85882b416fd864424d024175cd61`(EOA)
+- `0x092738e25c5d132e235e8bd4451d180e86da6736`(EOA)
+
+## Ceffu(entity_id=131,1 地址)
+
+- `0x08439901c2bb071cd0812ed329675c9657434083`(EOA)
+
+## CoinEx(entity_id=130,11 地址)
+
+- `0x33ddd548fe3a082d753e5fe721a26e1ab43e3598`(EOA)
+- `0x3339afcb8e237aa8aaf3e1040473173830efd09c`(EOA)
+- `0x32e3e876aa0c1732ed9efcf9d8615de7afaef59f`(EOA)
+- `0x28218df2a8143e0d21533b3ece267d5d66000000`(EOA)
+- `0x2659201f26584ef52824338a6ba5f6c509d19e91`(EOA)
+- `0x240ed9fe4f9bac21ce4fd9233ba077ab3fbf2cd1`(EOA)
+- `0x20e3438bb64854c745405b166e96ebda80800723`(EOA)
+- `0x20145c5e27408b5c1cf2239d0115ee3bbc27cbd7`(EOA)
+- `0x187e3534f461d7c59a7d6899a983a5305b48f93f`(EOA)
+- `0x16b6f205d9fad0b57d42c7c09ee29e37df4cb7f7`(EOA)
+- `0x0802dd2edd3f9fad39a9173b4595be819f201d61`(EOA)
+
+## QMall(entity_id=128,2 地址)
+
+- `0x2217e5921b7edfb4bb193a6228459974010d2198`(EOA)
+- `0x0c0511d1ee844a516b6bda54db3bca01e2ce2a19`(EOA)
+
+## VinDAX(entity_id=127,1 地址)
+
+- `0x07ac908cca9c69af022541d8fc0bb29485feb4bf`(EOA)
+
+## Bitvavo(entity_id=126,2 地址)
+
+- `0x1a1c87d9a6f55d3bbb064bff1059ad37b6bdc097`(EOA)
+- `0x079a892628ebf28d0ed8f00151cff225a093dc63`(EOA)
+
+## XT.com(entity_id=125,3 地址)
+
+- `0x2bc0dde194d722fe98ed3912cad464380f2225ac`(EOA)
+- `0x104703893f56243c0e56441a99eb3f32e1ed6ad2`(EOA)
+- `0x07888c3c5d25fa74ae04a9ead1fb1cf0e7743689`(EOA)
+
+## ChangeNOW(entity_id=123,4 地址)
+
+- `0x3525d3a883f743ca146288c146de7ccd59d48bf5`(EOA)
+- `0x3421230289980b8ea81781b170ef7d475673102b`(EOA)
+- `0x19f00b3a7b6f55c9da966fe3723251784a797fa7`(EOA)
+- `0x077d360f11d220e4d5d831430c81c26c9be7c4a4`(EOA)
+
+## Liquid(entity_id=121,1 地址)
+
+- `0x07445065963c2d563cd70ddf2aa49fc771e59a98`(EOA)
+
+## Robinhood(entity_id=120,2 地址)
+
+- `0x2efb50e952580f4ff32d8d2122853432bbf2e204`(EOA)
+- `0x0716a17fbaee714f1e6ab0f9d59edbc5f09815c0`(EOA)
+
+## Gemini(entity_id=119,2 地址)
+
+- `0x07ee55aa48bb72dcc6e9d78256648910de513eca`(EOA)
+- `0x066a10831d783fe4e08b7676d9881c77298ed298`(合约)
+
+## BingX(entity_id=118,5 地址)
+
+- `0x2b9287402e077f866a067176217ee6ec0e24e4cc`(EOA)
+- `0x2b3bf74b29f59fb8dda41cf3d6a8da28cf8e7921`(EOA)
+- `0x29f3144d84da21f9a6788f14680d0a2aa44d6f0e`(EOA)
+- `0x1651d700cd4020334bd185ba4c6e0271ffc0c732`(EOA)
+- `0x065ac3d33fec104fba9f2f4d674afaa7c4ebcf43`(EOA)
+
+## Bitget(entity_id=117,8 地址)
+
+- `0x31a36512d4903635b7dd6828a934c3915a5809be`(EOA)
+- `0x2bf7494111a59bd51f731dcd4873d7d71f8feeec`(EOA)
+- `0x1ab4973a48dc892cd9971ece8e01dcc7688f8f23`(EOA)
+- `0x1a96e5da1315efcf9b75100f5757d5e8b76abb0c`(EOA)
+- `0x149ded7438caf5e5bfdc507a6c25436214d445e1`(EOA)
+- `0x0edd5b0de0fe748be331186bf0aa878f47f601db`(EOA)
+- `0x0639556f03714a74a5feeaf5736a4a64ff70d206`(EOA) ← 已在静态表
+- `0x092fe28430bade62c7c044b9c77d0aaa06241319`(合约)
+
+## Deribit(entity_id=115,3 地址)
+
+- `0x2eed6a08fb89a5cd111efa33f8dca46cfbeb370f`(EOA)
+- `0x1bae874af9f81b8f93315b27f080260da4702d3a`(EOA)
+- `0x062448f804191128d71fc72e10a1d13bd7308e7e`(EOA)
+
+## Cryptomus(entity_id=114,2 地址)
+
+- `0x25da419ce9633b0681be01aca175cd0c0f2c2b47`(EOA)
+- `0x061be0bc209a27588b7e85c0032ac8a0cdfd12a5`(EOA)
+
+## ABCC Exchange(entity_id=113,1 地址)
+
+- `0x05f51aab068caa6ab7eeb672f88c180f67f17ec7`(EOA)
+
+## gate.io(entity_id=112,3 地址)
+
+- `0x1c4b70a3968436b9a0a9cf5205c787eb81bb558c`(EOA)
+- `0x0d0707963952f2fba59dd06f2b425ace40b492fe`(EOA)
+- `0x05ee546c1a62f90d7acbffd6d846c9c54c7cf94c`(EOA)
+
+## Luno(entity_id=110,2 地址)
+
+- `0x2e05a304d3040f1399c8c20d2a9f659ae7521058`(EOA)
+- `0x05cdb1526f6e224e02919a4c018d9784ea25eb3d`(EOA)
+
+## Bitkub(entity_id=109,5 地址)
+
+- `0x3460427b53823beb759d7b6a4f1d5b7199209646`(EOA)
+- `0x326d9f47ba49bbaac279172634827483af70a601`(EOA)
+- `0x308672703961164e64332ba1ce19b85827502b4d`(EOA)
+- `0x1579b5f6582c7a04f5ffeec683c13008c4b0a520`(EOA)
+- `0x0573adf35a54475cbe10992ba7c7dc11a80f39ab`(EOA)
+
+## AtomSolutions(entity_id=107,1 地址)
+
+- `0x054c64741dbafdc19784505494029823d89c3b13`(EOA)
+
+## Steam Exchange(entity_id=106,1 地址)
+
+- `0x0542df7dacc8716653df3fd9f991520aa2f2d0bc`(EOA)
+
+## Poloniex(entity_id=105,4 地址)
+
+- `0x32be343b94f860124dc4fee278fdcbd38c102d88`(EOA)
+- `0x29065a4c1f2f20d1e263930088890d6f49fe715a`(EOA)
+- `0x209c4784ab1e8183cf58ca33cb740efbf3fc18ef`(EOA)
+- `0x0536806df512d6cdde913cf95c9886f65b1d3462`(EOA)
+
+## Norwegian Block Exchange(entity_id=104,2 地址)
+
+- `0x29af949c3d218c1133bd16257ed029e92defb168`(EOA)
+- `0x052ed0ad68ffc470386fdab82f7046e0b55fd663`(EOA)
+
+## Bitpanda(entity_id=103,1 地址)
+
+- `0x0529ea5885702715e83923c59746ae8734c553b7`(EOA)
+
+## Joyso(entity_id=102,1 地址)
+
+- `0x04f062809b244e37e7fdc21d9409469c989c2342`(EOA)
+
+## Brasil Bitcoin(entity_id=101,1 地址)
+
+- `0x04c079bb31deed8391015eed8d6b625a40957058`(EOA)
+
+## B2BinPay(entity_id=95,2 地址)
+
+- `0x20dc0b9520cc2c2be89f247061a2c8e310045949`(EOA)
+- `0x0439812ac2f1b528071f9aab73c996c01e05139d`(EOA)
+
+## BlockFi(entity_id=94,5 地址)
+
+- `0x26994d7c461a91ef5324f7058c10b18d9dd8d43a`(EOA)
+- `0x22ffda6813f4f34c520bf36e5ea01167bc9df159`(EOA)
+- `0x2a549b4af9ec39b03142da6dc32221fc390b5533`(合约)
+- `0x26d37f2d8d9703255cd79a383c3f80b528b2342c`(合约)
+- `0x04046027549f739edfd5b2a78efdbaf0f0bf4514`(合约)
+
+## Omgfin(entity_id=92,1 地址)
+
+- `0x03e3ff995863828554282e80870b489cc31dc8bc`(EOA)
+
+## AscendEX(entity_id=89,2 地址)
+
+- `0x09344477fdc71748216a7b8bbe7f2013b893def8`(EOA)
+- `0x03bdf69b1322d623836afbd27679a1c0afa067e9`(EOA)
+
+## LCX(entity_id=88,3 地址)
+
+- `0x2957ea6d4f06bc2badfb2958c65fc7d1be5461b1`(EOA)
+- `0x1570c66fec9862f1295f07fe74eda2196a93f34f`(EOA)
+- `0x037a54aab062628c9bbae1fdb1583c195585fe41`(EOA)
+
+## Upbit(entity_id=87,3 地址)
+
+- `0x1d791f12bb6808dc08ab365e2ec8913273c00193`(EOA)
+- `0x1938a448d105d26c40a52a1bfe99b8ca7a745ad0`(EOA)
+- `0x03747f06215b44e498831da019b27f53e483599f`(EOA)
+
+## Coinjar(entity_id=86,1 地址)
+
+- `0x0363bfc09b48616190d15ddee5987ae2d05da6f4`(EOA)
+
+## HashKey Exchange(entity_id=83,2 地址)
+
+- `0x25a58cee7928b3d6c1d392ebe1a97318aa5ff2f2`(EOA)
+- `0x03248f4759ef5c4fddd959aa07a5294e00b03e44`(EOA)
+
+## Arkham(entity_id=82,1 地址)
+
+- `0x0323718324218dcbff7c9f89ba5a5954f61a6c74`(EOA)
+
+## BitMart(entity_id=81,6 地址)
+
+- `0x328130164d0f2b9d7a52edc73b3632e713ff0ec6`(EOA)
+- `0x2fedfef485ef23b4b38d11d5a3ed8bd83f12ffcb`(EOA)
+- `0x2982bb64bcd07ac3315c32cb2bb7e5e8a2de7d67`(EOA)
+- `0x0a3ed175807bb420ae6621cac1d351ed0eec8025`(EOA)
+- `0x051c869bf94ba4ad372f88b227d78de4508eabf3`(EOA)
+- `0x03231b778a16d2d5222b4ced947c7ad3fea14635`(EOA)
+
+## HTX(entity_id=79,24 地址)
+
+- `0x3567cafb8bf2a83bbea4e79f3591142fb4ebe86d`(EOA)
+- `0x34189c75cbb13bdb4f5953cda6c3045cfca84a9e`(EOA)
+- `0x32598293906b5b17c27d657db3ad2c9b3f3e4265`(EOA)
+- `0x30741289523c2e4d2a62c7d6722686d14e723851`(EOA)
+- `0x2abc22eb9a09ebbe7b41737ccde147f586efeb6a`(EOA)
+- `0x28ffe35688ffffd0659aee2e34778b0ae4e193ad`(EOA)
+- `0x27e9f4748a2eb776be193a1f7dec2bb6daafe9cf`(EOA)
+- `0x24d48513eac38449ec7c310a79584f87785f856f`(EOA)
+- `0x229b5c097f9b35009ca1321ad2034d4b3d5070f6`(EOA)
+- `0x19ba1a6a4e610a3d7739ee177d6eb25d14341c46`(EOA)
+- `0x18916e1a2933cb349145a280473a5de8eb6630cb`(EOA)
+- `0x18709e89bd403f470088abdacebe86cc60dda12e`(EOA)
+- `0x137ad9c4777e1d36e4b605e745e8f37b2b62e9c5`(EOA)
+- `0x12fa4951cbfc51102ccfd5580beb135ca3d74c54`(EOA)
+- `0x1205e4f0d2f02262e667fd72f95a68913b4f7462`(EOA)
+- `0x119346062a580ee98774df7f0c1c5d1dd7f1adc0`(EOA)
+- `0x1062a747393198f70f71ec65a582423dba7e5ab3`(EOA)
+- `0x0e4e219315435392674d4063ce880fb7d67d2c55`(EOA)
+- `0x0c6c34cdd915845376fb5407e0895196c9dd4eec`(EOA)
+- `0x0a98fb70939162725ae66e626fe4b52cff62c2e5`(EOA)
+- `0x0577a79cfc63bbc0df38833ff4c4a3bf2095b404`(EOA)
+- `0x051e6c1579333d52424f955adde7de2561672ded`(EOA)
+- `0x034f854b44d28e26386c1bc37ff9b20c6380b00d`(EOA)
+- `0x0316eb71485b0ab14103307bf65a021042c6d380`(EOA)
+
+## Coinsquare(entity_id=77,2 地址)
+
+- `0x2f671a39613861ec17ad35de44f4f84e3d4c69f4`(EOA)
+- `0x02fdc44bf226e49dceca4775afaef3360e9c4ee9`(EOA)
+
+## Lemon Cash(entity_id=75,3 地址)
+
+- `0x20bb82f2db6ff52b42c60ce79cde4c7094ce133f`(EOA)
+- `0x203a53957d04a8a7df0951d1af510b2062b5b125`(EOA)
+- `0x02a78632215262a94ce8651846e7d22adc98ce3c`(EOA)
+
+## Coinbase(entity_id=74,29 地址)
+
+- `0x35aeed3aa9657abf8b847038bb591b51e1e4c69f`(EOA)
+- `0x33c858fb6f2cc564a6412b38d049da2b26687d65`(EOA)
+- `0x33ae106bc06effa33e6db5813b619710f2dfb5d4`(EOA)
+- `0x2ee1717f0e49481c72b814e5778815b9fe3d92d1`(EOA)
+- `0x2bdcda44d935c12c3a76972c4339975782842a12`(EOA)
+- `0x2a410f11a6f520398447bf423dcedd25dfd3a568`(EOA)
+- `0x292bf41e2506f88aa3e73721aabc75b4f08e664e`(EOA)
+- `0x28e71d0b7f7f29106a1be2a5b289cab331e7b56f`(EOA)
+- `0x28c5b0445d0728bc25f143f8eba5c5539fae151a`(EOA)
+- `0x281055afc982d96fab65b3a49cac8b878184cb16`(EOA)
+- `0x251e93d51c5f2a1e60b7bc90bc8b2534b68e8f40`(EOA)
+- `0x221cec08c3df34763eed468705dc779cbe750ceb`(EOA)
+- `0x20fe51a9229eef2cf8ad9e89d91cab9312cf3b7a`(EOA)
+- `0x204ad5bed7eb66e002329a018bb96d87a8db1aa8`(EOA)
+- `0x1bd3fc5ac794e7af8e834a8a4d25b08acd9266ce`(EOA)
+- `0x19d599012788b991ff542f31208bab21ea38403e`(EOA)
+- `0x19ab546e77d0cd3245b2aad46bd80dc4707d6307`(EOA)
+- `0x1985ea6e9c68e1c272d8209f3b478ac2fdb25c87`(EOA)
+- `0x1553767e6ab6d26695b34366f61340b48d8b7a62`(EOA)
+- `0x14af92363379f3548958f9de1fb2e6e5df74476e`(EOA)
+- `0x0ff64c53d295533a37f913bb78be9e2adc78f5fe`(EOA)
+- `0x0e86733eab26cfcc04bb1752a62ec88e910b4cf5`(EOA)
+- `0x0a74db66f8248554d406832e305555043fe3bfd7`(EOA)
+- `0x09bd4daa146dd9f03f0f955c429e4e1b388e3fd5`(EOA)
+- `0x082923d3b46ac98f734f9fc2a76d8bf7b2074e59`(EOA)
+- `0x05e3a758fdd29d28435019ac453297ea37b61b62`(EOA)
+- `0x04d4876932c7c375efcaeb7ae0ad00591acf09f6`(EOA)
+- `0x02d24cab4f2c3bf6e6eb07ea07e45f96baccffe7`(EOA)
+- `0x02a50cb5e39c3991278d357c966edce781e118ce`(EOA)
+
+## CoinFLEX(entity_id=68,2 地址)
+
+- `0x1fa2157797a4ef47dcb5cd4d50835f0c69f70af2`(EOA)
+- `0x01e79ff04a66ce034758172f8b422b0f8115921b`(EOA)
+
+## LMAX Digital(entity_id=67,1 地址)
+
+- `0x01e45794296607a04b086c68f11f69a54f8ca013`(EOA)
+
+## Copper(entity_id=61,9 地址)
+
+- `0x33064d04d38164676fa9650294561169ad567458`(EOA)
+- `0x293aa6f08a7820d97cd17d0ca7941141767d1a9b`(EOA)
+- `0x1a34f1b1860885f6b0946847894719711e43ca2c`(EOA)
+- `0x1751f24f68ddf0a58abacafa044decec5d0668ff`(EOA)
+- `0x139755dfda844a7e56f49c319ad4b7cb041f54f7`(EOA)
+- `0x10ef7a0d8e307dfb41ed27ce09da2f5c6871a3d6`(EOA)
+- `0x0fc5186f980e0b3ee1fe522e737ebcea5d7fe9d0`(EOA)
+- `0x0349923ae2b35ff4f0099869aeea99d1f3fd12a9`(EOA)
+- `0x01b64ec97c01219d3462be8355855e14a9a036c4`(EOA)
+
+## Celsius Network(entity_id=58,5 地址)
+
+- `0x2d187a560cfbd28e1eb2f68534754b0f120459a9`(EOA)
+- `0x1cedc0f3af8f9841b0a1f5c1a4ddc6e1a1629074`(EOA)
+- `0x11889c10ca33fbabdbeb0c5ffc016c8ee56f87f4`(EOA)
+- `0x06fc63b5c211ac29a9da0cc24461581786163a67`(EOA)
+- `0x019c4935ff1c4945f046c6784c08a40f1ab632a3`(EOA)
+
+## mexc(entity_id=56,3 地址)
+
+- `0x2e8f79ad740de90dc5f5a9f0d8d9661a60725e64`(EOA)
+- `0x0211f3cedbef3143223d3acf0e589747933e8527`(EOA)
+- `0x0162cd2ba40e23378bf0fd41f919e1be075f025f`(EOA)
+
+## Coinzix(entity_id=54,1 地址)
+
+- `0x014c18ad92838e8bb62b0135a0cf3f5cdd5bd6f4`(EOA)
+
+## HitBTC(entity_id=51,3 地址)
+
+- `0x1240c57c23bc7deaf34fe51362f3dfe11ecc6702`(EOA)
+- `0x04ecc5ba3258840725fd808be0fae3430b8346f2`(EOA)
+- `0x0113a6b755fbad36b4249fd63002e2035e401143`(EOA)
+
+## kucoin(entity_id=50,13 地址)
+
+- `0x33a28d7a0c94599edb670fcce5dfa9d4c072314e`(EOA)
+- `0x2d964ee844c35a72c6a9d498d54c8a9910cf6914`(EOA)
+- `0x2b5634c42055806a59e9107ed44d43c426e58258`(EOA)
+- `0x2933782b5a8d72f2754103d1489614f29bfa4625`(EOA)
+- `0x18b0f4547a89fe4c5fe84f258bea3601fa281e9f`(EOA)
+- `0x189b24f3eb15dc71b4fc57c5914e7e9b3246e449`(EOA)
+- `0x1692e170361cefd1eb7240ec13d048fd9af6d667`(EOA)
+- `0x14ea40648fc8c1781d19363f5b9cc9a877ac2469`(EOA)
+- `0x0c32131b67a9306a42e5b66f869bc213d40e43f0`(EOA)
+- `0x061f7937b7b2bc7596539959804f86538b6368dc`(EOA)
+- `0x03e6fa590cadcf15a38e86158e9b3d06ff3399ba`(EOA)
+- `0x00f3e09abe73aec2d6ad7b8820049b60ebc73f94`(EOA)
+- `0x17a30350771d02409046a683b18fe1c13ccfc4a8`(合约)
+
+## Kraken(entity_id=48,56 地址)
+
+- `0x34e8ed33d8c1953b33de603b014079c578e01716`(EOA)
+- `0x34036f30371847c9fd8036b7ea5af1b3126306dc`(EOA)
+- `0x317128b5cd8ea4e0fb8665b36aa399ea18b7118b`(EOA)
+- `0x310e035d176ccb589511ed16af7ae7bac4fc7f83`(EOA)
+- `0x30e84f627ebc336eee72cd720a837e6f75d865d5`(EOA)
+- `0x2d582746709928a6f66f5be9bec195c5b49bc7c1`(EOA)
+- `0x2d070ed1321871841245d8ee5b84bd2712644322`(EOA)
+- `0x2c04af9362797bdc4b182e29e0c58440411a4481`(EOA)
+- `0x2bb41971b9c23d612ebecc10a8037e0322de5c37`(EOA)
+- `0x2b8efcb849316b060a1c86498470f967d3184a2c`(EOA)
+- `0x2995eb883fd4b4111116f1fdedbbc47a122a5c75`(EOA)
+- `0x2989be98cd0d84d492e4b2410301b4b4be4f7a70`(EOA)
+- `0x29728d0efd284d85187362faa2d4d76c2cfc2612`(EOA)
+- `0x2910543af39aba0cd09dbb2d50200b3e800a63d2`(EOA)
+- `0x26c1df84f7917c5d90f1d8d744b0caaf1ae3fa11`(EOA)
+- `0x26a78d5b6d7a7aceedd1e6ee3229b372a624d8b7`(EOA)
+- `0x267be1c1d684f78cb4f6a176c4911b741e4ffdc0`(EOA)
+- `0x24c65132cded9e5b356a62d4cea59a8b3f0bd7f4`(EOA)
+- `0x24b4eae904632c53ee231e3bd6c4444745ce22c0`(EOA)
+- `0x23d4df4631aa3ca30653d3c29c0eeef607b1d9fd`(EOA)
+- `0x22af984f13dfb5c80145e3f9ee1050ae5a5fb651`(EOA)
+- `0x226e5888f43b251a5ef1a55b01761f452e8002a5`(EOA)
+- `0x21ba9d82ac862daace296bc6467efce8e3190f1c`(EOA)
+- `0x210b3cb99fa1de0a64085fa80e18c22fe4722a1b`(EOA)
+- `0x205188a68430e94f80a512038329030c556b50ff`(EOA)
+- `0x1f7bc4da1a0c2e49d7ef542f74cd46a3fe592cb1`(EOA)
+- `0x1ed8b3e4278184675fefa6981dea36f4535df417`(EOA)
+- `0x1e4bf013652c59ae6acda550bf49074268b7efa2`(EOA)
+- `0x1e22cd8cfa52e950e1f1e78d7e9d59b20df63909`(EOA)
+- `0x1d0e8445694a22f34334ad1ade6271ecde76db63`(EOA)
+- `0x1d0065d367da1919cd597d25f91a97b6039428c5`(EOA)
+- `0x1a6fc5abd6d15fa3673784da167db7f80b90e472`(EOA)
+- `0x181020fb8481217fa5c843f0c4e62a4ea236c4d9`(EOA)
+- `0x17c358503e8f0a0322b304ffc0390b08a0de0fa3`(EOA)
+- `0x16e48112198b49a14991ae8a9d5eae9e18d4714a`(EOA)
+- `0x16b34756653f88a89005e96c0622832d8fb6b0b5`(EOA)
+- `0x16b2b042f15564bb8585259f535907f375bdc415`(EOA)
+- `0x14af4dc16c65fd0c43937d7c6fc8f443da29d0bb`(EOA)
+- `0x12fd1ac6c2237776ab04bdcb3dbadf6dfbf7f1b6`(EOA)
+- `0x1275af46d41651a21de2f4ddc16587e9584fd65c`(EOA)
+- `0x10eff6869391417bf83770e6245d298ed58ded02`(EOA)
+- `0x109be9d7d5f64c8c391ced3a8f69bdef20fcaea9`(EOA)
+- `0x108a745ce1faea55ebc09aa217b554a7a7e865b2`(EOA)
+- `0x10593a64b7b7bb0ea29b8c01f1619ca8ff294b2f`(EOA)
+- `0x0ef6aeb825dc4c9983d551f8afefaae9d79165c6`(EOA)
+- `0x0eefaf34f9ccf41366ab547330c8978be8fd3ff9`(EOA)
+- `0x0e33be39b13c576ff48e14392fbf96b02f40cd34`(EOA)
+- `0x0d0452f487d1edc869d1488ae984590ca2900d2f`(EOA)
+- `0x0a869d79a7052c7f1b55a8ebabbea3420f0d1e13`(EOA)
+- `0x0a332d03367366dd5fd3a554ef8f8b47ed36e591`(EOA)
+- `0x098cbdd8eb01b19d37539644821772e9bde12d55`(EOA)
+- `0x0873a4edd6e46108a69d82d85df396692903540e`(EOA)
+- `0x07fdda8fc50f7df742b850a51e5871135f45b557`(EOA)
+- `0x01b8629d722d451ba9dd0a539c2ba11b6dbe68b8`(EOA)
+- `0x012480c08d20a14cf3cb495e942a94dd926dcc8f`(EOA)
+- `0x00d3c53b1ec47932c25595ba2e53e9db20fc7364`(EOA)
+
+## Bitzlato(entity_id=47,1 地址)
+
+- `0x00cdc153aa8894d08207719fe921fff964f28ba3`(EOA)
+
+## Bitstamp(entity_id=45,10 地址)
+
+- `0x333c100ae1a2743a1e55d73913cac6d95deb7f62`(EOA)
+- `0x31c84a968736fcfe02a9ba274e0fa515a4a6659c`(EOA)
+- `0x2b56b639636b246abfe67634ebdb29f09aa791fb`(EOA)
+- `0x273a4db9f7cb388ec216df8c347f0529b22f4bd8`(EOA)
+- `0x182e1259ef6ee45dc811132ef4ba5871f1536822`(EOA)
+- `0x16a798dbd8fa626143bb4f06fa4724d4145d4e6e`(EOA)
+- `0x0b0f7ebf967146566799229394171fc47f1a765a`(EOA)
+- `0x059799f2261d37b829c2850cee67b5b975432271`(EOA)
+- `0x00bdb5699745f5b860228c8f939abf1b9ae374ed`(EOA)
+- `0x1522900b6dafac587d499a862861c0869be6e428`(合约)
+
+## Matrixport(entity_id=43,2 地址)
+
+- `0x0182e671dfd5f7d21b13714cbe9f92d26b59eeb9`(EOA)
+- `0x0090e10302a3ddeff920ba96a023423f306dc0a8`(EOA)
+
+## Bidesk(entity_id=40,9 地址)
+
+- `0x2ffe12462a7415a154a9db89266f257061c83f3d`(EOA)
+- `0x233da32ca8cd6ce0928c9893382216e6f81f8f16`(EOA)
+- `0x1f13246d1d34f5ae1c588dbea54248451801065f`(EOA)
+- `0x1ee7c37eff6a37d38d805a0cedc134147a9dd3cf`(EOA)
+- `0x1d2cf000cd5ab8996501dbfeaba0e19eba7e2b50`(EOA)
+- `0x0c2f8e43cc0d7184d1057620994fa32f03f64a8d`(EOA)
+- `0x0bb5de248dbbd31ee6c402c3c4a70293024acf74`(EOA)
+- `0x0a20c2c37583c4842a9d79ca0cb8739bd48329d2`(EOA)
+- `0x007e8236d3dd1e754f5287df4baf3f560e62bf2b`(EOA)
+
+## BlockTrades(entity_id=38,1 地址)
+
+- `0x007174732705604bbbf77038332dc52fd5a5000c`(EOA)
+
+## Tokocrypto(entity_id=37,2 地址)
+
+- `0x2ed497f486504b3cc1c944866ddd946eeea94076`(EOA)
+- `0x0068eb681ec52dbd9944517d785727310b494575`(EOA)
+
+## bybit(entity_id=34,10 地址)
+
+- `0x318d2aae4c99c2e74f7b5949fa1c34df837789b8`(EOA)
+- `0x2ffcb90d6455b99ec14b4842f82b504dae80736b`(EOA)
+- `0x2ded5ce31a0c61ecaf6429a1ba1a00b2bfe67099`(EOA)
+- `0x260b364fe0d3d37e6fd3cda0fa50926a06c54cea`(EOA)
+- `0x25c7d768a7d53e6ebe5590c621437126c766e1ea`(EOA)
+- `0x1db92e2eebc8e0c075a02bea49a2935bcd2dfcf4`(EOA)
+- `0x1c3944173abee256456b1498299fc501ad5bbd6f`(EOA)
+- `0x18e296053cbdf986196903e889b7dca7a73882f6`(EOA)
+- `0x12136e543b551ecdfdea9a0ed23ed0eff5505ee0`(EOA)
+- `0x0051ef9259c7ec0644a80e866ab748a2f30841b3`(EOA)
+
+## CoinPayments.net(entity_id=29,5 地址)
+
+- `0x31d3a108fac60b0d5584226d9d2aa2294c637d76`(EOA)
+- `0x278425b97f719bc8cfa1d8aa1bbf7520ca81610c`(EOA)
+- `0x0833b566dd4d3a2f55b8416e7ca7e43921510885`(EOA)
+- `0x005ad9b93955bf76d180c66f33fe84bd0f3310b5`(EOA)
+- `0x003e36550908907c2a2da960fd19a419b9a774b7`(EOA)
+
+## LAToken(entity_id=28,5 地址)
+
+- `0x2790e66986d4f701443b3f053d7d9ebfa69c990e`(EOA)
+- `0x235e8ced6b42ee6e226837eb551e86d810d49f22`(EOA)
+- `0x1b6c1a0e20af81b922cb454c3e52408496ee7201`(EOA)
+- `0x0f307b17d41ace555620df5a55dd5a01637e3b42`(EOA)
+- `0x00343217b01188388c0e3242278231ace35e1b61`(EOA)
+
+## Nexo(entity_id=27,6 地址)
+
+- `0x354e9fa5c6ee7e6092158a8c1b203ccac932d66d`(EOA)
+- `0x31e9b3373f2ad5d964cad0fd01332d6550cbbde6`(EOA)
+- `0x1d85f929ee6aedc3b4981d8fe408ae43942b2e53`(EOA)
+- `0x121effb8160f7206444f5a57d13c7a4424a237a4`(EOA)
+- `0x00ee047a66d5cff27587a61559138c26b62f7ceb`(EOA)
+- `0x0031e147a79c45f24319dc02ca860cb6142fcba1`(EOA)
+
+## binance(entity_id=24,31 地址)
+
+- `0x345d8e3a1f62ee6b1d483890976fd66168e390f2`(EOA)
+- `0x3304e22ddaa22bcdc5fca2269b418046ae7b566a`(EOA)
+- `0x2f7e209e0f5f645c7612d7610193fe268f118b28`(EOA)
+- `0x2e581a5ae722207aa59acd3939771e7c7052dd3d`(EOA)
+- `0x29bdfbf7d27462a2d115748ace2bd71a2646946c`(EOA)
+- `0x294b9b133ca7bc8ed2cdd03ba661a4c6d3a834d9`(EOA)
+- `0x290275e3db66394c52272398959845170e4dcb88`(EOA)
+- `0x28c6c06298d514db089934071355e5743bf21d60`(EOA)
+- `0x25681ab599b4e2ceea31f8b498052c53fc2d74db`(EOA)
+- `0x21a31ee1afc51d94c2efccaa2092ad1028285549`(EOA)
+- `0x1fbe2acee135d991592f167ac371f3dd893a508b`(EOA)
+- `0x1d40b233cdf2cc0cdc347d5401d5b02c2831a0c1`(EOA)
+- `0x1b5b4e441f5a22bfd91b7772c780463f66a74b35`(EOA)
+- `0x19184ab45c40c2920b0e0e31413b9434abd243ed`(EOA)
+- `0x18e226459ccf0eec276514a4fd3b226d8961e4d1`(EOA)
+- `0x17b692ae403a8ff3a3b2ed7676cf194310dde9af`(EOA)
+- `0x1763f1a93815ee6e6bc3c4475d31cc9570716db2`(EOA)
+- `0x161ba15a5f335c9f06bb5bbb0a9ce14076fbb645`(EOA)
+- `0x15ece0d7de25436bcfcf3d62a9085ddc7838aee9`(EOA)
+- `0x141fef8cd8397a390afe94846c8bd6f4ab981c48`(EOA)
+- `0x0e4158c85ff724526233c1aeb4ff6f0c46827fbe`(EOA)
+- `0x0b95993a39a363d99280ac950f5e4536ab5c5566`(EOA)
+- `0x082489a616ab4d46d1947ee3f912e080815b08da`(EOA)
+- `0x07b664c8af37eddaa7e3b6030ed1f494975e9dfb`(EOA)
+- `0x06a0048079ec6571cd1b537418869cde6191d42d`(EOA)
+- `0x0681d8db095565fe8a346fa0277bffde9c0edbbf`(EOA)
+- `0x01c952174c24e1210d26961d456a77a39e1f0bb0`(EOA)
+- `0x00f9451385bf75910d80374eb42edf36d1a3f243`(EOA)
+- `0x00799bbc833d5b168f0410312d2a8fd9e0e3079c`(EOA)
+- `0x001ceb373c83ae75b9f5cf78fc2aba3e185d09e2`(EOA)
+- `0x001866ae5b3de6caa5a51543fd9fb64f524f5478`(EOA)
+
+## Bithumb(entity_id=21,75 地址)
+
+- `0x361ad597f6a0cf86f8ab14234ca17a5739a67458`(EOA)
+- `0x36014fbe13fed6dbb2e24b85c0c2fa9d6b7863a4`(EOA)
+- `0x3513779d69ee4d1c063a229563c1063172cd47f8`(EOA)
+- `0x322bf705ebebcdf1fc79ce59e07954e339b0152c`(EOA)
+- `0x31d03f07178bcd74f9099afebd23b0ae30184ab5`(EOA)
+- `0x316378331e4e209f684d5feaab5a2412cdfe9206`(EOA)
+- `0x3154f72f0a0b9023f1c18505c2b73f9cd1990cae`(EOA)
+- `0x311bb43fff9db87332c3b1b2f5695ce1e19d1300`(EOA)
+- `0x310983cc148696430326180c6b6e6b98e5e5958a`(EOA)
+- `0x3052cd6bf951449a984fe4b5a38b46aef9455c8e`(EOA)
+- `0x2ed6e641fe3b510571ba5ab42a646ac54ae073db`(EOA)
+- `0x2cf451e6856d9b8f04ff57b9100da5ae4923a6ce`(EOA)
+- `0x2cde81f6662935b77f91e5aaa5f4606344bf755b`(EOA)
+- `0x2c83a61b6450040c60c5b640d0c05f9effa77d4f`(EOA)
+- `0x2c2ffc440f1414bfac7b75068600db9179faf6bc`(EOA)
+- `0x2ba094d1a26d39edfb404d5c55801a845f385fdd`(EOA)
+- `0x2b66b43a6e31e9828536a9d1baa5fe0fac59e023`(EOA)
+- `0x29b3f20da51d077780fe49082ec916bcd54b652a`(EOA)
+- `0x2943e66ea4b10c5cfaaa1eb2c32910a74dfd4491`(EOA)
+- `0x28d3220ebd66ac526f6e72a3412f29a7eed753b0`(EOA)
+- `0x28c0bb0b86b541df7aa0a1505622fe8eb3c3a604`(EOA)
+- `0x28a645aca864d3e03a5a0fc62b98e86d2a4f4f62`(EOA)
+- `0x28395f207ca3a0934324f63e5b731b9f785feba0`(EOA)
+- `0x251c0de47b181f392698a5e0390eff3c9686bb30`(EOA)
+- `0x24434ebf296c2f9cd59b14412aae5c4ca1d5aad2`(EOA)
+- `0x23731b08a78c9b3579bdd3ddf39e1a73462ee1b1`(EOA)
+- `0x22b84d5ffea8b801c0422afe752377a64aa738c2`(EOA)
+- `0x223683a91ac37d1298e404640c83c964258422dd`(EOA)
+- `0x2226f424ff9e018a126e40d4e390da6f6c69742c`(EOA)
+- `0x2220e4cf9259b593fd9df160058c2af3454245e1`(EOA)
+- `0x2140efd7ba31169c69dfff6cdc66c542f0211825`(EOA)
+- `0x20c9ca0edc13f4e28a469ca7fb7b1f76da058b0a`(EOA)
+- `0x205ba210b80de3b3cedf1243d4718f92cb674d01`(EOA)
+- `0x1f8bb0933147a92f6526e8e27d10b99dfa869280`(EOA)
+- `0x1f0a1d28766ded60ed16fde480e7abe68eb678c8`(EOA)
+- `0x1eb1c3e0f81afab04d60c0acc9dfac2af550d410`(EOA)
+- `0x1e9472c79fdc80901bbec9f38828a680eeecf476`(EOA)
+- `0x1e72e2a0665cd5db0b59397d242633b6e9834506`(EOA)
+- `0x1c81d769f4ec2e2f73470e10de4aea55940a32a8`(EOA)
+- `0x1aabda2551c0b062f61ed57f103e0385ec051065`(EOA)
+- `0x1a94e5bfed5d301cf70449f78bf43150934b0eb3`(EOA)
+- `0x186549a4ae594fc1f70ba4cffdac714b405be3f9`(EOA)
+- `0x18623b12230e0b11b6cced686f59762ba052c5dc`(EOA)
+- `0x1861ecedd4d4e26d198695fa80949f585b955fc3`(EOA)
+- `0x182b2ad652b11cf6bd03110bfe77d4dc2580285a`(EOA)
+- `0x17e5545b11b468072283cee1f066a059fb0dbf24`(EOA)
+- `0x17a55c64a515a4a299a5124d9eb70367b974dfb3`(EOA)
+- `0x17a242944ff9a4aff9a24abad4b038019d65d118`(EOA)
+- `0x176906f0bee543e5ef287436827d04be134fc722`(EOA)
+- `0x164dd100ff7f16b1e9ecbd027bf3a78bbcb92d18`(EOA)
+- `0x15878e87c685f866edfaf454be6dc06fa517b35b`(EOA)
+- `0x143bba444c1384c1784a8cb00e924aca1a1f4637`(EOA)
+- `0x1437036c9e6f7e9e26901e6bf8916c8cbd63f04d`(EOA)
+- `0x131f001af400d5f212e1894846469fba70f8bcc9`(EOA)
+- `0x128519584bec3b6b0c63dfa3975c9a7eb6fea5e4`(EOA)
+- `0x10463e7fcff26639920e965e1c5c1a6ce0201faa`(EOA)
+- `0x0f863d0bbc760d7ef8d47c43639c13fc4b0f2e04`(EOA)
+- `0x0eec9ba7a7b670509d883625065452e7bf3d08b1`(EOA)
+- `0x0c4ed2551f687d785866ebe7ed73bc2f4dd7c88e`(EOA)
+- `0x0bd4475fbc4309f27a49b323625126ffefd70029`(EOA)
+- `0x0bbdc1bf83cf32cd19ca56fba7adc327c2c51e5d`(EOA)
+- `0x0adc257ef08d46ea4534e7912188ac0f515880c8`(EOA)
+- `0x0a6347c319a00762eb69e438dc6256b1d2c60556`(EOA)
+- `0x08f14cfcc8f0b67bfac70d3f93623775577e0909`(EOA)
+- `0x07a98956df1b3a555f8f8408e280d6342451daaa`(EOA)
+- `0x06e11d8ef805f23c92e3ff02f061600139b2a5ea`(EOA)
+- `0x05d3c095a58b0327f9c0ba8889a1e05432de6081`(EOA)
+- `0x0569439cebec7199149be90e2148ea1a9e898be8`(EOA)
+- `0x03599a2429871e6be1b154fb9c24691f9d301865`(EOA)
+- `0x02b95511fd25c71a5bf6ceae9a1b60167bf89e92`(EOA)
+- `0x025bc0c05c939bce0f738856e50f6ec07e9d1d49`(EOA)
+- `0x014dcec5d0a124ed7de2ca305cd7157502806c93`(EOA)
+- `0x0116e0f4e82e65b219ba2b53a622847af97ddcb7`(EOA)
+- `0x0100b755fdfca195c3ac29fbdb567d92b952456d`(EOA)
+- `0x0016c0d0343e8f2c3a7b6a51606b84b1545ec606`(EOA)
+
+## Shakepay(entity_id=19,1 地址)
+
+- `0x000f422887ea7d370ff31173fd3b46c8f66a5b1c`(EOA)
+
+## okx(entity_id=6,26 地址)
+
+- `0x343d752bb710c5575e417edb3f9fa06241a4749a`(EOA)
+- `0x313eb1c5e1970eb5ceef6aebad66b07c7338d369`(EOA)
+- `0x2d2cc0eb095e43204e0c087e07dbf95909650939`(EOA)
+- `0x2ce910fbba65b454bbaf6a18c952a70f3bcd8299`(EOA)
+- `0x2c8fbb630289363ac80705a1a61273f76fd5a161`(EOA)
+- `0x297611b7accb7f24032c27b3a496465624c7ef50`(EOA)
+- `0x276cdba3a39abf9cedba0f1948312c0681e6d5fd`(EOA)
+- `0x268f8c596d556e6c51f594d8ca8d6183010871b7`(EOA)
+- `0x24c654f6b143dc5cae3c02fbb527ca63aa555dbc`(EOA)
+- `0x236f9f97e0e62388479bf9e5ba4889e46b0273c3`(EOA)
+- `0x20a3a4ae2aacb8bbcfd89dc71280dd18cd9a0cb4`(EOA)
+- `0x1c62a58a11d88d71f936e0ee799eaebd74546894`(EOA)
+- `0x11b113383ce08e84001dc614f141ae4c27221e31`(EOA)
+- `0x0ff9491b236a36cc183823e39d7532194143fdb1`(EOA)
+- `0x0f51a310a4dd79d373eb8be1c0ddd54570235443`(EOA)
+- `0x0938c63109801ee4243a487ab84dffa2bba4589e`(EOA)
+- `0x0799ddbf6f14db566ca4df4ff0575c4cc1e7749c`(EOA)
+- `0x073f564419b625a45d8aea3bb0de4d5647113ad7`(EOA)
+- `0x06d3a30cbb00660b85a30988d197b1c282c6dcb6`(EOA)
+- `0x06959153b974d0d5fdfd87d561db6d8d4fa0bb0b`(EOA)
+- `0x05d9617595e69ff577076355abc5e7c51ed0bdf3`(EOA)
+- `0x0475dd0e4194422a8cac486dc69173f535d0baf4`(EOA)
+- `0x03ae1a796dfe0400439211133d065bda774b9d3e`(EOA)
+- `0x0003b5aa5e30e97fcc596bb5d0f3a75255e08d4e`(EOA)
+- `0x00000000004e3d5628234f18b977041e5242651f`(EOA)
+- `0x000000000000d5775ff7721cefb8097af62e52dd`(EOA)
+
+---
+共 632 地址,与现有静态表重合 1 个。

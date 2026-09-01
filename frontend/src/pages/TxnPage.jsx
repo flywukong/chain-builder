@@ -35,15 +35,28 @@ const ACT_META = {
   failed_unknown: { label: "失败调用(未识别)", color: "#B45A62" },
   other:   { label: "其他调用", color: "#747D88" },
 };
+const spanLabel = (hours) => {
+  const h = Math.max(0, Number(hours) || 0);
+  if (h < 24) return `${+h.toFixed(1)}小时`;
+  return `${+(h / 24).toFixed(1)}天`;
+};
 
 // v2 主面板:一条互斥行为分布 + 三组可重叠特征。把口径和质量放在图前面。
 function DimPanel({ dim, collector, range, setRange }) {
   const [metric, setMetric] = useState("tx");
   if (!dim?.total) {
+    const available = dim?.meta?.availableContinuousHours ?? 0;
     return (
       <div className="panel txn-dim-panel" style={{ maxWidth: 1230 }}>
-        <div className="panel-header"><span>交易行为与特征(V2)</span></div>
-        <div className="panel-body"><div className="ph-note" style={{ margin: 10 }}>新口径数据自本次部署起积累,稍后刷新可见。</div></div>
+        <div className="panel-header">
+          <span>交易行为与特征(V2)</span>
+          <span className="tf-ranges">
+            {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"]].map(([v, label]) => (
+              <button key={v} className={`tf-range ${range === v ? "on" : ""}`} disabled={available < Number(v) * 24 && range !== v} onClick={() => setRange(v)}>{label}</button>
+            ))}
+          </span>
+        </div>
+        <div className="panel-body"><div className="txn-window-empty">当前版本尚无可用连续数据。请求窗口 {range === "1" ? "24H" : `${range}天`}，实际连续覆盖 <b>{spanLabel(available)}</b>；统计不会用旧版本或缺口前的数据补齐。</div></div>
       </div>
     );
   }
@@ -58,6 +71,9 @@ function DimPanel({ dim, collector, range, setRange }) {
   const cov = (n) => (bizTotal ? +((n / bizTotal) * 100).toFixed(1) : 0);
   const sinceStr = dim.since ? new Date(dim.since).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
   const coverage = dim.meta?.coveragePct;
+  const windowCoverage = dim.meta?.windowCoveragePct ?? 0;
+  const windowReady = !!dim.meta?.windowReady;
+  const available = dim.meta?.availableContinuousHours ?? 0;
   const receiptsKnown = dim.denominators?.receiptKnownTx ?? Math.max(0, dim.total - (dim.qual?.rcptMiss ?? 0));
   const receiptPct = dim.total ? +((receiptsKnown / dim.total) * 100).toFixed(2) : 0;
   const successPct = dim.total ? +(((dim.total - (dim.qual?.failed ?? 0)) / dim.total) * 100).toFixed(2) : 0;
@@ -74,16 +90,17 @@ function DimPanel({ dim, collector, range, setRange }) {
       <div className="panel-header">
         <span>交易行为与特征(V2)</span>
         <span className="txn-dist-ctl">
-          <span className="sub">行为互斥合计 100% · 特征可重叠 · 自 {sinceStr} 有效积累</span>
+          <span className="sub">请求 {range === "1" ? "24H" : `${range}天`} · 实际连续 {spanLabel(dim.meta?.effectiveHours)} · 自 {sinceStr}</span>
           <span className="tf-ranges">
             {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"]].map(([v, label]) => (
-              <button key={v} className={`tf-range ${range === v ? "on" : ""}`} onClick={() => setRange(v)}>{label}</button>
+              <button key={v} className={`tf-range ${range === v ? "on" : ""}`} disabled={available < Number(v) * 24 && range !== v} title={available < Number(v) * 24 ? `当前仅连续覆盖 ${spanLabel(available)}` : ""} onClick={() => setRange(v)}>{label}</button>
             ))}
           </span>
         </span>
       </div>
       <div className="panel-body">
         <div className="txn-quality-strip">
+          <span><em>窗口就绪</em><b className={windowReady ? "ok" : "warn"}>{windowReady ? "是" : `否 · ${windowCoverage}%`}</b></span>
           <span><em>采集连续性</em><b className={coverage == null ? "warn" : coverage >= 99.9 ? "ok" : "bad"}>{coverage == null ? "待建立" : `${coverage}%`}</b></span>
           <span><em>Receipt 完整</em><b className={receiptPct >= 99.99 ? "ok" : "bad"}>{receiptPct}%</b></span>
           <span><em>执行成功</em><b>{successPct}%</b></span>
@@ -137,7 +154,7 @@ function DimPanel({ dim, collector, range, setRange }) {
               {covRow("流出 CEX", "#5FA8C7", dim.flows.cex_out ?? 0, "Transfer 的发送方命中已知 CEX 热钱包。它是地址覆盖流出，不等于全平台提现量。")}
               {(dim.flows.cex_internal ?? 0) > 0 && covRow("CEX 地址间", "#44758a", dim.flows.cex_internal)}
             </div>
-            <div className="txn-dim-qual">V2 规则版本 {(dim.meta?.classifierVersions ?? []).join(", ") || "—"} · receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>{(dim.meta?.excludedStaleBuckets ?? 0) > 0 && <> · 已隔离旧版本桶 <b>{dim.meta.excludedStaleBuckets}</b></>}</div>
+            <div className="txn-dim-qual">V2 规则版本 {(dim.meta?.classifierVersions ?? []).join(", ") || "—"} · receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>{((dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0)) > 0 && <> · 已隔离旧版本/缺口前桶 <b>{(dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0)}</b></>}</div>
           </div>
         </div>
       </div>
@@ -332,6 +349,9 @@ export default function TxnPage() {
   const { s: ai, run: runAi } = TxnAiBox();
   const distDays = Number(distMode);
   const distLabel = distMode === "1" ? "24H" : `${distMode}天`;
+  const effectiveLabel = d?.dim?.total
+    ? (d.dim.meta?.windowReady ? distLabel : `连续 ${spanLabel(d.dim.meta?.effectiveHours)}`)
+    : distLabel;
 
   const clickAddr = (addr) => {
     navigator.clipboard?.writeText(addr).catch(() => {});
@@ -346,6 +366,8 @@ export default function TxnPage() {
   const [rulesOpen, setRulesOpen] = useState(false);
   const distAi = usePanelAi("/api/ai/txn-dist", "~30s",
     () => ({ days: Number(distMode) }));
+  // 热门合约榜 AI 解读(跟随 hotDays 窗口)
+  const hotAi = usePanelAi("/api/ai/txn-hot", "~30s", () => ({ days: hotDays }));
 
   useEffect(() => {
     let alive = true;
@@ -398,7 +420,7 @@ export default function TxnPage() {
       </div>
 
       <div className="subpage-body">
-        <DimConclusion dim={d?.dim} collector={d?.collector} label={distLabel} />
+        <DimConclusion dim={d?.dim} collector={d?.collector} label={effectiveLabel} />
         {ai.err && <div className="ai-err" style={{ maxWidth: 900 }}>⚠ {ai.err}</div>}
         {ai.text && (
           <div className="panel" style={{ maxWidth: 900 }}>
@@ -413,7 +435,7 @@ export default function TxnPage() {
             const biz = d?.dim?.denominators?.businessTx ?? 0;
             const ratio = (n) => biz ? +((100 * (n ?? 0)) / biz).toFixed(1) : 0;
             return <>
-              <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{biz.toLocaleString()}</div><div className="sc-l">{distLabel} 业务交易</div></div>
+              <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{biz.toLocaleString()}</div><div className="sc-l">{effectiveLabel} 业务交易</div></div>
               <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.acts?.swap?.n)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: ACT_META.swap.color }} />Swap 主行为</div></div>
               <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.assets?.stable)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.stable.color }} />稳定币触达</div></div>
               <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.parts?.bot)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.bot.color }} />疑似自动化命中</div></div>
@@ -516,18 +538,21 @@ export default function TxnPage() {
           </div>
         </details>
 
-        <div className="panel" style={{ maxWidth: 900 }}>
+        <div className="panel txn-hot-xl" style={{ maxWidth: 1620 }}>
           <div className="panel-header">
             <span>{hotLabel} 热门合约</span>
-            <span className="sub">标注(身份) · 分类(行为)+ 依据 · ✦ = AI 候选标签,未经人工审计
-              <span className="tf-ranges" style={{ marginLeft: 10 }}>
+            <span className="txn-dist-ctl">
+              <span className="sub">标注(身份) · 分类(行为)+ 依据 · ✦ = AI 候选标签,未经人工审计</span>
+              <span className="tf-ranges">
                 {[[1, "24H"], [7, "7天"], [30, "30天"]].map(([v, l]) => (
                   <button key={v} className={`tf-range ${hotDays === v ? "on" : ""}`} onClick={() => setHotDays(v)}>{l}</button>
                 ))}
               </span>
+              <AiButton ai={hotAi} label={`AI 解读(${hotLabel})`} />
             </span>
           </div>
           <div className="panel-body txn-contracts">
+            <AiResult ai={hotAi} title={`热门合约 · ${hotLabel}`} />
             <div className="txn-crow txn-crow-head">
               <span>标注 / 地址线索</span>
               <span>地址</span>

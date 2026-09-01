@@ -492,6 +492,26 @@ export async function runBidBlockAnalysis(data) {
   return spawnClaude(prompt, { timeoutMs: 180_000 });
 }
 
+// ── 热门合约榜解读(窗口 1/7/30 天)──
+export async function runTxnHotAnalysis(data) {
+  const prompt = [
+    `你是 BSC 主网链上合约分析师。基于${data.windowLabel}调用量最高的合约榜单,输出中文解读,markdown,280 字以内,直接正文。`,
+    "",
+    "每个合约字段:name=标注名(null=未命名), cat=分类, n=窗口笔数, gas=gas 总量, swap/xfer=Swap/Transfer 事件数, topSel=高频方法, ai=true 为 AI 候选标签(名字可信度一般,表述留余地), lc=true 为 NodeReal 标签库补名, intel={type 地址形态, verifiedName BscScan 认证名}。total=窗口全网总笔数(算份额用)。",
+    "",
+    "要求:",
+    "1. 头部格局:前三名是谁(名字/身份),各占全网多少份额(n/total),一句话说明它们是什么业务;",
+    "2. 构成:榜内 defi/bot/token/预测市场等的大致构成,和哪家协议出现次数最多;",
+    "3. 未命名高频地址:点名榜内 name=null 的地址(截短显示),给出可判断的线索(形态/方法/事件特征);无名且高频是新盘或攻击面信号,值得安全团队关注的单独说一句;",
+    "4. 值得注意的信号:builder 支付类刷榜、单一合约份额异常、AI 标签占比过高等;没有就说结构正常。",
+    "数字直接引用;不编造合约身份。",
+    "",
+    "数据(JSON):",
+    "```json", JSON.stringify(data, null, 1), "```",
+  ].join("\n");
+  return spawnClaude(prompt, { timeoutMs: 180_000 });
+}
+
 // ── 交易类型分布解读(窗口 1/3/7/30 天或历史累计)──
 export async function runTxnDistAnalysis(data) {
   const prompt = [

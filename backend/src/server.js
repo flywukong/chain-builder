@@ -27,7 +27,7 @@ import { ReorgObsStore } from "./metrics/reorgStore.js";
 import { SlashEventStore } from "./metrics/slashEventStore.js";
 import { MevAggregator } from "./mev/aggregator.js";
 import { applyLiveVersions } from "./mev/liveVersions.js";
-import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runSlashEventAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runTxnDistAnalysis, runLargeTxAnalysis, runBidBlockAnalysis, aiInfo } from "./ai/analyze.js";
+import { runAnalysis, runTrafficAnalysis, runTrafficTrendAnalysis, runTxpoolAnalysis, runMevAnalysis, runEmptyAnalysis, runEmptyStreakAnalysis, runEmptyMinerAnalysis, runErrLogsAnalysis, runErrGrading, runSlashAnalysis, runSlashEventAnalysis, runReorgAnalysis, runReorgEventAnalysis, runBlockGasAnalysis, runLatencyAnalysis, runSyncAnalysis, runGreedyMergeAnalysis, runAsk, runContractLabeling, runTxnFeatureAnalysis, runTxnDistAnalysis, runTxnHotAnalysis, runLargeTxAnalysis, runBidBlockAnalysis, aiInfo } from "./ai/analyze.js";
 import { VALIDATORS } from "../../frontend/src/data/validators.js";
 import { LabelBook } from "./txn/labels.js";
 import { TxnStore } from "./txn/store.js";
@@ -1951,6 +1951,26 @@ app.get("/api/txn", async (req) => {
   return v;
 });
 app.post("/api/txn/replay", async () => (await replayIfStale(true)) ?? { skipped: "up-to-date" });
+// 热门合约榜解读:跟随面板窗口(1/7/30 天),附地址情报与标签来源
+aiRoutes("txnHot", "/api/ai/txn-hot", async (body) => {
+  const days = Math.min(Math.max(Number(body?.days) || 1, 1), 30);
+  const v = txnStore.view(labelBook, days, days);
+  if (!v.topContracts?.length) throw new Error("采样数据积累中,请稍后再试");
+  await labelCloud.resolve(v.topContracts.filter((c) => !c.name).map((c) => c.addr)).catch(() => {});
+  const contracts = v.topContracts.map((c) => {
+    const it = getCachedIntel(c.addr);
+    const lcE = !c.name ? labelCloud.get(c.addr) : null;
+    return {
+      addr: c.addr, name: c.name ?? lcE?.name ?? null, cat: c.cat, n: c.n, gas: c.gas,
+      swap: c.swap, xfer: c.xfer, topSel: c.topSel, ai: !!c.ai, lc: !!(c.lc || lcE?.name),
+      ...(it ? { intel: { type: it.type, verifiedName: it.verifiedName ?? null } } : {}),
+    };
+  });
+  return runTxnHotAnalysis({
+    windowLabel: days === 1 ? "最近 24 小时" : `最近 ${days} 天`,
+    total: v.total24, contracts, learnedLabels: v.learnedLabels,
+  });
+});
 // 交易类型分布面板解读:跟随面板窗口(1/3/7/30 天或历史累计)
 aiRoutes("txnDist", "/api/ai/txn-dist", async (body) => {
   const mode = body?.mode === "all" ? "all" : Math.min(Math.max(Number(body?.days) || 1, 1), 30);

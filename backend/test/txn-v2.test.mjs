@@ -59,12 +59,30 @@ test("V2 view uses one business denominator and reports block coverage", () => {
   assert.equal(view.dim.denominators.businessTx, 2);
   assert.equal(view.dim.parts.bot, 1);
   assert.equal(view.dim.meta.coveragePct, 100);
+  assert.equal(view.dim.meta.availableContinuousHours, 1);
+  assert.equal(view.dim.meta.windowReady, false);
   assert.deepEqual(view.dim.meta.classifierVersions, [CLASSIFIER_V2_VER]);
 
   store.buckets[0].v2v = CLASSIFIER_V2_VER - 1;
   const staleView = store.view(labels(), 1, 1);
   assert.equal(staleView.dim.total, 0);
   assert.equal(staleView.dim.meta.excludedStaleBuckets, 1);
+});
+
+test("V2 window aggregates only the continuous tail after an hourly gap", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-gap-"));
+  const store = new TxnStore(path.join(dir, "store.json"));
+  const hour = 3600e3;
+  const now = Date.now();
+  const row = { cat: "other", act: "other", gas: 10, to: "", sel: "0x", swap: 0, xfer: 0, parts: [], assets: [], flows: [], fail: false, rcptMiss: false };
+  store.addBlock(now - 3 * hour, [row], null, null, 200);
+  store.addBlock(now - hour, [row], null, null, 201);
+  store.addBlock(now, [row], null, null, 202);
+
+  const view = store.view(labels(), 1, 1);
+  assert.equal(view.dim.total, 2);
+  assert.equal(view.dim.meta.availableContinuousHours, 2);
+  assert.equal(view.dim.meta.excludedGapBuckets, 1);
 });
 
 test("sampler commits only the contiguous successful prefix and retries the gap", async () => {

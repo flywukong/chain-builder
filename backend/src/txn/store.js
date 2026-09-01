@@ -76,6 +76,10 @@ export class TxnStore {
       b.maxBlock = b.maxBlock == null ? blockNum : Math.max(b.maxBlock, blockNum);
     }
     b.blocks++;
+    // 即使空块也属于当前分类器版本的连续采集区间。
+    if (b.v2v != null && b.v2v !== CLASSIFIER_V2_VER) b.v2mixed = true;
+    else b.v2v = CLASSIFIER_V2_VER;
+    b.acts ??= {};
     // 块级 gas price 分位(gwei)蓄水池抽样:gp=块中位(常规价),gp90=块 p90(高价单水位)
     if (typeof blockGp === "number") {
       (b.gp ??= []);
@@ -97,11 +101,7 @@ export class TxnStore {
       ac.n++; ac.gas += Number.isFinite(c.gas) ? c.gas : 0;
       // v2 多维双写:activity 互斥挂 gas;parts/assets/flows 叠加只计笔数;质量位
       if (c.act) {
-        // 分类器热升级发生在小时中途时保留 stale 标记,等待 journal 原子重算整桶；
-        // 不能只改版本号后把同一小时的新旧规则混在一起。
-        if (b.acts && b.v2v != null && b.v2v !== CLASSIFIER_V2_VER) b.v2mixed = true;
-        else b.v2v = CLASSIFIER_V2_VER;
-        const ae = ((b.acts ??= {})[c.act] ??= { n: 0, gas: 0 });
+        const ae = (b.acts[c.act] ??= { n: 0, gas: 0 });
         ae.n++; ae.gas += Number.isFinite(c.gas) ? c.gas : 0;
         this.allTime2.txs++;
         const a2 = (this.allTime2.acts[c.act] ??= { n: 0, gas: 0 });
@@ -360,22 +360,43 @@ export class TxnStore {
       }
     }
     // v2 多维窗口聚合(旧桶无这些字段,自 v2 上线的桶起有值)
+    // 当前分类器版本的连续尾段。存在小时缺口时，缺口之前的数据不能冒充“最近 N 天”。
+    const currentV2 = this.buckets
+      .filter((b) => b.acts && b.v2v === CLASSIFIER_V2_VER && !b.v2mixed)
+      .sort((a, b) => a.t - b.t);
+    let continuousSince = null, latestV2 = currentV2.at(-1)?.t ?? null;
+    if (latestV2 != null) {
+      continuousSince = latestV2;
+      for (let i = currentV2.length - 2; i >= 0; i--) {
+        if (currentV2[i + 1].t - currentV2[i].t !== HOUR) break;
+        continuousSince = currentV2[i].t;
+      }
+    }
+    const continuousHours = continuousSince == null ? 0 : Math.max(0, (latestV2 + HOUR - continuousSince) / HOUR);
+    const requestedHours = winMs / HOUR;
+    const dimBuckets = currentV2.filter((b) => b.t >= now - winMs && b.t >= continuousSince);
     const dim = {
       acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 },
       total: 0, since: null,
-      meta: { requestedDays: winMs / (24 * HOUR), blocks: 0, trackedBlocks: 0, minBlock: null, maxBlock: null, classifierVersions: [], excludedStaleBuckets: 0, excludedVersions: [] },
+      meta: {
+        requestedDays: winMs / (24 * HOUR), requestedHours,
+        availableContinuousHours: continuousHours,
+        effectiveHours: Math.min(requestedHours, continuousHours),
+        latestBucketAt: latestV2,
+        blocks: 0, trackedBlocks: 0, minBlock: null, maxBlock: null,
+        classifierVersions: [], excludedStaleBuckets: 0, excludedGapBuckets: 0, excludedVersions: [],
+      },
       denominators: {},
     };
     const dimVers = new Set(), staleVers = new Set();
     for (const b of bWin) {
       if (!b.acts) continue;
-      // 规则升级后绝不把旧版本桶静默混进新口径。事实日志能覆盖的桶由 replayV2
-      // 重算；更早数据保留在旧口径，但 V2 主面板从新版本断点重新累计。
       if (b.v2v !== CLASSIFIER_V2_VER || b.v2mixed) {
         dim.meta.excludedStaleBuckets++;
-        if (b.v2v != null) staleVers.add(b.v2v);
-        continue;
-      }
+        if (b.v2v != null && b.v2v !== CLASSIFIER_V2_VER) staleVers.add(b.v2v);
+      } else if (b.t < continuousSince) dim.meta.excludedGapBuckets++;
+    }
+    for (const b of dimBuckets) {
       dim.since ??= b.t;
       dim.meta.blocks += b.blocks || 0;
       if (b.minBlock != null && b.maxBlock != null) {
@@ -402,6 +423,10 @@ export class TxnStore {
     };
     dim.meta.classifierVersions = [...dimVers].sort((a, b) => a - b);
     dim.meta.excludedVersions = [...staleVers].sort((a, b) => a - b);
+    dim.meta.freshnessHours = latestV2 == null ? null : Math.max(0, (now - (latestV2 + HOUR)) / HOUR);
+    dim.meta.windowCoveragePct = requestedHours
+      ? +Math.min(100, (100 * continuousHours) / requestedHours).toFixed(2)
+      : 0;
     if (dim.meta.minBlock != null && dim.meta.maxBlock != null) {
       dim.meta.expectedBlocks = dim.meta.maxBlock - dim.meta.minBlock + 1;
       dim.meta.gapBlocks = Math.max(0, dim.meta.expectedBlocks - dim.meta.trackedBlocks);
@@ -413,6 +438,9 @@ export class TxnStore {
       dim.meta.gapBlocks = null;
       dim.meta.coveragePct = null;
     }
+    dim.meta.windowReady = continuousHours >= requestedHours
+      && (dim.meta.freshnessHours ?? Infinity) < 1
+      && (dim.meta.coveragePct == null || dim.meta.coveragePct >= 99.9);
 
     // 选择窗口与前一个等长窗口比较,避免“30d 占比”旁边展示“今日 vs 7d”。
     const prevTotals = {}, prevBuckets = this.buckets.filter((b) => b.t >= now - 2 * winMs && b.t < now - winMs);

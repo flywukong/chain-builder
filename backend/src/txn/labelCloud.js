@@ -33,7 +33,7 @@ export class LabelCloud {
   // 缓存中全部带 MEV Tracker 风险标的地址(供 participants 维度的 mev_bot 判定)
   mevSet() {
     const s = new Set();
-    for (const [a, e] of Object.entries(this.cache)) if (e.mev) s.add(a);
+    for (const [a, e] of Object.entries(this.cache)) if (e.mev && this._fresh(e)) s.add(a);
     return s;
   }
 

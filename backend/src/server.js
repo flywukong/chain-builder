@@ -625,8 +625,7 @@ async function pollSlash() {
 pollSlash();
 setInterval(pollSlash, 60_000);
 
-// ── 交易采样(1min/块)+ AI 合约归类(6h 批,标签库滚雪球)─────────────
-txnSampler.start();
+// ── 交易采样(连续安全水位)+ AI 合约归类(标签库滚雪球)─────────────
 async function pollContractLabels(retry = true) {
   try {
     const candidates = txnStore.unknownHot(labelBook, 24, 30);
@@ -670,16 +669,18 @@ async function replayIfStale(force = false) {
     return r;
   } catch (e) { console.error("[txn replay]", e.message); return { error: e.message }; }
 }
-setTimeout(() => replayIfStale(), 1_000);    // 启动即恢复 journal 可覆盖的当前版本窗口
-
 // MEV Tracker 背书标:疑似 MEV 候选(高频 swap trader/bot 命中 from)批量核查 label-cloud 风险标,
 // 命中者进 participants 的 mev_bot 维度。启动即从缓存恢复已知集合。
 labelBook.setMevSet(labelCloud.mevSet());
+// replay 与 sampler 串行，但不阻塞 HTTP 服务启动；重放结束（成功或失败）后才开始采集。
+replayIfStale().finally(() => txnSampler.start());
 async function pollMevLabels() {
   try {
     const cands = txnSampler.drainMevCandidates(200);
     if (cands.length) await labelCloud.resolve(cands);
-    labelBook.setMevSet(labelCloud.mevSet());
+    const changed = labelBook.setMevSet(labelCloud.mevSet());
+    // 风险标签新增/撤销后重放已封口且 journal 完整的小时，使参与者维度不只影响未来交易。
+    if (changed) await replayIfStale(true);
   } catch (e) { console.warn("[mev labels]", e.message); }
 }
 setTimeout(pollMevLabels, 5 * 60_000);

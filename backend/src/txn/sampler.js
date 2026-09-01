@@ -11,7 +11,7 @@ import path from "path";
 const BLOCK_MS = 450;
 
 export class TxnSampler {
-  constructor({ provider, store, labelBook, journal = null, stateFile = null, intervalMs = 60_000, concurrency = 10, maxPerTick = 300 }) {
+  constructor({ provider, store, labelBook, journal = null, stateFile = null, intervalMs = 60_000, concurrency = 10, maxPerTick = 300, confirmationBlocks = 20 }) {
     this.provider = provider;
     this.store = store;
     this.labelBook = labelBook;
@@ -20,20 +20,32 @@ export class TxnSampler {
     this.intervalMs = intervalMs;
     this.concurrency = concurrency;
     this.maxPerTick = maxPerTick;   // 单批上限;有积压时连续追赶,绝不跳块
+    this.confirmationBlocks = Math.max(0, Number(confirmationBlocks) || 0);
     this.lastBlock = 0;       // 仅表示连续成功抓取到的最高块,绝不跨过失败块
     this.firstBlock = 0;
     this.tip = 0;
+    this.safeTip = 0;
     this.lastError = null;
     this.stateError = null;
     this._mevCand = new Map();   // 疑似 MEV 候选 from(swap trader/bot 命中),供 labelCloud 批量核查
     this._busy = false;
+    this._stateExtra = {};
     try {
       if (stateFile && fs.existsSync(stateFile)) {
         const s = JSON.parse(fs.readFileSync(stateFile, "utf8"));
         this.lastBlock = Number(s.lastBlock) || 0;
         this.firstBlock = Number(s.firstBlock) || this.lastBlock;
+        const { lastBlock: _last, firstBlock: _first, updatedAt: _updated, ...extra } = s;
+        this._stateExtra = extra;
       }
     } catch { /* 无状态时从当前链头附近启动 */ }
+    if (!this.lastBlock) {
+      const recovered = this.store?.blockCoverage?.();
+      if (recovered) {
+        this.lastBlock = recovered.contiguousTo;
+        this.firstBlock = recovered.firstBlock;
+      }
+    }
   }
 
   _persistState() {
@@ -41,7 +53,7 @@ export class TxnSampler {
     try {
       fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
       const tmp = `${this.stateFile}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify({ lastBlock: this.lastBlock, firstBlock: this.firstBlock, updatedAt: Date.now() }));
+      fs.writeFileSync(tmp, JSON.stringify({ ...this._stateExtra, lastBlock: this.lastBlock, firstBlock: this.firstBlock, updatedAt: Date.now() }));
       fs.renameSync(tmp, this.stateFile);
       this.stateError = null;
       return true;
@@ -64,9 +76,12 @@ export class TxnSampler {
       firstBlock: this.firstBlock || null,
       contiguousTo: this.lastBlock || null,
       tip: this.tip || null,
-      backlogBlocks: this.tip && this.lastBlock ? Math.max(0, this.tip - this.lastBlock) : null,
+      safeTip: this.safeTip || null,
+      confirmationBlocks: this.confirmationBlocks,
+      backlogBlocks: this.safeTip && this.lastBlock ? Math.max(0, this.safeTip - this.lastBlock) : null,
       lastError: this.lastError,
       stateError: this.stateError,
+      storeError: this.store?.lastSaveError ?? null,
     };
   }
 
@@ -74,7 +89,7 @@ export class TxnSampler {
     const tick = async () => {
       try { await this.sample(); } catch (e) { console.error("[txn sampler]", e.message); }
       // 成功批次后快速追赶积压；遇失败则等常规定时器，避免对故障 RPC 紧密重试。
-      if (!this.lastError && this.tip > this.lastBlock && !this._catchupTimer) {
+      if (!this.lastError && this.safeTip > this.lastBlock && !this._catchupTimer) {
         this._catchupTimer = setTimeout(() => { this._catchupTimer = null; tick(); }, 250);
       }
     };
@@ -86,10 +101,12 @@ export class TxnSampler {
     if (this._busy) return;
     this._busy = true;
     try {
-      const tip = tipOverride == null
+      const chainTip = tipOverride == null
         ? parseInt(await this.provider.send("eth_blockNumber", []), 16)
         : Number(tipOverride);
-      this.tip = tip;
+      const tip = tipOverride == null ? Math.max(0, chainTip - this.confirmationBlocks) : chainTip;
+      this.tip = chainTip;
+      this.safeTip = tip;
       if (!this.lastBlock) {
         this.lastBlock = tip - Math.round(this.intervalMs / BLOCK_MS);  // 首次部署只声明从此处开始覆盖
         this.firstBlock = this.lastBlock + 1;
@@ -154,9 +171,16 @@ export class TxnSampler {
         if (this._mevCand.size >= 8000 && !this._mevCand.has(c.fact.f)) continue;
         this._mevCand.set(c.fact.f, (this._mevCand.get(c.fact.f) || 0) + 1);
       }
-      this.store.flush();
+      const persisted = this.store.flush?.() !== false;
+      if (!persisted) {
+        failure = { height: from, error: `store persist failed: ${this.store.lastSaveError || "unknown error"}` };
+        this.lastError = failure;
+        console.warn(`[txn sampler] ${failure.error}; watermark stays at #${this.lastBlock}`);
+        return;
+      }
       if (this.journal) {
-        try { this.journal.append(newlyStored.flatMap((r) => r.classified.map((c) => c.fact).filter(Boolean))); }
+        // 状态文件写失败后重启可能重抓已落盘块；journal replay 会按 block+txIndex 去重。
+        try { this.journal.append(committed.flatMap((r) => r.classified.map((c) => c.fact).filter(Boolean))); }
         catch (e) { console.warn("[txn facts]", e.message); }
       }
       if (committed.length) {

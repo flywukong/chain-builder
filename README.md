@@ -65,3 +65,6 @@ The RPC must support historical `eth_getBlockByNumber` and `eth_getBlockReceipts
 The backfill uses the production V2 classifier, checkpoints progress, and only replaces
 V2 hourly dimensions after the fixed block range completes. Do not run it concurrently
 with the monitor because both processes write `backend/data/txn-7d.json`.
+Completed checkpoints are retained for audit. To deliberately create a fresh snapshot
+after rules or label evidence change, add `TXN_BACKFILL_RESET=YES`; the previous files
+are renamed with an `.audit-*` suffix rather than deleted.

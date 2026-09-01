@@ -127,10 +127,20 @@ export class LabelBook {
     return STATIC_LABELS[a] ?? this.learned[a] ?? null;
   }
   // MEV Tracker 背书地址集(由 labelCloud 周期灌入):行为检测结论,可参与 participants 维度
-  setMevSet(set) { this.mev = set; }
+  setMevSet(set) {
+    const next = new Set(set ?? []);
+    const changed = next.size !== (this.mev?.size ?? 0) || [...next].some((a) => !this.mev?.has(a));
+    this.mev = next;
+    return changed;
+  }
   isMev(addr) { return this.mev?.has(addr) ?? false; }
   assetOf(addr) { return ASSET_OF.get(addr) ?? null; }
   verifiedAction(addr) { return VERIFIED_ACTION.get(addr) ?? null; }
+  actionCapabilities() {
+    const out = { predict: false, bridge: false };
+    for (const v of VERIFIED_ACTION.values()) if (v.actions && Object.keys(v.actions).length) out[v.act] = true;
+    return out;
+  }
   addLearned(entries) {   // [{addr, name, cat, confidence?, evidence?}] → candidate 条目
     let n = 0;
     for (const e of entries ?? []) {

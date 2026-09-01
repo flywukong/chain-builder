@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { classifyFactV2, CLASSIFIER_V2_VER } from "../src/txn/classifier.js";
+import { FactJournal } from "../src/txn/facts.js";
 import { TxnSampler } from "../src/txn/sampler.js";
 import { TxnStore } from "../src/txn/store.js";
 
@@ -59,7 +60,7 @@ test("V2 view uses one business denominator and reports block coverage", () => {
   assert.equal(view.dim.denominators.businessTx, 2);
   assert.equal(view.dim.parts.bot, 1);
   assert.equal(view.dim.meta.coveragePct, 100);
-  assert.equal(view.dim.meta.availableContinuousHours, 1);
+  assert.equal(view.dim.meta.availableContinuousHours, 0);
   assert.equal(view.dim.meta.windowReady, false);
   assert.deepEqual(view.dim.meta.classifierVersions, [CLASSIFIER_V2_VER]);
 
@@ -81,7 +82,7 @@ test("V2 window aggregates only the continuous tail after an hourly gap", () => 
 
   const view = store.view(labels(), 1, 1);
   assert.equal(view.dim.total, 2);
-  assert.equal(view.dim.meta.availableContinuousHours, 2);
+  assert.equal(view.dim.meta.availableContinuousHours, 1);
   assert.equal(view.dim.meta.excludedGapBuckets, 1);
 });
 
@@ -124,7 +125,7 @@ test("sampler commits only the contiguous successful prefix and retries the gap"
     addBlock(_t, _rows, _gp, _gp90, height) { committed.push(height); },
     flush() {},
   };
-  const sampler = new TxnSampler({ provider, store, labelBook: labels(), stateFile, concurrency: 3, maxPerTick: 10 });
+  const sampler = new TxnSampler({ provider, store, labelBook: labels(), stateFile, concurrency: 3, maxPerTick: 10, confirmationBlocks: 0 });
   await sampler.sample();
   assert.deepEqual(committed, [101]);
   assert.equal(sampler.status().contiguousTo, 101);
@@ -135,4 +136,125 @@ test("sampler commits only the contiguous successful prefix and retries the gap"
   assert.deepEqual(committed, [101, 102, 103]);
   assert.equal(sampler.status().contiguousTo, 103);
   assert.equal(sampler.status().lastError, null);
+});
+
+test("live sampler leaves the configured confirmation depth at the chain tip", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-confirmations-"));
+  const stateFile = path.join(dir, "state.json");
+  fs.writeFileSync(stateFile, JSON.stringify({ lastBlock: 100, firstBlock: 100 }));
+  const provider = { send: async (method, [hex] = []) => method === "eth_blockNumber"
+    ? "0x67"
+    : method === "eth_getBlockByNumber"
+      ? { timestamp: "0x1", transactions: [] }
+      : [] };
+  const committed = [];
+  const store = { addBlock(_t, _rows, _gp, _gp90, h) { committed.push(h); }, flush: () => true };
+  const sampler = new TxnSampler({ provider, store, labelBook: labels(), stateFile, confirmationBlocks: 2 });
+  await sampler.sample();
+  assert.deepEqual(committed, [101]);
+  assert.equal(sampler.status().tip, 103);
+  assert.equal(sampler.status().safeTip, 101);
+});
+
+test("24 hourly buckets spanning only 23 real hours do not unlock the 24H window", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-real-span-"));
+  const store = new TxnStore(path.join(dir, "store.json"));
+  const now = Date.now();
+  const hour = 3600e3;
+  const row = { cat: "other", act: "other", gas: 1, to: "", sel: "0x", swap: 0, xfer: 0, parts: [], assets: [], flows: [], fail: false, rcptMiss: false };
+  for (let i = 23; i >= 0; i--) store.addBlock(now - i * hour, [row], null, null, 1000 + i);
+  const meta = store.view(labels(), 1, 1).dim.meta;
+  assert.equal(meta.availableContinuousHours, 23);
+  assert.equal(meta.windowReady, false);
+});
+
+test("replay never replaces the active hour even when its snapshot exceeds 98 percent", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-replay-active-"));
+  const store = new TxnStore(path.join(dir, "store.json"));
+  const now = Date.now();
+  const row = { cat: "other", act: "other", gas: 1, to: "", sel: "0x", swap: 0, xfer: 0, parts: [], assets: [], flows: [], fail: false, rcptMiss: false };
+  store.addBlock(now, Array.from({ length: 100 }, () => ({ ...row })), null, null, 1);
+  store.buckets[0].v2v = CLASSIFIER_V2_VER - 1;
+  const fact = baseFact({ t: now, b: 1 });
+  const journal = {
+    coverage: () => ({ fromMs: now - 1, toMs: now + 1 }),
+    replay: async (_from, _to, cb) => { for (let i = 0; i < 99; i++) cb({ ...fact, i }); return 99; },
+  };
+  const result = await store.replayV2(journal, labels(), classifyFactV2);
+  assert.equal(result.replaced, 0);
+  assert.equal(Object.values(store.buckets[0].acts).reduce((s, v) => s + v.n, 0), 100);
+});
+
+test("replay deduplicates block and transaction ids before replacing a sealed hour", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-replay-dedup-"));
+  const store = new TxnStore(path.join(dir, "store.json"));
+  const t = Date.now() - 2 * 3600e3;
+  const row = { cat: "other", act: "other", gas: 1, to: "", sel: "0x", swap: 0, xfer: 0, parts: [], assets: [], flows: [], fail: false, rcptMiss: false };
+  store.addBlock(t, [row, row], null, null, 10);
+  store.buckets[0].v2v = CLASSIFIER_V2_VER - 1;
+  const facts = [baseFact({ t, b: 10, i: 0 }), baseFact({ t, b: 10, i: 1 }), baseFact({ t, b: 10, i: 1 })];
+  const journal = {
+    coverage: () => ({ fromMs: t - 1, toMs: t + 1 }),
+    replay: async (_from, _to, cb) => { facts.forEach(cb); return facts.length; },
+  };
+  const result = await store.replayV2(journal, labels(), classifyFactV2);
+  assert.equal(result.replaced, 1);
+  assert.equal(Object.values(store.buckets[0].acts).reduce((s, v) => s + v.n, 0), 2);
+  assert.equal(store.buckets[0].firstSeenAt, t);
+});
+
+test("sampler does not advance its watermark until the aggregate store is durable", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-durable-"));
+  const stateFile = path.join(dir, "state.json");
+  fs.writeFileSync(stateFile, JSON.stringify({ lastBlock: 100, firstBlock: 100 }));
+  const realStore = new TxnStore(path.join(dir, "store.json"));
+  const realFlush = realStore.flush.bind(realStore);
+  let fail = true;
+  realStore.flush = () => {
+    if (fail) { realStore.lastSaveError = "disk full"; return false; }
+    return realFlush();
+  };
+  const provider = { send: async (method) => method === "eth_blockNumber"
+    ? "0x65"
+    : method === "eth_getBlockByNumber"
+      ? { timestamp: "0x1", transactions: [] }
+      : [] };
+  const sampler = new TxnSampler({ provider, store: realStore, labelBook: labels(), stateFile, confirmationBlocks: 0 });
+  await sampler.sample();
+  assert.equal(sampler.lastBlock, 100);
+  assert.match(sampler.lastError.error, /store persist failed/);
+  fail = false;
+  await sampler.sample();
+  assert.equal(sampler.lastBlock, 101);
+  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).lastBlock, 101);
+});
+
+test("sampler recovers its watermark from persisted block ranges when state is missing", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-state-recover-"));
+  const store = new TxnStore(path.join(dir, "store.json"));
+  const row = { cat: "other", act: "other", gas: 1, to: "", sel: "0x", swap: 0, xfer: 0, parts: [], assets: [], flows: [], fail: false, rcptMiss: false };
+  store.addBlock(Date.now(), [row], null, null, 100);
+  store.addBlock(Date.now(), [row], null, null, 101);
+  store.flush();
+  const restored = new TxnStore(path.join(dir, "store.json"));
+  const sampler = new TxnSampler({ provider: {}, store: restored, labelBook: labels(), stateFile: path.join(dir, "missing-state.json") });
+  assert.equal(sampler.lastBlock, 101);
+  assert.equal(sampler.firstBlock, 100);
+});
+
+test("late facts appended while an old hour is rotating remain replayable", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-facts-rotate-"));
+  const journal = new FactJournal(dir, 24);
+  const t = Date.now() - 2 * 3600e3;
+  journal.append([baseFact({ t, b: 10, i: 0 })]);
+  journal.append([baseFact({ t, b: 10, i: 1 })]);
+  const waitRotation = async () => {
+    for (let i = 0; i < 100 && journal._gzipping?.size; i++) await new Promise((r) => setTimeout(r, 10));
+  };
+  await waitRotation();
+  journal._rotate();
+  await waitRotation();
+  const ids = [];
+  await journal.replay(t - 1, t + 1, (f) => ids.push(`${f.b}:${f.i}`));
+  assert.deepEqual(ids.sort(), ["10:0", "10:1"]);
 });

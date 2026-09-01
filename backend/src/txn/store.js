@@ -22,6 +22,7 @@ export class TxnStore {
     this.allTime = { since: Date.now(), blocks: 0, txs: 0, cats: {} };
     // v2 多维累计:自 v2 分类器上线时刻分段起算(不与 v1 历史混口径)
     this.allTime2 = { since: Date.now(), txs: 0, acts: {} };
+    this.lastSaveError = null;
     try {
       if (fs.existsSync(file)) {
         const raw = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -60,6 +61,21 @@ export class TxnStore {
     return b;
   }
 
+  // 状态文件丢失/损坏时，从已持久化区块区间恢复连续水位，避免退回“只抓链头一分钟”。
+  blockCoverage() {
+    const ranges = this.buckets.flatMap((b) => b.blockRanges ?? [])
+      .filter(([lo, hi]) => Number.isFinite(lo) && Number.isFinite(hi))
+      .sort((a, b) => a[0] - b[0]);
+    if (!ranges.length) return null;
+    let firstBlock = ranges[0][0], contiguousTo = ranges[0][1];
+    for (let i = 1; i < ranges.length; i++) {
+      const [lo, hi] = ranges[i];
+      if (lo > contiguousTo + 1) break;
+      contiguousTo = Math.max(contiguousTo, hi);
+    }
+    return { firstBlock, contiguousTo };
+  }
+
   addBlock(now, classified, blockGp = null, blockGp90 = null, blockNum = null) {
     const b = this._bucket(now);
     if (Number.isFinite(blockNum)) {
@@ -79,6 +95,9 @@ export class TxnStore {
       b.maxBlock = b.maxBlock == null ? blockNum : Math.max(b.maxBlock, blockNum);
     }
     b.blocks++;
+    b.rev = (b.rev || 0) + 1;
+    b.firstSeenAt = b.firstSeenAt == null ? now : Math.min(b.firstSeenAt, now);
+    b.lastSeenAt = b.lastSeenAt == null ? now : Math.max(b.lastSeenAt, now);
     b.v2Blocks = (b.v2Blocks ?? Math.max(0, b.blocks - 1)) + 1;
     // 即使空块也属于当前分类器版本的连续采集区间。
     if (b.v2v != null && b.v2v !== CLASSIFIER_V2_VER) b.v2mixed = true;
@@ -142,8 +161,8 @@ export class TxnStore {
   }
 
   flush() {
-    if (!this._dirty) return;
-    this._dirty = false;
+    if (!this._dirty) return !this.lastSaveError;
+    const tmp = `${this.file}.tmp-${process.pid}`;
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
       const slim = this.buckets.map((b) => ({
@@ -154,8 +173,18 @@ export class TxnStore {
         ...(b.gp?.length > 120 ? { gp: b.gp.slice(-120) } : {}),
         ...(b.gp90?.length > 120 ? { gp90: b.gp90.slice(-120) } : {}),
       }));
-      fs.writeFileSync(this.file, JSON.stringify({ buckets: slim, allTime: this.allTime, allTime2: this.allTime2 }));
-    } catch { /* non-fatal */ }
+      fs.writeFileSync(tmp, JSON.stringify({ buckets: slim, allTime: this.allTime, allTime2: this.allTime2 }));
+      fs.renameSync(tmp, this.file);
+      this._dirty = false;
+      this.lastSaveError = null;
+      return true;
+    } catch (e) {
+      // 水位推进依赖这个返回值；失败时保留 dirty，下一批继续重试，绝不能静默丢数据。
+      this._dirty = true;
+      this.lastSaveError = e?.message || "txn store persist failed";
+      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
+      return false;
+    }
   }
 
   // 离线历史回填完成后，把同版本 V2 小时桶一次性覆盖进主存储。
@@ -180,6 +209,9 @@ export class TxnStore {
       dst.blockRanges = structuredClone(src.blockRanges ?? []);
       dst.minBlock = src.minBlock ?? null;
       dst.maxBlock = src.maxBlock ?? null;
+      dst.firstSeenAt = src.firstSeenAt ?? null;
+      dst.lastSeenAt = src.lastSeenAt ?? null;
+      dst.rev = (dst.rev || 0) + 1;
       merged++;
     }
     this.buckets.sort((a, b) => a.t - b.t);
@@ -203,20 +235,29 @@ export class TxnStore {
 
   // 是否存在旧版本 v2 数据(分类器/verified 表升级后重启,journal 覆盖窗口内待重放)
   needsReplay() {
-    return this.buckets.some((b) => b.acts && (b.v2v ?? 0) !== CLASSIFIER_V2_VER);
+    return this.buckets.some((b) => b.acts && (
+      (b.v2v ?? 0) !== CLASSIFIER_V2_VER || b.firstSeenAt == null || b.lastSeenAt == null
+    ));
   }
 
   // 从 FactJournal 重放,重算窗口内各小时桶的 v2 维度并差量修正 allTime2。
-  // v1(cats/txs/contracts)不重放;journal 覆盖不完整的小时(<98% 笔数)与当前小时跳过。
+  // v1(cats/txs/contracts)不重放；journal 与桶笔数不严格一致、当前小时或 replay 期间变化的桶一律跳过。
   async replayV2(journal, labelBook, classifyFn) {
     const cov = journal.coverage();
     if (!cov) return { replaced: 0, skipped: 0, facts: 0 };
     const agg = new Map();
+    const revisions = new Map(this.buckets.map((b) => [b.t, b.rev || 0]));
+    const seen = new Set();
     const facts = await journal.replay(cov.fromMs, cov.toMs, (f) => {
+      const id = `${f.b}:${f.i}`;
+      if (seen.has(id)) return;
+      seen.add(id);
       const v2 = classifyFn(f, labelBook);
       const hk = Math.floor(f.t / HOUR);
       let a = agg.get(hk);
-      if (!a) agg.set(hk, (a = { txs: 0, acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 } }));
+      if (!a) agg.set(hk, (a = { txs: 0, acts: {}, parts: {}, assets: {}, flows: {}, qual: { failed: 0, rcptMiss: 0 }, firstSeenAt: f.t, lastSeenAt: f.t }));
+      a.firstSeenAt = Math.min(a.firstSeenAt, f.t);
+      a.lastSeenAt = Math.max(a.lastSeenAt, f.t);
       a.txs++;
       const e = (a.acts[v2.act] ??= { n: 0, gas: 0 });
       e.n++; e.gas += f.rc && Number.isFinite(f.g) ? f.g : 0;
@@ -227,10 +268,14 @@ export class TxnStore {
       if (v2.rcptMiss) a.qual.rcptMiss++;
     });
     let replaced = 0, skipped = 0;
+    const currentHour = Math.floor(Date.now() / HOUR) * HOUR;
     for (const [hk, a] of agg) {
       const b = this.buckets.find((x) => x.t === hk * HOUR);
       if (!b) { skipped++; continue; }
-      if (a.txs < b.txs * 0.98) { skipped++; continue; }
+      // 当前小时未封口；rev 变化说明 replay 期间 sampler 仍在写这个桶。两者都不可覆盖。
+      if (b.t >= currentHour || (b.rev || 0) !== (revisions.get(b.t) || 0)) { skipped++; continue; }
+      // 事实日志必须与桶严格一致；宁可保留旧版本，也不能用残缺/重复 journal 覆盖。
+      if (a.txs !== b.txs) { skipped++; continue; }
       const keys = new Set([...Object.keys(b.acts ?? {}), ...Object.keys(a.acts)]);
       for (const k of keys) {
         const oldE = b.acts?.[k], newE = a.acts[k];
@@ -240,7 +285,9 @@ export class TxnStore {
         this.allTime2.txs += (newE?.n || 0) - (oldE?.n || 0);
       }
       b.acts = a.acts; b.parts = a.parts; b.assets = a.assets; b.flows = a.flows; b.qual = a.qual;
+      b.firstSeenAt = a.firstSeenAt; b.lastSeenAt = a.lastSeenAt;
       b.v2v = CLASSIFIER_V2_VER; delete b.v2mixed;
+      b.rev = (b.rev || 0) + 1;
       replaced++;
     }
     if (replaced) { this._dirty = true; this.flush(); }
@@ -411,7 +458,7 @@ export class TxnStore {
     // v2 多维窗口聚合(旧桶无这些字段,自 v2 上线的桶起有值)
     // 当前分类器版本的连续尾段。存在小时缺口时，缺口之前的数据不能冒充“最近 N 天”。
     const currentV2 = this.buckets
-      .filter((b) => b.acts && b.v2v === CLASSIFIER_V2_VER && !b.v2mixed)
+      .filter((b) => b.acts && b.v2v === CLASSIFIER_V2_VER && !b.v2mixed && b.firstSeenAt != null && b.lastSeenAt != null)
       .sort((a, b) => a.t - b.t);
     let continuousSince = null, latestV2 = currentV2.at(-1)?.t ?? null;
     if (latestV2 != null) {
@@ -421,7 +468,13 @@ export class TxnStore {
         continuousSince = currentV2[i].t;
       }
     }
-    const continuousHours = continuousSince == null ? 0 : Math.max(0, (latestV2 + HOUR - continuousSince) / HOUR);
+    const firstV2 = continuousSince == null ? null : currentV2.find((b) => b.t === continuousSince);
+    const lastV2 = latestV2 == null ? null : currentV2.find((b) => b.t === latestV2);
+    const preciseTimeCoverage = !!(firstV2?.firstSeenAt && lastV2?.lastSeenAt);
+    // 首尾小时都可能是部分桶，覆盖时长必须按真实块时间计算，不能把两个部分桶各算满一小时。
+    const continuousHours = preciseTimeCoverage
+      ? Math.max(0, (lastV2.lastSeenAt - firstV2.firstSeenAt) / HOUR)
+      : 0;
     const requestedHours = winMs / HOUR;
     const dimBuckets = currentV2.filter((b) => b.t >= now - winMs && b.t >= continuousSince);
     const dim = {
@@ -433,7 +486,9 @@ export class TxnStore {
         effectiveHours: Math.min(requestedHours, continuousHours),
         latestBucketAt: latestV2,
         blocks: 0, trackedBlocks: 0, minBlock: null, maxBlock: null,
-        classifierVersions: [], excludedStaleBuckets: 0, excludedGapBuckets: 0, excludedVersions: [],
+        classifierVersions: [], excludedStaleBuckets: 0, excludedGapBuckets: 0, excludedImpreciseBuckets: 0, excludedVersions: [],
+        preciseTimeCoverage,
+        actionCapabilities: labelBook.actionCapabilities?.() ?? { predict: false, bridge: false },
       },
       denominators: {},
     };
@@ -443,6 +498,8 @@ export class TxnStore {
       if (b.v2v !== CLASSIFIER_V2_VER || b.v2mixed) {
         dim.meta.excludedStaleBuckets++;
         if (b.v2v != null && b.v2v !== CLASSIFIER_V2_VER) staleVers.add(b.v2v);
+      } else if (b.firstSeenAt == null || b.lastSeenAt == null) {
+        dim.meta.excludedImpreciseBuckets++;
       } else if (b.t < continuousSince) dim.meta.excludedGapBuckets++;
     }
     for (const b of dimBuckets) {
@@ -472,7 +529,7 @@ export class TxnStore {
     };
     dim.meta.classifierVersions = [...dimVers].sort((a, b) => a - b);
     dim.meta.excludedVersions = [...staleVers].sort((a, b) => a - b);
-    dim.meta.freshnessHours = latestV2 == null ? null : Math.max(0, (now - (latestV2 + HOUR)) / HOUR);
+    dim.meta.freshnessHours = lastV2?.lastSeenAt == null ? null : Math.max(0, (now - lastV2.lastSeenAt) / HOUR);
     dim.meta.windowCoveragePct = requestedHours
       ? +Math.min(100, (100 * continuousHours) / requestedHours).toFixed(2)
       : 0;

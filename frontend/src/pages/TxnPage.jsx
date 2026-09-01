@@ -56,7 +56,7 @@ function DimPanel({ dim, collector, range, setRange }) {
             ))}
           </span>
         </div>
-        <div className="panel-body"><div className="txn-window-empty">当前版本尚无可用连续数据。请求窗口 {range === "1" ? "24H" : `${range}天`}，实际连续覆盖 <b>{spanLabel(available)}</b>；统计不会用旧版本或缺口前的数据补齐。</div></div>
+        <div className="panel-body"><div className="txn-window-empty">当前版本尚无可用连续数据。请求窗口 {range === "1" ? "24H" : `${range}天`}，实际连续覆盖 <b>{spanLabel(available)}</b>；统计不会用旧版本、时间边界不明或缺口前的数据补齐。{collector?.lastError && <> 最近错误：<b>#{collector.lastError.height} {collector.lastError.error}</b>。</>}</div></div>
       </div>
     );
   }
@@ -108,6 +108,7 @@ function DimPanel({ dim, collector, range, setRange }) {
           <span><em>采集积压</em><b className={backlog > 0 ? "warn" : "ok"}>{backlog == null ? "—" : `${backlog.toLocaleString()} 块`}</b></span>
           {collector?.lastError && <span className="txn-quality-error" title={collector.lastError.error}><em>最近错误</em><b>#{collector.lastError.height}</b></span>}
           {collector?.stateError && <span className="txn-quality-error" title={collector.stateError}><em>水位写盘</em><b>失败</b></span>}
+          {collector?.storeError && <span className="txn-quality-error" title={collector.storeError}><em>统计落盘</em><b>失败</b></span>}
         </div>
 
         <div className="txn-activity-stack" aria-label="交易行为百分比分布">
@@ -141,7 +142,7 @@ function DimPanel({ dim, collector, range, setRange }) {
             <div className="txn-feature-group">
               <div className="tcv-title">自动化特征(非 Bot 总量)</div>
               {covRow("疑似自动化", "#E58A55", dim.parts.bot ?? 0, "短 selector 或同块同发送方 ≥3 笔合格合约调用；只表示规则命中率，既有误报也有漏报。")}
-              {covRow("MEV Bot(检测背书)", "#D96A6A", dim.parts.mev_bot ?? 0, "发送方带 BNB Chain MEV Tracker 的三明治攻击检测风险标——生产级行为检测(front/back 数量 1% 内匹配等物理特征),非启发式猜测。覆盖 = 已打标地址 ∩ 本站已核查地址,随核查积累增长,是下限。")}
+              {covRow("MEV 风险标命中", "#D96A6A", dim.parts.mev_bot ?? 0, "发送方命中 Label Cloud 返回的 MEV Activity / MEV Tracker 风险标。这里只表示外部风险标签覆盖，不等于本站独立识别了全部 MEV Bot。")}
             </div>
             <div className="txn-feature-group">
               <div className="tcv-title">资产触达</div>
@@ -154,7 +155,11 @@ function DimPanel({ dim, collector, range, setRange }) {
               {covRow("流出 CEX", "#5FA8C7", dim.flows.cex_out ?? 0, "Transfer 的发送方命中已知 CEX 热钱包。它是地址覆盖流出，不等于全平台提现量。")}
               {(dim.flows.cex_internal ?? 0) > 0 && covRow("CEX 地址间", "#44758a", dim.flows.cex_internal)}
             </div>
-            <div className="txn-dim-qual">V2 规则版本 {(dim.meta?.classifierVersions ?? []).join(", ") || "—"} · receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>{((dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0)) > 0 && <> · 已隔离旧版本/缺口前桶 <b>{(dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0)}</b></>}</div>
+            <div className="txn-dim-qual">
+              V2 规则版本 {(dim.meta?.classifierVersions ?? []).join(", ") || "—"} · 安全确认 {collector?.confirmationBlocks ?? 0} 块 · receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>
+              {((dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0) + (dim.meta?.excludedImpreciseBuckets ?? 0)) > 0 && <> · 已隔离旧版本/缺口/时间边界不明桶 <b>{(dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0) + (dim.meta?.excludedImpreciseBuckets ?? 0)}</b></>}
+              {(!dim.meta?.actionCapabilities?.predict || !dim.meta?.actionCapabilities?.bridge) && <> · 预测市场/Bridge 主行为：<b>待核实动作表，暂不出数</b></>}
+            </div>
           </div>
         </div>
       </div>

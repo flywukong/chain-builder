@@ -90,30 +90,37 @@ export class FactJournal {
     this._rotate();
   }
 
-  // 非当前小时明文 → gzip;超保留窗删除。gzip 异步执行,完成前 iterate 仍可读明文
+  _compressSnapshot(hk, snapshot) {
+    const key = String(hk);
+    (this._gzipping ??= new Set()).add(key);
+    fs.readFile(snapshot, (err, buf) => {
+      if (err) { this._gzipping.delete(key); return; }
+      zlib.gzip(buf, (e2, gz) => {
+        try {
+          // gzip 允许串联 member；晚到的历史小时批次可以安全追加，不覆盖旧内容。
+          if (!e2) { fs.appendFileSync(path.join(this.dir, `${hk}.ndjson.gz`), gz); fs.unlinkSync(snapshot); }
+        } catch {}
+        this._gzipping.delete(key);
+      });
+    });
+  }
+
+  // 非当前小时明文先原子改名封口，再异步 gzip。后续晚到数据写入新的 plain，不会被压缩任务删掉。
   _rotate(now = Date.now()) {
     const curHk = Math.floor(now / HOUR);
     const minHk = Math.floor((now - this.retainMs) / HOUR);
     let files = [];
     try { files = fs.readdirSync(this.dir); } catch { return; }
     for (const fn of files) {
-      const m = fn.match(/^(\d+)\.ndjson(\.gz)?$/);
+      const m = fn.match(/^(\d+)\.ndjson(?:\.gz|\.rotating-[\w-]+)?$/);
       if (!m) continue;
       const hk = +m[1];
       const full = path.join(this.dir, fn);
       if (hk < minHk) { try { fs.unlinkSync(full); } catch {} continue; }
-      if (!m[2] && hk < curHk && !this._gzipping?.has(fn)) {
-        (this._gzipping ??= new Set()).add(fn);
-        fs.readFile(full, (err, buf) => {
-          if (err) { this._gzipping.delete(fn); return; }
-          zlib.gzip(buf, (e2, gz) => {
-            try {
-              if (!e2) { fs.writeFileSync(full + ".gz", gz); fs.unlinkSync(full); }
-            } catch {}
-            this._gzipping.delete(fn);
-          });
-        });
-      }
+      if (hk >= curHk || fn.endsWith(".gz") || this._gzipping?.has(String(hk))) continue;
+      if (fn.includes(".rotating-")) { this._compressSnapshot(hk, full); continue; }
+      const snapshot = `${full}.rotating-${process.pid}-${Date.now()}`;
+      try { fs.renameSync(full, snapshot); this._compressSnapshot(hk, snapshot); } catch {}
     }
   }
 
@@ -121,7 +128,7 @@ export class FactJournal {
   coverage() {
     let files = [];
     try { files = fs.readdirSync(this.dir); } catch { return null; }
-    const hks = files.map((f) => f.match(/^(\d+)\.ndjson(\.gz)?$/)?.[1]).filter(Boolean).map(Number);
+    const hks = files.map((f) => f.match(/^(\d+)\.ndjson(?:\.gz|\.rotating-[\w-]+)?$/)?.[1]).filter(Boolean).map(Number);
     if (!hks.length) return null;
     return { fromMs: Math.min(...hks) * HOUR, toMs: (Math.max(...hks) + 1) * HOUR };
   }
@@ -131,11 +138,14 @@ export class FactJournal {
     const fromHk = Math.floor(fromMs / HOUR), toHk = Math.floor((toMs - 1) / HOUR);
     let n = 0;
     for (let hk = fromHk; hk <= toHk; hk++) {
-      let text = null;
-      const plain = path.join(this.dir, `${hk}.ndjson`), gz = plain + ".gz";
+      let text = "";
       try {
-        if (fs.existsSync(plain)) text = fs.readFileSync(plain, "utf8");
-        else if (fs.existsSync(gz)) text = zlib.gunzipSync(fs.readFileSync(gz)).toString("utf8");
+        const prefix = `${hk}.ndjson`;
+        const files = fs.readdirSync(this.dir).filter((f) => f === prefix || f === `${prefix}.gz` || f.startsWith(`${prefix}.rotating-`));
+        for (const fn of files.sort()) {
+          const buf = fs.readFileSync(path.join(this.dir, fn));
+          text += fn.endsWith(".gz") ? zlib.gunzipSync(buf).toString("utf8") : buf.toString("utf8");
+        }
       } catch { continue; }
       if (!text) continue;
       for (const line of text.split("\n")) {

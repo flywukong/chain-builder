@@ -24,10 +24,17 @@ export class LabelCloud {
     } catch { this.cache = {}; }
   }
 
-  // 仅返回命中条目 {name, entity, entityType, tags[]};未命中/未查询返回 null
+  // 仅返回命中条目 {name, entity, entityType, tags[], mev?};未命中/未查询返回 null
   get(addr) {
     const e = this.cache[(addr || "").toLowerCase()];
     return e && !e.miss ? e : null;
+  }
+
+  // 缓存中全部带 MEV Tracker 风险标的地址(供 participants 维度的 mev_bot 判定)
+  mevSet() {
+    const s = new Set();
+    for (const [a, e] of Object.entries(this.cache)) if (e.mev) s.add(a);
+    return s;
   }
 
   _fresh(e) { return e && Date.now() - e.t < (e.miss ? TTL_MISS : TTL_HIT); }
@@ -51,14 +58,17 @@ export class LabelCloud {
           const labels = r.address?.data?.labels ?? [];
           const ent = r.address_entity_roles?.[0]?.entity ?? null;
           const tags = (r.address_tags ?? []).map((t) => t.tag?.name).filter(Boolean).slice(0, 6);
-          if (labels.length || ent || tags.length) {
+          // MEV Activity 风险标:BNB Chain MEV Tracker 的三明治行为检测背书(非 AI 推断)
+          const mev = (r.address_risks ?? []).some((x) =>
+            x.risk?.risk_name === "MEV Activity" || /MEV Tracker/i.test(x.risk?.source ?? ""));
+          if (labels.length || ent || tags.length || mev) {
             const best = [...labels].sort((x, y) => (y.update_time || 0) - (x.update_time || 0))[0];
             // 行为型标签(“DEX Trader”“Apeswap User”)不当名字:身份≠行为,回落 entity 名或不补
             const generic = (s) => !s || /\b(trader|user|holder|whale)\s*$/i.test(s);
             this.cache[a] = {
               name: (!generic(best?.label) && best.label) || ent?.name || (!generic(tags[0]) && tags[0]) || null,
               entity: ent?.name ?? null, entityType: ent?.type ?? null,
-              tags, t: Date.now(),
+              tags, ...(mev ? { mev: 1 } : {}), t: Date.now(),
             };
           } else {
             this.cache[a] = { miss: 1, t: Date.now() };

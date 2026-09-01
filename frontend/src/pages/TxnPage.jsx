@@ -124,6 +124,7 @@ function DimPanel({ dim, collector, range, setRange }) {
             <div className="txn-feature-group">
               <div className="tcv-title">自动化特征(非 Bot 总量)</div>
               {covRow("疑似自动化", "#E58A55", dim.parts.bot ?? 0, "短 selector 或同块同发送方 ≥3 笔合格合约调用；只表示规则命中率，既有误报也有漏报。")}
+              {covRow("MEV Bot(检测背书)", "#D96A6A", dim.parts.mev_bot ?? 0, "发送方带 BNB Chain MEV Tracker 的三明治攻击检测风险标——生产级行为检测(front/back 数量 1% 内匹配等物理特征),非启发式猜测。覆盖 = 已打标地址 ∩ 本站已核查地址,随核查积累增长,是下限。")}
             </div>
             <div className="txn-feature-group">
               <div className="tcv-title">资产触达</div>

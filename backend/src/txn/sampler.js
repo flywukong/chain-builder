@@ -25,6 +25,7 @@ export class TxnSampler {
     this.tip = 0;
     this.lastError = null;
     this.stateError = null;
+    this._mevCand = new Map();   // 疑似 MEV 候选 from(swap trader/bot 命中),供 labelCloud 批量核查
     this._busy = false;
     try {
       if (stateFile && fs.existsSync(stateFile)) {
@@ -49,6 +50,13 @@ export class TxnSampler {
       this.stateError = e?.message || "sampler state persist failed";
       return false;
     }
+  }
+
+  // 取出频次最高的 n 个 MEV 候选地址并清空累计(供周期性 labelCloud 核查)
+  drainMevCandidates(n = 200) {
+    const top = [...this._mevCand.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([a]) => a);
+    this._mevCand.clear();
+    return top;
   }
 
   status() {
@@ -138,6 +146,11 @@ export class TxnSampler {
       const newlyStored = [];
       for (const r of committed) {
         if (this.store.addBlock(r.t, r.classified, r.blockGp, r.blockGp90, r.height) !== false) newlyStored.push(r);
+      }
+      for (const r of newlyStored) for (const c of r.classified) {
+        if (!c.fact || !(c.fact.sw > 0 || c.parts?.includes("bot"))) continue;
+        if (this._mevCand.size >= 8000 && !this._mevCand.has(c.fact.f)) continue;
+        this._mevCand.set(c.fact.f, (this._mevCand.get(c.fact.f) || 0) + 1);
       }
       this.store.flush();
       if (this.journal) {

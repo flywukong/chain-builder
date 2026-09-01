@@ -126,6 +126,9 @@ export class LabelBook {
     const a = (addr || "").toLowerCase();
     return STATIC_LABELS[a] ?? this.learned[a] ?? null;
   }
+  // MEV Tracker 背书地址集(由 labelCloud 周期灌入):行为检测结论,可参与 participants 维度
+  setMevSet(set) { this.mev = set; }
+  isMev(addr) { return this.mev?.has(addr) ?? false; }
   assetOf(addr) { return ASSET_OF.get(addr) ?? null; }
   verifiedAction(addr) { return VERIFIED_ACTION.get(addr) ?? null; }
   addLearned(entries) {   // [{addr, name, cat, confidence?, evidence?}] → candidate 条目

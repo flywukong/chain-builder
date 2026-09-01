@@ -671,6 +671,19 @@ async function replayIfStale(force = false) {
   } catch (e) { console.error("[txn replay]", e.message); return { error: e.message }; }
 }
 setTimeout(() => replayIfStale(), 1_000);    // 启动即恢复 journal 可覆盖的当前版本窗口
+
+// MEV Tracker 背书标:疑似 MEV 候选(高频 swap trader/bot 命中 from)批量核查 label-cloud 风险标,
+// 命中者进 participants 的 mev_bot 维度。启动即从缓存恢复已知集合。
+labelBook.setMevSet(labelCloud.mevSet());
+async function pollMevLabels() {
+  try {
+    const cands = txnSampler.drainMevCandidates(200);
+    if (cands.length) await labelCloud.resolve(cands);
+    labelBook.setMevSet(labelCloud.mevSet());
+  } catch (e) { console.warn("[mev labels]", e.message); }
+}
+setTimeout(pollMevLabels, 5 * 60_000);
+setInterval(pollMevLabels, 30 * 60_000);
 scanSlashEvents();
 setInterval(scanSlashEvents, 60_000);
 

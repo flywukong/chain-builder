@@ -130,6 +130,8 @@ export function classifyFactV2(f, labelBook) {
   const parts = [];
   if (f.o && ((f.s && /^0x000000[0-9a-f]{2}$/.test(f.s)) ||
               (f.q >= 3 && !isPlain && !isTokenXfer))) parts.push("bot");
+  // MEV bot:发送方带 BNB Chain MEV Tracker 的三明治检测风险标(行为检测背书,非启发式)
+  if (f.f && labelBook.isMev?.(f.f)) parts.push("mev_bot");
 
   // assets:tx.to 或 Transfer 的 token 合约命中 verified 资产表
   const assets = new Set();

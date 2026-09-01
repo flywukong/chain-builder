@@ -68,7 +68,9 @@ const sampler = new TxnSampler({
   provider, store: tempStore, labelBook, stateFile,
   concurrency, maxPerTick: batch, intervalMs: 60_000,
 });
-if (sampler.lastBlock < fromBlock - 1) sampler.lastBlock = fromBlock - 1;
+// 仅全新任务从窗口起点开跑;续跑必须衔接上次水位——重新二分的起点会随时间前移,
+// 若跳过中断期间的块段,会在小时桶里留下永久缺口,拖垮 30d 覆盖率判定。
+if (tempMax === 0 && sampler.lastBlock < fromBlock - 1) sampler.lastBlock = fromBlock - 1;
 
 console.log(`[txn backfill] classifier=v${CLASSIFIER_V2_VER} days=${days} range=#${fromBlock}..#${tip}`);
 console.log(`[txn backfill] resume=#${sampler.lastBlock + 1} concurrency=${concurrency} batch=${batch}`);
@@ -83,7 +85,7 @@ while (sampler.lastBlock < tip) {
     await new Promise((resolve) => setTimeout(resolve, Math.min(10_000, 500 * 2 ** consecutiveFailures)));
   } else {
     consecutiveFailures = 0;
-    const done = sampler.lastBlock - fromBlock + 1;
+    const done = Math.max(0, sampler.lastBlock - fromBlock + 1);
     const total = tip - fromBlock + 1;
     console.log(`[txn backfill] #${sampler.lastBlock}/${tip} ${(100 * done / total).toFixed(2)}%`);
   }

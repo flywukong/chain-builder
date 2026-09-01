@@ -82,11 +82,13 @@ export class TxnSampler {
     this.timer = setInterval(tick, this.intervalMs);
   }
 
-  async sample() {
+  async sample(tipOverride = null) {
     if (this._busy) return;
     this._busy = true;
     try {
-      const tip = parseInt(await this.provider.send("eth_blockNumber", []), 16);
+      const tip = tipOverride == null
+        ? parseInt(await this.provider.send("eth_blockNumber", []), 16)
+        : Number(tipOverride);
       this.tip = tip;
       if (!this.lastBlock) {
         this.lastBlock = tip - Math.round(this.intervalMs / BLOCK_MS);  // 首次部署只声明从此处开始覆盖

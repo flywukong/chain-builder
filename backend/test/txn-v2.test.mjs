@@ -85,6 +85,23 @@ test("V2 window aggregates only the continuous tail after an hourly gap", () => 
   assert.equal(view.dim.meta.excludedGapBuckets, 1);
 });
 
+test("offline backfill replaces V2 dimensions without changing legacy totals", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-merge-"));
+  const main = new TxnStore(path.join(dir, "main.json"));
+  const backfill = new TxnStore(path.join(dir, "backfill.json"), { v2Only: true });
+  const now = Date.now();
+  const row = (act) => ({ cat: "other", act, gas: 10, to: "", sel: "0x", swap: 0, xfer: 0, parts: [], assets: [], flows: [], fail: false, rcptMiss: false });
+  main.addBlock(now, [row("other")], null, null, 300);
+  backfill.addBlock(now, [row("swap"), row("token")], null, null, 300);
+
+  assert.equal(main.mergeV2Backfill(backfill.buckets), 1);
+  const view = main.view(labels(), 1, 1);
+  assert.equal(view.total24, 1);
+  assert.equal(view.dim.total, 2);
+  assert.equal(view.dim.acts.swap.n, 1);
+  assert.equal(view.dim.acts.token.n, 1);
+});
+
 test("sampler commits only the contiguous successful prefix and retries the gap", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "txn-sampler-"));
   const stateFile = path.join(dir, "state.json");

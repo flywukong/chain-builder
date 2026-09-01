@@ -10,7 +10,7 @@ the built frontend + REST API + WebSocket on one port. No database, no Docker re
 - **MEV** — builder market, v1/v2 (BEP-675) split, per-validator versions
 - **Traffic** — gas utilization, TxPool depth, high-traffic episodes with per-episode AI attribution
 - **Storage** — geth db inspect, compaction / write-stall
-- **TXN 分析** — full-coverage tx classification (meme/DeFi/bot/stable/BNB/token/CEX/bridge/infra/…), gas-share vs tx-share, self-growing AI contract-label book
+- **TXN 分析** — persisted contiguous block collection, receipt-backed V2 activity/features, explicit window coverage, and a legacy classification view
 - **Alerts** — slash / block anomalies
 
 ## Quick start
@@ -38,7 +38,7 @@ frontend (React + Vite + Canvas)  ──build──▶  backend/../frontend/dist
         ▲ REST /api/*  · WS /ws (same origin, same port)
 backend (Node.js + Fastify)
   ├── BlockStreamer   WS newHeads, MEV enrich off the hot path
-  ├── TxnSampler      full-coverage per-minute block scan → rule + AI classify
+  ├── TxnSampler      persisted contiguous block scan → receipt-backed V2 classify
   ├── ChainContracts  ValidatorSet / SlashIndicator / StakeHub
   ├── KeterClient     cluster metrics (node_stats, gasused, latency, disk, reorg)
   └── AI              claude -p headless (network / traffic / txn / mev summaries)
@@ -46,3 +46,22 @@ backend (Node.js + Fastify)
 
 See `DEPLOY.md` for the DevOps checklist (inbound/outbound, reverse proxy, resources)
 and `docs/txn-classification.md` for the transaction classification rules.
+
+## TXN 30-day backfill
+
+The dashboard enables a time range only after the current classifier version has
+continuous data for that whole range. To make 30-day V2 analysis available immediately,
+stop the monitor and run the resumable offline backfill against an archive/full RPC:
+
+```bash
+cd backend
+TXN_BACKFILL_CONFIRM=YES \
+TXN_BACKFILL_DAYS=30 \
+BSC_RPC_URL=http://your-archive-node:8545 \
+npm run backfill:txn
+```
+
+The RPC must support historical `eth_getBlockByNumber` and `eth_getBlockReceipts`.
+The backfill uses the production V2 classifier, checkpoints progress, and only replaces
+V2 hourly dimensions after the fixed block range completes. Do not run it concurrently
+with the monitor because both processes write `backend/data/txn-7d.json`.

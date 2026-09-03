@@ -193,6 +193,10 @@ export const VALIDATORS = {
     "name": "Ankr",
     "group": "independent"
   },
+  "0x19c014a42fc5457d6e9fa4678fbf0b6d79cfb606": {
+    "name": "Ankr",
+    "group": "independent"
+  },
   "0xe9436f6f30b4b01b57f2780b2898f3820ebd7b98": {
     "name": "LegendIV",
     "group": "legend"
@@ -360,6 +364,11 @@ export const ACTIVE_SET = [
   },
   {
     "addr": "0xe7776de78740f28a96412ee5cbbb8f90896b11a5",
+    "name": "Ankr",
+    "group": "independent"
+  },
+  {
+    "addr": "0x19c014a42fc5457d6e9fa4678fbf0b6d79cfb606",
     "name": "Ankr",
     "group": "independent"
   },

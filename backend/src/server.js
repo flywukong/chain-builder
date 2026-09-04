@@ -35,6 +35,7 @@ import { LargeTxStore, LARGE_TX_RECORD_MIN } from "./txn/largeTxStore.js";
 import { TxnSampler } from "./txn/sampler.js";
 import { FactJournal } from "./txn/facts.js";
 import { LabelCloud } from "./txn/labelCloud.js";
+import { SandwichTracker } from "./txn/sandwich.js";
 import { classifyFactV2 } from "./txn/classifier.js";
 import { lookupSelectors } from "./txn/siglookup.js";
 import { getAddrIntel, getCachedIntel } from "./txn/addrIntel.js";
@@ -72,8 +73,9 @@ const largeTxStore = new LargeTxStore(path.join(dataDir, "large-tx-3d.json"));
 // 可重放事实日志(默认 24h 滚动,FACT_RETAIN_H 可调):规则/verified 表升级后重算最近窗口
 const labelCloud = new LabelCloud(path.join(dataDir, "label-cloud-cache.json"));   // NodeReal 标签库:AI 证据 + 热门合约补名(不参与统计)
 const factJournal = new FactJournal(path.join(dataDir, "txnfacts"), parseInt(process.env.FACT_RETAIN_H, 10) || 24);
+const sandwichTracker = new SandwichTracker(path.join(dataDir, "sandwich.json"));   // 三明治检测:攻击地址集 + 小时命中计数
 const txnSampler = new TxnSampler({
-  provider, store: txnStore, labelBook, journal: factJournal,
+  provider, store: txnStore, labelBook, journal: factJournal, sandwich: sandwichTracker,
   stateFile: path.join(dataDir, "txn-sampler-state.json"),
 });
 
@@ -1942,6 +1944,7 @@ app.get("/api/txn", async (req) => {
   const hot = Math.min(Math.max(parseInt(req.query?.hot, 10) || 1, 1), 30);   // 热门合约独立窗口(24h/7d/30d)
   const v = txnStore.view(labelBook, days, hot);
   v.collector = txnSampler.status();
+  v.sandwich = sandwichTracker.window(days * 86400e3);
   labelCloud.resolve((v.topContracts ?? []).filter((c) => !c.name).map((c) => c.addr)).catch(() => {});
   for (const c of v.topContracts ?? []) {
     if (!c.name) { const lc = labelCloud.get(c.addr); if (lc?.name) { c.name = lc.name; c.lc = true; } }

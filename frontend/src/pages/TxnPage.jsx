@@ -42,7 +42,7 @@ const spanLabel = (hours) => {
 };
 
 // v2 主面板:一条互斥行为分布 + 三组可重叠特征。把口径和质量放在图前面。
-function DimPanel({ dim, collector, range, setRange }) {
+function DimPanel({ dim, collector, sandwich, range, setRange }) {
   const [metric, setMetric] = useState("tx");
   if (!dim?.total) {
     const available = dim?.meta?.availableContinuousHours ?? 0;
@@ -142,7 +142,14 @@ function DimPanel({ dim, collector, range, setRange }) {
             <div className="txn-feature-group">
               <div className="tcv-title">自动化特征(非 Bot 总量)</div>
               {covRow("疑似自动化", "#E58A55", dim.parts.bot ?? 0, "短 selector 或同块同发送方 ≥3 笔合格合约调用；只表示规则命中率，既有误报也有漏报。")}
-              {covRow("MEV 风险标命中", "#D96A6A", dim.parts.mev_bot ?? 0, "发送方命中 Label Cloud 返回的 MEV Activity / MEV Tracker 风险标。这里只表示外部风险标签覆盖，不等于本站独立识别了全部 MEV Bot。")}
+              {covRow("MEV 地址命中", "#D96A6A", dim.parts.mev_bot ?? 0, "发送方命中 MEV 地址集 = 外部 MEV Tracker 风险标 ∪ 本站三明治检测抓到的攻击地址。地址级覆盖,随检测积累增长。")}
+              {sandwich && (
+                <div className="txn-sandwich-line" title="移植 bsc-trace 生产算法:front/back 代币数量 1% 内匹配等物理特征,四种形态(同/跨块 × 同/多钱包);逐块实时检测,窗口内命中数">
+                  三明治攻击(行为检测)<b>{(sandwich.hits ?? 0).toLocaleString()}</b> 次
+                  · 受害 <b>{(sandwich.victims ?? 0).toLocaleString()}</b> 笔
+                  · 攻击地址 <b>{(sandwich.attackers ?? 0).toLocaleString()}</b> 个
+                </div>
+              )}
             </div>
             <div className="txn-feature-group">
               <div className="tcv-title">资产触达</div>
@@ -448,7 +455,7 @@ export default function TxnPage() {
           })()}
         </div>
 
-        <DimPanel dim={d?.dim} collector={d?.collector} range={distMode} setRange={setDistMode} />
+        <DimPanel dim={d?.dim} collector={d?.collector} sandwich={d?.sandwich} range={distMode} setRange={setDistMode} />
 
         <details className="txn-legacy">
           <summary>查看旧版单分类口径(仅兼容历史趋势，不作为主结论)</summary>

@@ -7,19 +7,22 @@
  * 存储:data/txnfacts/<hourKey>.ndjson 按小时分区追加;整点后异步 gzip 轮转,
  * 超过保留窗口整文件删除。~400B/笔裸,gzip 后约 1~1.5GB/天,默认保留 24h。
  *
- * fact 字段(FACT_SCHEMA_VER=2):
+ * fact 字段(FACT_SCHEMA_VER=3):
  *   b 块号  i tx 序  t 毫秒时间  f from  o to(null=部署)  s selector(null=短 input)
  *   g gasUsed  st status(1/0)  rc receipt 可用(1/0)  lg 日志总数
  *   sw Swap 事件数  xf Transfer 事件数  na 非 Approval 日志数
- *   q  同块同 from 合格合约调用数(采集时定格,重放无需重建块上下文)
+ *   q  同块同 from 合格调用数(采集时定格,重放无需重建块上下文)
  *   tk Transfer 的 token 合约地址集  tf Transfer 付方集  td Transfer 收方集(各去重,cap 20)
+ *   swaps(v3)按 Swap 事件所在池聚合 Transfer 净流量得到的逐池 swap 明细
+ *     [{p 池, ti 流入池的 token, ai 数量, to 流出池的 token, ao 数量}](金额十进制字符串;
+ *     协议无关,三明治/套利检测的输入)
  */
 
 import fs from "fs";
 import path from "path";
 import zlib from "zlib";
 
-export const FACT_SCHEMA_VER = 2;
+export const FACT_SCHEMA_VER = 3;
 const HOUR = 3600e3;
 const ADDR_CAP = 20;   // 超大空投截断:仅影响极端交易的资产/资金流触达判定,统计可忽略
 
@@ -38,16 +41,41 @@ export function extractFact(tx, rc, tMs, blockNum, txIndex, qualCounts) {
   const sel = input.length >= 10 ? input.slice(0, 10) : null;
   let sw = 0, xf = 0, na = 0;
   const tk = new Set(), tf = new Set(), td = new Set();
+  const pools = new Set(), xfers = [];
   for (const lg of rc?.logs ?? []) {
     const t0 = lg.topics?.[0];
-    if (t0 === T_SWAP_V2 || t0 === T_SWAP_V3) sw++;
+    if (t0 === T_SWAP_V2 || t0 === T_SWAP_V3) { sw++; if (lg.address) pools.add(lg.address.toLowerCase()); }
     if (t0 !== T_APPROVAL) na++;
     if (t0 === T_TRANSFER) {
       xf++;
-      if (tk.size < ADDR_CAP && lg.address) tk.add(lg.address.toLowerCase());
-      if (tf.size < ADDR_CAP && lg.topics[1]?.length === 66) tf.add("0x" + lg.topics[1].slice(26));
-      if (td.size < ADDR_CAP && lg.topics[2]?.length === 66) td.add("0x" + lg.topics[2].slice(26));
+      const token = (lg.address || "").toLowerCase();
+      const xFrom = lg.topics[1]?.length === 66 ? "0x" + lg.topics[1].slice(26) : null;
+      const xTo = lg.topics[2]?.length === 66 ? "0x" + lg.topics[2].slice(26) : null;
+      if (tk.size < ADDR_CAP && token) tk.add(token);
+      if (tf.size < ADDR_CAP && xFrom) tf.add(xFrom);
+      if (td.size < ADDR_CAP && xTo) td.add(xTo);
+      if (xfers.length < 40 && token && (xFrom || xTo)) xfers.push({ token, xFrom, xTo, data: lg.data });
     }
+  }
+  // 逐池 swap 明细:按 Swap 事件的池地址聚合本笔 Transfer 净流量(协议无关),
+  // 净流入池的 token = tokenIn,净流出的 = tokenOut(标准双 token 池各恰一个)
+  const swaps = [];
+  for (const pool of pools) {
+    if (swaps.length >= 6) break;
+    const net = new Map();
+    for (const x of xfers) {
+      let amt;
+      try { amt = BigInt(x.data); } catch { continue; }
+      if (amt <= 0n) continue;
+      if (x.xTo === pool) net.set(x.token, (net.get(x.token) ?? 0n) + amt);
+      if (x.xFrom === pool) net.set(x.token, (net.get(x.token) ?? 0n) - amt);
+    }
+    let ti = null, ai = 0n, to2 = null, ao = 0n;
+    for (const [token, v] of net) {
+      if (v > ai) { ai = v; ti = token; }
+      if (-v > ao) { ao = -v; to2 = token; }
+    }
+    if (ti && to2 && ti !== to2) swaps.push({ p: pool, ti, ai: ai.toString(), to: to2, ao: ao.toString() });
   }
   return {
     v: FACT_SCHEMA_VER,
@@ -60,6 +88,7 @@ export function extractFact(tx, rc, tMs, blockNum, txIndex, qualCounts) {
     sw, xf, na,
     q: qualCounts.get(from) || 0,
     ...(tk.size ? { tk: [...tk] } : {}), ...(tf.size ? { tf: [...tf] } : {}), ...(td.size ? { td: [...td] } : {}),
+    ...(swaps.length ? { swaps } : {}),
   };
 }
 

@@ -106,3 +106,24 @@ curl -s "$LABEL_CLOUD_API_URL/api/v1/label-cloud/addresses-by-entity-role?type=1
 - 高频**无名**新合约命中率 ~5%(40 抽 2);Binance 主力热钱包、USDT、48club 支付地址正查全空;
 - binance entity 反查仅 31 个 EOA,与 BscScan 热钱包体系错位(Hot 8 等主力全缺);
 - 因此在 bsc-monitor 中定位为**补充证据源**:AI labeler 候选证据 + 热门合约榜补名(`backend/src/txn/labelCloud.js`),不参与统计维度;CEX 反查结果输出为人工审计清单(`docs/label-cloud-cex-candidates.md`,632 地址)。
+
+## bsc-monitor 当前集成策略
+
+- 正查缓存保存当前 label 的 `source/update_time`、完整 label 历史、全部 entity role/tag/risk、`create_info` 和 `token_meta`;缓存结构带 schema 版本,旧缓存会自动刷新。
+- 展示名只从“最新且非行为型”的 label、明确 entity role、唯一 entity 或 token name 中选择；tag 顺序永远不参与名称裁决。
+- Txn 热门合约会预热全部地址的身份信息,并把来源、更新时间、entity role 和 token symbol 作为可查看证据；这些信息不直接决定交易 activity。
+- HTTP/网络错误不写负缓存,并发页面请求按地址合并,缓存文件使用临时文件原子替换。
+- MEV 风险仅作为原始证据保存,不再生成 Txn Bot/MEV 指标,也不会触发分类重放。
+- 反查只生成审计快照,不会自动修改 verified 注册表：
+
+```bash
+cd backend
+npm run audit:labels
+
+# 只抽查某些实体
+LABEL_CLOUD_AUDIT_ENTITY_TYPES=CEX \
+LABEL_CLOUD_AUDIT_ENTITY_IDS=311,310 \
+npm run audit:labels
+```
+
+默认输出 `backend/data/label-cloud-identity-audit.json`。候选地址必须经独立来源或链上行为核实后,才能人工加入 `STATIC_LABELS`;只有这一步会改变资产/CEX 等历史覆盖统计。

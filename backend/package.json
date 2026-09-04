@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test:txn": "node --test test/txn-v2.test.mjs",
-    "backfill:txn": "node scripts/backfill-txn.mjs"
+    "test:txn": "node --test test/txn-v2.test.mjs test/label-cloud.test.mjs",
+    "backfill:txn": "node scripts/backfill-txn.mjs",
+    "audit:labels": "node scripts/audit-label-cloud.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

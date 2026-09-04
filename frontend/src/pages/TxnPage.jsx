@@ -1,606 +1,188 @@
-import { useEffect, useRef, useState } from "react";
-import { aiRequest } from "../lib/ai.js";
-import { AiText, usePanelAi, AiButton, AiResult } from "../components/PanelAi.jsx";
+import { useEffect, useMemo, useState } from "react";
 import RobotWidget from "../components/RobotWidget.jsx";
 
 const API = import.meta.env.VITE_API_BASE ?? "";
+const BSC_SCAN = "https://bscscan.com";
 
-// 分类色只用于图表识别:柔和低饱和色板,不与状态红绿/品牌黄冲突(Bot 不用红)
-const CAT_META = {
-  meme:   { label: "Meme",     color: "#C875B2" },
-  defi:   { label: "DeFi",     color: "#4CA4D9" },
-  predict:{ label: "预测市场", color: "#8FAE5D" },
-  bot:    { label: "Bot",      color: "#E58A55" },
-  stable: { label: "稳定币合约", color: "#37A89A" },
-  bnb:    { label: "BNB 转账", color: "#D6A82F" },
-  token:  { label: "代币转账", color: "#8B7CF6" },
-  cex:    { label: "CEX 充提", color: "#5FA8C7" },
-  bridge: { label: "Bridge",   color: "#B08968" },
-  infra:  { label: "Infra/Builder", color: "#7890A8" },
-  system: { label: "系统交易", color: "#8A8471" },
-  other:  { label: "其他",     color: "#747D88" },
-};
-const CAT_KEYS = Object.keys(CAT_META);
-const TAIL_COLOR = "#5a5648";   // top5 之外的长尾统一灰
-
-// v2 activity(互斥,行为证据判定;地址标签不参与)
-const ACT_META = {
-  swap:    { label: "Swap",     color: "#4CA4D9" },
-  token:   { label: "Token 事件/调用", color: "#8B7CF6" },
-  native:  { label: "BNB 转账", color: "#D6A82F" },
-  predict: { label: "预测市场", color: "#8FAE5D" },
-  bridge:  { label: "Bridge",   color: "#B08968" },
-  deploy:  { label: "合约部署", color: "#7890A8" },
-  receipt_missing: { label: "Receipt 缺失", color: "#A86F45" },
-  failed_unknown: { label: "失败调用(未识别)", color: "#B45A62" },
-  other:   { label: "其他调用", color: "#747D88" },
-};
-const spanLabel = (hours) => {
-  const h = Math.max(0, Number(hours) || 0);
-  if (h < 24) return `${+h.toFixed(1)}小时`;
-  return `${+(h / 24).toFixed(1)}天`;
+const SEGMENTS = {
+  prediction:       { label: "预测市场", color: "#8FAE5D", tip: "调用已核实预测市场协议合约；method 用于进一步识别撮合、赎回等动作。" },
+  defi:             { label: "DeFi 协议交互", color: "#4CA4D9", tip: "调用已核实 DeFi 合约，或 receipt 出现明确 Swap 事件。" },
+  bridge:           { label: "Bridge 协议交互", color: "#B08968", tip: "调用已核实桥合约。只有 method/event 明确时才解释具体跨链动作。" },
+  meme_launchpad:   { label: "Meme Launchpad", color: "#C875B2", tip: "调用 four.meme 等已核实管理器或工厂合约，不代表全市场 Meme 交易量。" },
+  builder_payment:  { label: "Builder 收款", color: "#7890A8", tip: "向已核实 Builder 付款地址发送原生资产。" },
+  infrastructure:   { label: "基础设施交互", color: "#8294A8", tip: "调用已核实的 AA EntryPoint 等基础设施合约；不归入 DeFi。" },
+  stable_transfer:  { label: "稳定币转账", color: "#37A89A", tip: "已核实稳定币合约上的标准 Transfer 调用或事件。" },
+  token_transfer:   { label: "Token / NFT 转移", color: "#8B7CF6", tip: "标准 Transfer 调用或事件，且没有命中更具体的协议场景。" },
+  native_transfer:  { label: "BNB 转账", color: "#D6A82F", tip: "正 value、空 calldata、gasUsed=21000 的原生转账。" },
+  deploy:           { label: "合约部署", color: "#6F8FAF", tip: "交易 to 为空。" },
+  other_call:       { label: "其他合约调用", color: "#747D88", tip: "尚未命中可信协议或标准行为的调用，可在未知调用面板继续下钻。" },
 };
 
-// v2 主面板:一条互斥行为分布 + 三组可重叠特征。把口径和质量放在图前面。
-function DimPanel({ dim, collector, sandwich, range, setRange }) {
-  const [metric, setMetric] = useState("tx");
-  if (!dim?.total) {
-    const available = dim?.meta?.availableContinuousHours ?? 0;
-    return (
-      <div className="panel txn-dim-panel" style={{ maxWidth: 1230 }}>
-        <div className="panel-header">
-          <span>交易行为与特征(V2)</span>
-          <span className="tf-ranges">
-            {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"]].map(([v, label]) => (
-              <button key={v} className={`tf-range ${range === v ? "on" : ""}`} disabled={available < Number(v) * 24 && range !== v} onClick={() => setRange(v)}>{label}</button>
-            ))}
-          </span>
-        </div>
-        <div className="panel-body"><div className="txn-window-empty">当前版本尚无可用连续数据。请求窗口 {range === "1" ? "24H" : `${range}天`}，实际连续覆盖 <b>{spanLabel(available)}</b>；统计不会用旧版本、时间边界不明或缺口前的数据补齐。{collector?.lastError && <> 最近错误：<b>#{collector.lastError.height} {collector.lastError.error}</b>。</>}</div></div>
-      </div>
-    );
-  }
-  const sysN = dim.acts.system?.n ?? 0;
-  const bizTotal = dim.denominators?.businessTx ?? (dim.total - sysN);
-  const gasTotal = Object.entries(dim.acts).reduce((s, [k, v]) => s + (k === "system" ? 0 : v.gas || 0), 0);
-  const rows = Object.keys(ACT_META).filter((k) => dim.acts[k]?.n > 0)
-    .sort((a, b) => (dim.acts[b]?.n ?? 0) - (dim.acts[a]?.n ?? 0));
-  const pct = (k) => (bizTotal ? +(((dim.acts[k]?.n ?? 0) / bizTotal) * 100).toFixed(1) : 0);
-  const gpct = (k) => (gasTotal ? +(((dim.acts[k]?.gas ?? 0) / gasTotal) * 100).toFixed(1) : 0);
-  const shownPct = metric === "gas" ? gpct : pct;
-  const cov = (n) => (bizTotal ? +((n / bizTotal) * 100).toFixed(1) : 0);
-  const sinceStr = dim.since ? new Date(dim.since).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
-  const coverage = dim.meta?.coveragePct;
-  const windowCoverage = dim.meta?.windowCoveragePct ?? 0;
-  const windowReady = !!dim.meta?.windowReady;
-  const available = dim.meta?.availableContinuousHours ?? 0;
-  const receiptsKnown = dim.denominators?.receiptKnownTx ?? Math.max(0, dim.total - (dim.qual?.rcptMiss ?? 0));
-  const receiptPct = dim.total ? +((receiptsKnown / dim.total) * 100).toFixed(2) : 0;
-  const successPct = dim.total ? +(((dim.total - (dim.qual?.failed ?? 0)) / dim.total) * 100).toFixed(2) : 0;
-  const backlog = collector?.backlogBlocks;
-  const covRow = (label, color, n, tip) => (
-    <div className="txn-cov-row" key={label}>
-      <span className="tcv-l" style={{ color }}>{label}{tip && <InfoTip text={tip} />}</span>
-      <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(cov(n), 100)}%`, background: color }} /></span>
-      <span className="tcv-v">{cov(n)}%<em>{(n ?? 0).toLocaleString()}</em></span>
-    </div>
-  );
-  return (
-    <div className="panel txn-dim-panel" style={{ maxWidth: 1230 }}>
-      <div className="panel-header">
-        <span>交易行为与特征(V2)</span>
-        <span className="txn-dist-ctl">
-          <span className="sub">请求 {range === "1" ? "24H" : `${range}天`} · 实际连续 {spanLabel(dim.meta?.effectiveHours)} · 自 {sinceStr}</span>
-          <span className="tf-ranges">
-            {[["1", "24H"], ["3", "3天"], ["7", "7天"], ["30", "30天"]].map(([v, label]) => (
-              <button key={v} className={`tf-range ${range === v ? "on" : ""}`} disabled={available < Number(v) * 24 && range !== v} title={available < Number(v) * 24 ? `当前仅连续覆盖 ${spanLabel(available)}` : ""} onClick={() => setRange(v)}>{label}</button>
-            ))}
-          </span>
-        </span>
-      </div>
-      <div className="panel-body">
-        <div className="txn-quality-strip">
-          <span><em>窗口就绪</em><b className={windowReady ? "ok" : "warn"}>{windowReady ? "是" : `否 · ${windowCoverage}%`}</b></span>
-          <span><em>采集连续性</em><b className={coverage == null ? "warn" : coverage >= 99.9 ? "ok" : "bad"}>{coverage == null ? "待建立" : `${coverage}%`}</b></span>
-          <span><em>Receipt 完整</em><b className={receiptPct >= 99.99 ? "ok" : "bad"}>{receiptPct}%</b></span>
-          <span><em>执行成功</em><b>{successPct}%</b></span>
-          <span><em>业务交易</em><b>{bizTotal.toLocaleString()}</b></span>
-          <span><em>采集积压</em><b className={backlog > 0 ? "warn" : "ok"}>{backlog == null ? "—" : `${backlog.toLocaleString()} 块`}</b></span>
-          {collector?.lastError && <span className="txn-quality-error" title={collector.lastError.error}><em>最近错误</em><b>#{collector.lastError.height}</b></span>}
-          {collector?.stateError && <span className="txn-quality-error" title={collector.stateError}><em>水位写盘</em><b>失败</b></span>}
-          {collector?.storeError && <span className="txn-quality-error" title={collector.storeError}><em>统计落盘</em><b>失败</b></span>}
-        </div>
-
-        <div className="txn-activity-stack" aria-label="交易行为百分比分布">
-          {rows.map((k) => <i key={k} title={`${ACT_META[k].label} ${pct(k)}%`} style={{ width: `${pct(k)}%`, background: ACT_META[k].color }} />)}
-        </div>
-
-        <div className="txn-dim-body">
-          <div className="txn-dim-left">
-            <div className="txn-dim-section-head">
-              <span>主行为<InfoTip text="每笔交易只选一个 primary activity。依据当笔 input/receipt/logs 判定；地址标签仅提供候选协议/角色，不能直接决定行为。分母不含系统交易。" /></span>
-              <span className="txn-metric-toggle">
-                <button className={metric === "tx" ? "on" : ""} onClick={() => setMetric("tx")}>笔数</button>
-                <button className={metric === "gas" ? "on" : ""} onClick={() => setMetric("gas")}>Gas</button>
-              </span>
-            </div>
-            <div className="txn-action-head"><span>类型</span><span>笔数</span><span>{metric === "gas" ? "Gas 占比" : "笔数占比"}</span></div>
-            {rows.map((k) => (
-              <div key={k} className="txn-action-row">
-                <span className="tdr-label" style={{ color: ACT_META[k].color }}><i style={{ background: ACT_META[k].color }} />{ACT_META[k].label}</span>
-                <span className="tdr-count">{(dim.acts[k]?.n ?? 0).toLocaleString()}</span>
-                <span className="tdr-metric">
-                  <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(shownPct(k), 100)}%`, background: ACT_META[k].color }} /></span>
-                  <span className="tdr-pct">{shownPct(k)}%</span>
-                </span>
-              </div>
-            ))}
-            <div className="txn-dim-sys">系统交易 {sysN.toLocaleString()} 笔单列,不进入上方业务行为分母；失败交易按已观察到的动作归类,无法确认时进入“失败调用”。</div>
-          </div>
-
-          <div className="txn-dim-right">
-            <div className="txn-feature-group">
-              <div className="tcv-title">自动化特征(非 Bot 总量)</div>
-              {covRow("疑似自动化", "#E58A55", dim.parts.bot ?? 0, "短 selector 或同块同发送方 ≥3 笔合格合约调用；只表示规则命中率，既有误报也有漏报。")}
-              {covRow("MEV 地址命中", "#D96A6A", dim.parts.mev_bot ?? 0, "发送方命中 MEV 地址集 = 外部 MEV Tracker 风险标 ∪ 本站三明治检测抓到的攻击地址。地址级覆盖,随检测积累增长。")}
-              {sandwich && (
-                <div className="txn-sandwich-line" title="移植 bsc-trace 生产算法:front/back 代币数量 1% 内匹配等物理特征,四种形态(同/跨块 × 同/多钱包);逐块实时检测,窗口内命中数">
-                  三明治攻击(行为检测)<b>{(sandwich.hits ?? 0).toLocaleString()}</b> 次
-                  · 受害 <b>{(sandwich.victims ?? 0).toLocaleString()}</b> 笔
-                  · 攻击地址 <b>{(sandwich.attackers ?? 0).toLocaleString()}</b> 个
-                </div>
-              )}
-            </div>
-            <div className="txn-feature-group">
-              <div className="tcv-title">资产触达</div>
-              {covRow("稳定币", "#37A89A", dim.assets.stable ?? 0, "Transfer 日志地址或目标合约命中已核实稳定币表；是交易触达率，不代表稳定币交易类型。")}
-              {covRow("Meme Launchpad", "#C875B2", dim.assets.meme ?? 0, "当前覆盖已识别 launchpad/相关资产，外盘 meme token 尚不完整，因此是下限。")}
-            </div>
-            <div className="txn-feature-group">
-              <div className="tcv-title">已知 CEX 地址资金流</div>
-              {covRow("流入 CEX", "#5FA8C7", dim.flows.cex_in ?? 0, "Transfer 的接收方命中已知 CEX 热钱包。它是地址覆盖流入，不等于全平台充值量。")}
-              {covRow("流出 CEX", "#5FA8C7", dim.flows.cex_out ?? 0, "Transfer 的发送方命中已知 CEX 热钱包。它是地址覆盖流出，不等于全平台提现量。")}
-              {(dim.flows.cex_internal ?? 0) > 0 && covRow("CEX 地址间", "#44758a", dim.flows.cex_internal)}
-            </div>
-            <div className="txn-dim-qual">
-              V2 规则版本 {(dim.meta?.classifierVersions ?? []).join(", ") || "—"} · 安全确认 {collector?.confirmationBlocks ?? 0} 块 · receipt 缺失 <b>{(dim.qual?.rcptMiss ?? 0).toLocaleString()}</b> · 失败 <b>{(dim.qual?.failed ?? 0).toLocaleString()}</b>
-              {((dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0) + (dim.meta?.excludedImpreciseBuckets ?? 0)) > 0 && <> · 已隔离旧版本/缺口/时间边界不明桶 <b>{(dim.meta?.excludedStaleBuckets ?? 0) + (dim.meta?.excludedGapBuckets ?? 0) + (dim.meta?.excludedImpreciseBuckets ?? 0)}</b></>}
-              {(!dim.meta?.actionCapabilities?.predict || !dim.meta?.actionCapabilities?.bridge) && <> · 预测市场/Bridge 主行为：<b>待核实动作表，暂不出数</b></>}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const CAT_INFO = {
-  token: "标准 ERC20 transfer/transferFrom，或仅产生 Transfer 事件的合约调用(批量分发/游戏/claim 等)。稳定币单独统计,不计入此类。",
-  stable: "仅直接调用已知稳定币合约(USDT/USDC/BUSD/DAI 等)的交易计入,优先于代币转账。DeFi swap 中涉及稳定币仍归 DeFi。",
-  bot: "两条行为特征,命中任一即算:① 函数选择器前三字节全零(0x000000xx)——MEV bot 为省 gas 的惯用写法,正常应用不会这么写;② 同一发送方在同一个块(450ms)内发出 ≥3 笔合约调用——人手做不到。纯 BNB 转账和标准代币转账即使高频也不算。注意:夹子/套利等主流 MEV 通常每块只发 1 笔,不会被这两条命中,所以此数是下限,真实 bot 量高于它。",
-};
-
-// v1 互斥分类的判定规则(与 backend/src/txn/classifier.js 优先级链一致;命中即停)
-const CLASSIFY_RULES = [
-  ["1", "系统交易", "接收方是 BSC 系统合约(0x…1000~2006、0x…3000,共 16 个固定地址,每块 1 笔 validator 分账)"],
-  ["2", "CEX 充提", "发送方或接收方命中已知交易所热钱包(Binance/OKX/Gate 等 12 个,人工核实;充值方向覆盖不全,详见多维面板)"],
-  ["3", "地址标签", "接收方在标签库中 → 按标签定类:预测市场(predict.fun)、稳定币(USDT/USDC/FDUSD 等 7 个)、Meme(four.meme)、Bridge(TokenHub)、Infra(builder 支付)、DeFi(PancakeSwap Router 等)。标签库 = 70 条人工核实 + AI 学得(带 ✦,未经完整审计)"],
-  ["4", "Bot", "① 选择器前三字节全零(0x000000xx,MEV 省 gas 惯例);② 同发送方同块 ≥3 笔合约调用(450ms 内人手做不到)。纯转账/标准代币转账不计入;单发型 MEV 不会命中,数字是下限"],
-  ["5", "DeFi", "回执含 UniswapV2/V3 风格 Swap 事件(直调池子、聚合器等未被标签命中的兜底)"],
-  ["6", "BNB 转账", "恰好 21000 gas 的原生转账;或空 calldata、无事件、≤30k gas(简单合约钱包收款)"],
-  ["7", "代币转账", "transfer/transferFrom 选择器,或回执含 Transfer 事件(含 NFT 转移/mint/空投,未细分)"],
-  ["8", "其他", "以上全部未命中的残差(含合约部署);该类突增通常意味着新热点合约出现,会进入 AI 归类队列"],
-];
+const RANGE_OPTIONS = [["1", "24H"], ["3", "3天"], ["7", "7天"], ["15", "15天"], ["30", "30天"]];
+const short = (a) => a ? `${a.slice(0, 8)}…${a.slice(-4)}` : "—";
+const methodName = (m) => m?.signature || m?.selector || "无 selector";
+const num = (n) => Number(n || 0).toLocaleString();
+const gasN = (n) => n == null ? "—" : n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`;
+const spanLabel = (hours) => (hours || 0) < 24 ? `${Math.max(0, hours || 0).toFixed(1)}小时` : `${((hours || 0) / 24).toFixed(1)}天`;
 
 function InfoTip({ text }) {
   return <span className="info-tip" tabIndex={0}>ⓘ<span className="info-pop">{text}</span></span>;
 }
 
-// 环比变化(百分点):正绿负红,无数据显示 —
-function Delta({ v }) {
-  if (v == null) return <span className="txn-delta dim">—</span>;
-  const cls = v > 0 ? "up" : v < 0 ? "down" : "dim";
-  return <span className={`txn-delta ${cls}`}>{v > 0 ? "+" : ""}{v}pp</span>;
+function RangeTabs({ value, onChange }) {
+  return <span className="tf-ranges">{RANGE_OPTIONS.map(([v, label]) => (
+    <button key={v} className={`tf-range ${value === v ? "on" : ""}`} onClick={() => onChange(v)}>{label}</button>
+  ))}</span>;
 }
 
-// 7 天分类堆叠柱状图(每日归一化到 100%;top5 用本色、长尾统一灰)
-function StackedDaily({ days, order, topSet }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    function draw() {
-      const dpr = window.devicePixelRatio || 1;
-      const W = canvas.offsetWidth, H = canvas.offsetHeight;
-      if (!W || !H) return;
-      canvas.width = W * dpr; canvas.height = H * dpr;
-      const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-      if (!days?.length) { ctx.fillStyle = "#4a463c"; ctx.font = "10px monospace"; ctx.textAlign = "center"; ctx.fillText("采样积累中…", W / 2, H / 2); return; }
-      const padL = 8, padR = 8, padT = 8, padB = 18;
-      const iw = W - padL - padR, ih = H - padT - padB;
-      // 25/50/75/100% 网格线
-      ctx.strokeStyle = "#1a1712"; ctx.lineWidth = 1;
-      [0, 0.25, 0.5, 0.75, 1].forEach((f) => { const y = padT + ih * f; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke(); });
-      const n = days.length, slot = iw / n, bw = Math.min(46, slot * 0.62);
-      days.forEach((d, i) => {
-        const x = padL + slot * (i + 0.5) - bw / 2;
-        const total = d.txs || 0;
-        if (total > 0) {
-          let y = padT + ih;
-          order.forEach((c) => {
-            const v = d.cats[c]?.n ?? 0;
-            if (!v) return;
-            const h = (v / total) * ih;
-            ctx.fillStyle = topSet.has(c) ? CAT_META[c].color : TAIL_COLOR;
-            ctx.beginPath(); ctx.roundRect(x, y - h, bw, Math.max(h, 0.5), 1.5); ctx.fill();
-            y -= h;
-          });
-        }
-        ctx.fillStyle = total > 0 ? "#8a8578" : "#3a372f"; ctx.font = "8.5px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "top";
-        ctx.fillText(d.day, x + bw / 2, padT + ih + 5);
-      });
-    }
-    draw();
-    const ro = new ResizeObserver(draw); ro.observe(canvas);
-    return () => ro.disconnect();
-  }, [days, order, topSet]);
-  return <canvas ref={ref} className="txn-daily-canvas" />;
+function Delta({ value }) {
+  if (value == null) return <span className="txn-delta dim">—</span>;
+  return <span className={`txn-delta ${value > 0 ? "up" : value < 0 ? "down" : "dim"}`}>{value > 0 ? "+" : ""}{value}pp</span>;
 }
 
-function TxnAiBox() {
-  const [s, setS] = useState({ loading: false, text: null, at: null, err: null });
-  const run = async () => {
-    setS((x) => ({ ...x, loading: true, err: null }));
-    try {
-      const d = await aiRequest("/api/ai/txn");
-      if (d.error) setS({ loading: false, text: null, at: null, err: d.error });
-      else setS({ loading: false, text: d.text, at: d.at, err: null });
-    } catch (e) { setS({ loading: false, text: null, at: null, err: String(e) }); }
-  };
-  useEffect(() => {   // 有缓存结果就直接展示
-    fetch(API + "/api/ai/txn").then((r) => r.json())
-      .then((d) => { if (d?.text) setS({ loading: false, text: d.text, at: d.at, err: null }); })
-      .catch(() => {});
-  }, []);
-  return { s, run };
+function Empty({ children = "当前口径正在积累数据" }) {
+  return <div className="txn-window-empty">{children}</div>;
 }
 
-const short = (a) => (a ? a.slice(0, 8) + "…" + a.slice(-4) : "—");
+function QualityStrip({ traffic, collector }) {
+  const m = traffic?.meta || {};
+  return <div className="txn-quality-strip txn-dev-quality">
+    <span><em>口径版本</em><b>Traffic v{traffic?.version ?? "—"}</b></span>
+    <span><em>实际连续</em><b className={m.windowReady ? "ok" : "warn"}>{spanLabel(m.availableContinuousHours)}</b></span>
+    <span><em>窗口就绪</em><b className={m.windowReady ? "ok" : "warn"}>{m.windowReady ? "是" : "积累中"}</b></span>
+    <span><em>采集积压</em><b className={(collector?.backlogBlocks || 0) > 0 ? "warn" : "ok"}>{collector?.backlogBlocks == null ? "—" : `${num(collector.backlogBlocks)} 块`}</b></span>
+    <span><em>安全确认</em><b>{collector?.confirmationBlocks ?? 0} 块</b></span>
+    <span><em>已排除系统交易</em><b>{num(m.excludedSystem)}</b></span>
+    {collector?.lastError && <span className="txn-quality-error"><em>最近错误</em><b>#{collector.lastError.height}</b></span>}
+  </div>;
+}
 
-const abbrN = (n) => (n == null ? "" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : "" + n);
-
-// 地址形态一句话提示(未命名地址的身份线索)
-const intelHint = (it) => {
-  if (!it?.type) return null;
-  if (it.type === "EOA") return `EOA${it.nonce != null ? ` · nonce ${abbrN(it.nonce)}` : ""}`;
-  if (it.type === "EIP-7702") return "7702 委托钱包";
-  return `合约 ${it.codeSize ? it.codeSize + "B" : ""}`.trim();
-};
-
-// 分类"依据":为什么规则/AI 给它打了这个分类(证据优先)
-const reasonOf = (c) => {
-  const it = c.intel || {};
-  if (it.verifiedName) return `BscScan: ${it.verifiedName}`;
-  if (c.lc) return "NodeReal 标签库(dune)";
-  if (c.cat === "infra") return "Builder 支付地址";
-  if (c.swap > 0) return "含 Swap 事件";
-  if (it.type === "EIP-7702") return "7702 委托钱包";
-  if (c.cat === "bnb" && it.type === "EOA") return "EOA 空 input 转账";
-  if (c.cat === "bot" && it.type === "EOA") return `高频 EOA${it.nonce != null ? ` nonce ${abbrN(it.nonce)}` : ""}`;
-  if (c.cat === "bot" && it.type === "EIP-7702") return "7702 自动化钱包";
-  if (c.topSel && /^0x000000[0-9a-f]{2}$/.test(c.topSel)) return `gas 优化 selector ${c.topSel}`;
-  if (c.topSel) return `selector ${c.topSel}`;
-  if (c.xfer > 0) return "Transfer 事件";
-  return "行为归类";
-};
-
-// 规则化生成的一句运维结论(即时,不依赖 AI):排名 + 显著变化/gas 负载 + 集中合约
-function Conclusion({ d, label = "24h" }) {
-  if (!d?.total24) return null;
-  const cats = CAT_KEYS.filter((c) => (d.catCount24?.[c] ?? 0) > 0).sort((a, b) => (d.catPct24[b] ?? 0) - (d.catPct24[a] ?? 0));
-  if (!cats.length) return null;
-  const L = (c) => CAT_META[c]?.label ?? c;
-  const col = (c) => CAT_META[c]?.color ?? "#8A8F99";
-  const p = (c) => d.catPct24[c] ?? 0, g = (c) => d.catGasPct24?.[c] ?? 0;
-  const tc = (c) => (d.topContracts ?? []).find((x) => x.cat === c);
-  const cat = (c) => <b style={{ color: col(c) }}>{L(c)}</b>;
-  const seg = [];
-
-  const [c1, c2] = cats;
-  seg.push(<>过去 {label} {cat(c1)} 笔数占比最高(<b>{p(c1)}%</b>){c2 && <>,{cat(c2)} 次之(<b>{p(c2)}%</b>)</>}。</>);
-
-  // 显著变化(需多日数据):较 7d 日均 |Δ|≥2pp 的最大波动项
-  const movers = cats.filter((c) => d.catTrend?.[c]?.dAvg7 != null && Math.abs(d.catTrend[c].dAvg7) >= 2)
-    .sort((a, b) => Math.abs(d.catTrend[b].dAvg7) - Math.abs(d.catTrend[a].dAvg7));
-  if (movers.length) {
-    const m = movers[0], dv = d.catTrend[m].dAvg7, t = tc(m);
-    seg.push(<> {cat(m)} 占比 <b>{p(m)}%</b>,较 7d 均值<b style={{ color: dv > 0 ? "#22c55e" : "#ef4444" }}>{dv > 0 ? "上升" : "下降"} {Math.abs(dv)}pp</b>{t && <>,主要集中在 <b>{t.name ?? short(t.addr)}</b></>}。</>);
-  } else {
-    // 无趋势数据时给 gas 负载视角:笔数占比与 gas 占比背离最大的类
-    const heavy = cats.slice().sort((a, b) => (g(b) - p(b)) - (g(a) - p(a)))[0];
-    if (heavy && g(heavy) > p(heavy) + 3) {
-      const t = tc(heavy);
-      seg.push(<> {cat(heavy)} 以 <b>{p(heavy)}%</b> 的笔数消耗了 <b>{g(heavy)}%</b> 的 gas,为链上执行资源主要占用方{t && <>,集中在 <b>{t.name ?? short(t.addr)}</b></>}。</>);
-    }
-  }
-  return (
-    <div className="txn-conclusion">
-      <span className="tc-ico">📌</span>
-      <span>{seg.map((x, i) => <span key={i}>{x}</span>)}</span>
+function TrafficPanel({ traffic, collector, range, setRange, focus, setFocus }) {
+  const rows = Object.entries(traffic?.segments || {}).filter(([, v]) => v.n > 0).sort((a, b) => b[1].n - a[1].n);
+  return <section className="panel txn-dev-panel txn-traffic-panel">
+    <div className="panel-header">
+      <span>1 · BSC 流量结构</span>
+      <span className="txn-panel-controls"><span className="sub">业务交易唯一主分类 · 合计 100%</span><RangeTabs value={range} onChange={setRange} /></span>
     </div>
-  );
+    <div className="panel-body">
+      <QualityStrip traffic={traffic} collector={collector} />
+      {!traffic?.meta?.windowReady && traffic?.total > 0 && <div className="txn-partial-note">当前展示连续覆盖内的临时结果；达到所选窗口后自动转为正式口径。</div>}
+      {!rows.length ? <Empty /> : <>
+        <div className="txn-dev-table txn-segment-head"><span>主流量分类</span><span>交易量 / 占比</span><span>Gas / 占比</span><span>成功 / 失败</span><span>P50 / P95 gasUsed</span><span>活跃发送者≈</span><span>较前窗口</span></div>
+        {rows.map(([key, row]) => {
+          const meta = SEGMENTS[key] || { label: key, color: "#747D88" };
+          return <button className={`txn-dev-table txn-segment-row ${focus === key ? "active" : ""}`} key={key} onClick={() => setFocus(focus === key ? null : key)}>
+            <span className="txn-seg-name" style={{ color: meta.color }}><i style={{ background: meta.color }} />{meta.label}{meta.tip && <InfoTip text={meta.tip} />}</span>
+            <span className="txn-cell-stack"><b className="mono">{num(row.n)}</b><span className="txn-inline-bar"><i style={{ width: `${Math.min(100, row.pct || 0)}%`, background: meta.color }} /><em>{row.pct || 0}%</em></span></span>
+            <span className="txn-cell-stack"><b className="mono">{gasN(row.gas)}</b><small>{row.gasPct || 0}%</small></span>
+            <span className="txn-cell-stack"><b className="ok">{row.successPct ?? 0}%</b><small className={row.failurePct ? "bad" : ""}>{row.failurePct ?? 0}% 失败</small></span>
+            <span className="txn-cell-stack"><b className="mono">{gasN(row.p50Gas)}</b><small>{gasN(row.p95Gas)}</small></span>
+            <span className="mono">{num(row.activeSendersEst)}</span>
+            <Delta value={row.deltaPct} />
+          </button>;
+        })}
+      </>}
+    </div>
+  </section>;
 }
 
-function DimConclusion({ dim, collector, label }) {
-  if (!dim?.total) return null;
-  const bizTotal = dim.denominators?.businessTx ?? Math.max(0, dim.total - (dim.acts?.system?.n ?? 0));
-  const rows = Object.entries(dim.acts ?? {}).filter(([k]) => k !== "system").sort((a, b) => (b[1]?.n ?? 0) - (a[1]?.n ?? 0));
-  const [top] = rows;
-  const topPct = top && bizTotal ? +((top[1].n / bizTotal) * 100).toFixed(1) : 0;
-  const coverage = dim.meta?.coveragePct;
-  return (
-    <div className="txn-conclusion">
-      <span className="tc-ico">📌</span>
-      <span>
-        过去 {label} 记录 <b>{bizTotal.toLocaleString()}</b> 笔业务交易；主行为以
-        {top && <> <b style={{ color: ACT_META[top[0]]?.color }}>{ACT_META[top[0]]?.label ?? top[0]}</b> 为主(<b>{topPct}%</b>)</>}。
-        采集连续性 <b>{coverage == null ? "正在建立基线" : `${coverage}%`}</b>
-        {collector?.backlogBlocks > 0 ? <>，仍有 <b>{collector.backlogBlocks.toLocaleString()}</b> 个区块积压</> : ""}。
-        “疑似自动化/资产触达/CEX 流向”是可重叠特征，不与主行为争抢分类。
-      </span>
+function ProtocolPanel({ traffic, focus }) {
+  const protocols = (traffic?.protocols || []).filter((r) => !focus || r.segment === focus).slice(0, 8);
+  const contracts = (traffic?.contracts || []).filter((r) => !focus || r.segment === focus).slice(0, 8);
+  const methods = (traffic?.methods || []).filter((r) => !focus || r.segment === focus).slice(0, 10);
+  const List = ({ title, rows, render }) => <div className="txn-drill-col"><h4>{title}</h4>{rows.length ? rows.map(render) : <Empty>暂无匹配数据</Empty>}</div>;
+  return <section className="panel txn-dev-panel">
+    <div className="panel-header"><span>2 · 热门协议 / 合约 / Method</span><span className="sub">{focus ? `已筛选：${SEGMENTS[focus]?.label || focus}` : "协议=地址归属；Method=技术入口；仅核实映射才显示业务动作"}</span></div>
+    <div className="panel-body txn-drill-grid">
+      <List title="协议" rows={protocols} render={(r, i) => <div className="txn-rank-row" key={`${r.segment}:${r.protocol}`}><em>{i + 1}</em><span><b>{r.protocol}</b><small>{r.contracts} 个热门合约</small></span><strong>{num(r.n)}</strong></div>} />
+      <List title="合约" rows={contracts} render={(r, i) => <div className="txn-rank-row" key={r.addr}><em>{i + 1}</em><span><b>{r.name || r.protocol || short(r.addr)}</b><a href={`${BSC_SCAN}/address/${r.addr}`} target="_blank" rel="noreferrer">{short(r.addr)}</a></span><strong>{num(r.n)}</strong></div>} />
+      <List title="Method / 已核实动作" rows={methods} render={(r, i) => <div className="txn-rank-row" key={`${r.addr}:${r.selector}`}><em>{i + 1}</em><span><b title={r.signature || r.selector}>{r.action || methodName(r)}</b><small>{r.action ? `${methodName(r)} · ` : ""}{r.protocol || r.contract || short(r.addr)}</small></span><strong>{num(r.n)}</strong></div>} />
     </div>
-  );
+  </section>;
+}
+
+function FailureGasPanel({ traffic, focus }) {
+  const failed = (traffic?.failure?.methods || []).filter((r) => !focus || r.segment === focus).slice(0, 10);
+  const gas = (traffic?.gasAnalysis?.methods || []).filter((r) => !focus || r.segment === focus).slice(0, 10);
+  return <section className="panel txn-dev-panel">
+    <div className="panel-header"><span>3 · 失败与 Gas 分析</span><span className="sub">失败率 {traffic?.failure?.ratePct ?? 0}% · Method级资源视角</span></div>
+    <div className="panel-body txn-two-cols">
+      <div className="txn-analysis-list"><h4>失败最多的 Method</h4>{failed.length ? failed.map((r) => <div className="txn-metric-row" key={`${r.addr}:${r.selector}`}><span><b>{methodName(r)}</b><small>{r.protocol || r.contract || short(r.addr)}</small></span><em className="bad">{num(r.failed)} 失败 · {r.failurePct}%</em></div>) : <Empty>所选窗口暂无失败Method</Empty>}</div>
+      <div className="txn-analysis-list"><h4>Gas 消耗最高的 Method</h4>{gas.length ? gas.map((r) => <div className="txn-metric-row" key={`${r.addr}:${r.selector}`}><span><b>{methodName(r)}</b><small>{r.protocol || r.contract || short(r.addr)}</small></span><em>{gasN(r.gas)} Gas<small>P50 {gasN(r.p50Gas)} · P95 {gasN(r.p95Gas)}</small></em></div>) : <Empty />}</div>
+    </div>
+  </section>;
+}
+
+function EmergingPanel({ traffic, focus }) {
+  const contracts = (traffic?.emerging?.newContracts || []).filter((r) => !focus || r.segment === focus).slice(0, 10);
+  const unknown = (traffic?.emerging?.unknownCalls || []).filter((r) => !focus || r.segment === focus).slice(0, 12);
+  const events = (traffic?.emerging?.newEvents || []).slice(0, 10);
+  return <section className="panel txn-dev-panel">
+    <div className="panel-header"><span>4 · 新流量与未知调用</span><span className="sub">未识别调用占比 {traffic?.segments?.other_call?.pct ?? 0}% · {traffic?.meta?.compareReady ? "与前一等长窗口比较" : "对照窗口积累中"}</span></div>
+    <div className="panel-body txn-three-cols">
+      <div className="txn-analysis-list"><h4>新进入热门榜的合约</h4>{contracts.length ? contracts.map((r) => <div className="txn-metric-row" key={r.addr}><span><b>{r.name || r.protocol || short(r.addr)}</b><a href={`${BSC_SCAN}/address/${r.addr}`} target="_blank" rel="noreferrer">{r.addr}</a></span><em>{num(r.n)} 笔</em></div>) : <Empty>前置对照窗口不足或暂无新合约</Empty>}</div>
+      <div className="txn-analysis-list"><h4>未归类调用</h4>{unknown.length ? unknown.map((r) => <div className="txn-metric-row" key={`${r.addr}:${r.selector}`}><span><b>{methodName(r)}</b><a href={`${BSC_SCAN}/address/${r.addr}`} target="_blank" rel="noreferrer">{short(r.addr)}</a></span><em>{num(r.n)} 笔</em></div>) : <Empty>暂无未归类热门调用</Empty>}</div>
+      <div className="txn-analysis-list"><h4>新事件签名</h4>{events.length ? events.map((r) => <div className="txn-metric-row" key={r.topic}><span><b title={r.topic}>{r.signature || short(r.topic)}</b><small>{r.emitterCount} 个事件来源合约</small></span><em>{num(r.n)} 笔</em></div>) : <Empty>前置对照窗口不足或暂无新事件</Empty>}</div>
+    </div>
+  </section>;
+}
+
+function FactsPanel({ traffic, dim, focus }) {
+  const total = traffic?.total || 0;
+  const featureMeta = [
+    ["swap", "Swap事件", "#4CA4D9"], ["transfer", "Transfer事件", "#8B7CF6"],
+    ["approval", "Approval事件", "#D6A82F"], ["nft", "ERC721形态", "#C875B2"], ["erc1155", "ERC1155事件", "#7890A8"],
+  ];
+  const samples = (traffic?.methods || []).filter((m) => (!focus || m.segment === focus) && m.samples?.length)
+    .flatMap((m) => m.samples.map((hash) => ({ hash, method: methodName(m), protocol: m.protocol }))).slice(0, 8);
+  return <section className="panel txn-dev-panel">
+    <div className="panel-header"><span>5 · 交易事实与特征分析</span><span className="sub">特征可重叠，不参与主分类100%分母</span></div>
+    <div className="panel-body txn-facts-grid">
+      <div className="txn-analysis-list"><h4>Receipt事实覆盖</h4>{featureMeta.map(([key, label, color]) => {
+        const n = traffic?.features?.[key] || 0; const pct = total ? +(100 * n / total).toFixed(1) : 0;
+        return <div className="txn-feature-row" key={key}><span style={{ color }}>{label}</span><i><b style={{ width: `${Math.min(100, pct)}%`, background: color }} /></i><em>{pct}% · {num(n)}</em></div>;
+      })}</div>
+      <div className="txn-analysis-list"><h4>身份与资产触达</h4>
+        <div className="txn-metric-row"><span><b>稳定币触达</b><small>已核实资产地址</small></span><em>{num(dim?.assets?.stable)}</em></div>
+        <div className="txn-metric-row"><span><b>Meme Launchpad触达</b><small>当前为已核实管理器覆盖</small></span><em>{num(dim?.assets?.meme)}</em></div>
+        <div className="txn-metric-row"><span><b>已知CEX流入 / 流出</b><small>地址覆盖，不代表平台完整充提</small></span><em>{num(dim?.flows?.cex_in)} / {num(dim?.flows?.cex_out)}</em></div>
+      </div>
+      <div className="txn-analysis-list"><h4>样本交易</h4>{samples.length ? samples.map((s) => <div className="txn-metric-row" key={s.hash}><span><b>{s.method}</b><small>{s.protocol || "未识别协议"}</small></span><a href={`${BSC_SCAN}/tx/${s.hash}`} target="_blank" rel="noreferrer">{short(s.hash)}</a></div>) : <Empty>新口径积累后提供可审计样本</Empty>}</div>
+    </div>
+  </section>;
 }
 
 export default function TxnPage() {
-  const [d, setD] = useState(null);
-  const [openAddr, setOpenAddr] = useState(null);   // 展开完整地址 + 复制
-  const [distMode, setDistMode] = useState("1");    // V2 全局窗口:1/3/7/30 天
-  const [legacyAll, setLegacyAll] = useState(false);
-  const { s: ai, run: runAi } = TxnAiBox();
-  const distDays = Number(distMode);
-  const distLabel = distMode === "1" ? "24H" : `${distMode}天`;
-  const effectiveLabel = d?.dim?.total
-    ? (d.dim.meta?.windowReady ? distLabel : `连续 ${spanLabel(d.dim.meta?.effectiveHours)}`)
-    : distLabel;
-
-  const clickAddr = (addr) => {
-    navigator.clipboard?.writeText(addr).catch(() => {});
-    setOpenAddr((x) => (x === addr ? null : addr));
-  };
-
-  // 热门合约独立时间窗(24h/7d/30d),与分布口径互不影响
-  const [hotDays, setHotDays] = useState(1);
-  const hotLabel = hotDays === 1 ? "24H" : `${hotDays}天`;
-
-  // 分布面板:判定规则折叠 + 窗口跟随的 AI 解读
-  const [rulesOpen, setRulesOpen] = useState(false);
-  const distAi = usePanelAi("/api/ai/txn-dist", "~30s",
-    () => ({ days: Number(distMode) }));
-  // 热门合约榜 AI 解读(跟随 hotDays 窗口)
-  const hotAi = usePanelAi("/api/ai/txn-hot", "~30s", () => ({ days: hotDays }));
+  const [range, setRange] = useState("1");
+  const [focus, setFocus] = useState(null);
+  const [state, setState] = useState({ data: null, error: null });
 
   useEffect(() => {
     let alive = true;
-    const pull = () => fetch(API + `/api/txn?days=${distDays}&hot=${hotDays}`).then((r) => r.json())
-      .then((j) => { if (alive) setD(j); }).catch(() => {});
-    pull();
-    const t = setInterval(pull, 60_000);
-    return () => { alive = false; clearInterval(t); };
-  }, [distDays, hotDays]);
+    const pull = () => fetch(`${API}/api/txn?days=${range}&hot=${range}`)
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then((data) => { if (alive) setState({ data, error: null }); })
+      .catch((e) => { if (alive) setState((s) => ({ ...s, error: e.message })); });
+    pull(); const timer = setInterval(pull, 60_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [range]);
 
-  const pct = (c) => d?.catPct24?.[c] ?? 0;
-  const cnt = (c) => d?.catCount24?.[c] ?? 0;
-  const gpct = (c) => d?.catGasPct24?.[c] ?? 0;
-  const maxTop = Math.max(1, ...(d?.topContracts ?? []).map((c) => c.n));
-
-  // 分类按 24h 笔数排序,统一用于 图/图例/列表;top5 高亮,其余合并灰
-  const catOrder = CAT_KEYS.slice().sort((a, b) => cnt(b) - cnt(a));
-  const topCats = catOrder.slice(0, 5).filter((c) => cnt(c) > 0);
-  const topSet = new Set(topCats);
-  const tailCats = catOrder.filter((c) => cnt(c) > 0 && !topSet.has(c));
-  const tailPct = +tailCats.reduce((s, c) => s + pct(c), 0).toFixed(1);
-  const listCats = [...topCats, ...tailCats];   // 列表全展开,顺序一致
-  const maxTxPct = Math.max(0.1, ...listCats.map(pct));    // 列内归一化,让最大项填满
-  const maxGasPct = Math.max(0.1, ...listCats.map(gpct));
-
-  // 最近 7 个自然日内有数据的天(空日不渲染,避免柱子参差)
-  const days7 = (() => {
-    const map = Object.fromEntries((d?.daily ?? []).map((x) => [x.day, x]));
-    const now = new Date(), out = [];
-    for (let i = 6; i >= 0; i--) {
-      const dt = new Date(now); dt.setDate(now.getDate() - i);
-      const key = `${dt.getMonth() + 1}/${dt.getDate()}`;
-      if (map[key]?.txs > 0) out.push(map[key]);
-    }
-    return out;
-  })();
-
-  return (
-    <div className="subpage txn-page">
-      <div className="subpage-head">
-        <div>
-          <h1>⇄ Txn 分析</h1>
-          <p>连续区块水位 + 完整 receipts · 行为/参与者/资产/资金流分维统计 · 可重放事实窗口 · 已学习 {d?.learnedLabels ?? 0} 个候选标签</p>
-        </div>
-        <div className="ai-bar">
-          <button className="st-auto-btn ai-cta" onClick={runAi} disabled={ai.loading}>
-            {ai.loading ? "分析中… 约 20–30s" : "⚡ AI 流量特征总结"}
-          </button>
-        </div>
-      </div>
-
-      <div className="subpage-body">
-        <DimConclusion dim={d?.dim} collector={d?.collector} label={effectiveLabel} />
-        {ai.err && <div className="ai-err" style={{ maxWidth: 900 }}>⚠ {ai.err}</div>}
-        {ai.text && (
-          <div className="panel" style={{ maxWidth: 900 }}>
-            <div className="panel-header"><span>🤖 AI 流量特征</span><span className="sub">claude code{ai.at ? ` · ${new Date(ai.at).toLocaleTimeString()}` : ""}</span></div>
-            <div className="panel-body"><div className="ai-result" style={{ padding: "10px 14px" }}><AiText text={ai.text} /></div></div>
-          </div>
-        )}
-
-        {/* 主 KPI 只使用 V2 分维口径,不再拿旧互斥 cat 的 Bot/DeFi/Meme 混在同一层。 */}
-        <div className="stat-cards">
-          {(() => {
-            const biz = d?.dim?.denominators?.businessTx ?? 0;
-            const ratio = (n) => biz ? +((100 * (n ?? 0)) / biz).toFixed(1) : 0;
-            return <>
-              <div className="stat-card"><div className="sc-v" style={{ color: "var(--gold)" }}>{biz.toLocaleString()}</div><div className="sc-l">{effectiveLabel} 业务交易</div></div>
-              <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.acts?.swap?.n)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: ACT_META.swap.color }} />Swap 主行为</div></div>
-              <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.assets?.stable)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.stable.color }} />稳定币触达</div></div>
-              <div className="stat-card"><div className="sc-v">{ratio(d?.dim?.parts?.bot)}%</div><div className="sc-l"><i className="sc-dot" style={{ background: CAT_META.bot.color }} />疑似自动化命中</div></div>
-            </>;
-          })()}
-        </div>
-
-        <DimPanel dim={d?.dim} collector={d?.collector} sandwich={d?.sandwich} range={distMode} setRange={setDistMode} />
-
-        <details className="txn-legacy">
-          <summary>查看旧版单分类口径(仅兼容历史趋势，不作为主结论)</summary>
-          <div className="txn-legacy-body">
-            <Conclusion d={d} label={legacyAll ? "历史累计" : distLabel} />
-
-        <div className="panel" style={{ maxWidth: 900 }}>
-          <div className="panel-header"><span>7 天流量结构</span><span className="sub">每日分类占比(归一化 100%) · 全量</span></div>
-          <div className="panel-body txn-daily-body">
-            <StackedDaily days={days7} order={listCats} topSet={topSet} />
-            <div className="txn-legend">
-              {topCats.map((c) => (
-                <span key={c} className="txn-leg"><i style={{ background: CAT_META[c].color }} />{CAT_META[c].label} <b>{pct(c)}%</b></span>
-              ))}
-              {tailCats.length > 0 && (
-                <span className="txn-leg"><i style={{ background: TAIL_COLOR }} />其余 {tailCats.length} 类 <b>{tailPct}%</b></span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {(() => {
-          // 旧版单 cat 仅用于历史兼容；时间窗口沿用页面 V2，另可查看累计。
-          const at = legacyAll ? d?.allTime : null;
-          const dcnt = (c) => (at ? at.catCount?.[c] ?? 0 : cnt(c));
-          const dpct = (c) => (at ? at.catPct?.[c] ?? 0 : pct(c));
-          const dgpct = (c) => (at ? at.catGasPct?.[c] ?? 0 : gpct(c));
-          const rows = CAT_KEYS.filter((c) => dcnt(c) > 0).sort((a, b) => dcnt(b) - dcnt(a));
-          const sinceStr = at?.since ? `${new Date(at.since).getMonth() + 1}/${new Date(at.since).getDate()}` : null;
-          return (
-            <div className="panel txn-dist-xl" style={{ maxWidth: 1230 }}>
-              <div className="panel-header">
-                <span>{at ? "历史累计交易类型分布" : `${distLabel} 交易类型分布`}</span>
-                <span className="txn-dist-ctl">
-                  <span className="sub">
-                    {at ? `自 ${sinceStr} · ${at.total.toLocaleString()} 笔累计` : `${d?.total24?.toLocaleString() ?? "…"} 笔 · 全量`}
-                  </span>
-                  <span className="tf-ranges">
-                    <button className={`tf-range ${legacyAll ? "on" : ""}`} onClick={() => setLegacyAll((v) => !v)}>{legacyAll ? `返回 ${distLabel}` : "历史累计"}</button>
-                    <button className={`tf-range ${rulesOpen ? "on" : ""}`} onClick={() => setRulesOpen((v) => !v)}>ⓘ 判定规则</button>
-                  </span>
-                  <AiButton ai={distAi} label={`AI 解读(${distLabel})`} />
-                </span>
-              </div>
-              <div className="panel-body txn-dist">
-                <AiResult ai={distAi} title={`交易类型分布 · ${distLabel}`} />
-                {rulesOpen && (
-                  <div className="txn-rules">
-                    <div className="txn-rules-note">
-                      每笔交易按 1→8 顺序逐条判定,<b>命中即停</b>(靠前类别优先),只归入一类。想看"动作/参与者/资产"分开统计的口径,见下方「多维分布」面板。
-                    </div>
-                    {CLASSIFY_RULES.map(([n, cat, rule]) => (
-                      <div key={n} className="txn-rule-row"><b>{n}</b><em>{cat}</em><span>{rule}</span></div>
-                    ))}
-                  </div>
-                )}
-                <div className="txn-dist-head">
-                  <span>类别</span>
-                  <span className="tdr-r">笔数</span>
-                  <span>笔数占比</span>
-                  <span>Gas 占比<InfoTip text="按各类交易消耗的 gasUsed 总量占比,反映对区块执行资源的占用(而非笔数)。DeFi swap / 复杂合约调用 gas 重,BNB 转账 / 稳定币转账 gas 轻。gasPrice 相近时≈手续费占比。" /></span>
-                  <span className="tdr-r">{at ? "环比" : `较前${distLabel}`}</span>
-                </div>
-                {rows.map((c) => {
-                  return (
-                    <div key={c} className="txn-dist-row">
-                      <span className="tdr-label" style={{ color: CAT_META[c].color }}>
-                        {CAT_META[c].label}{CAT_INFO[c] && <InfoTip text={CAT_INFO[c]} />}
-                      </span>
-                      <span className="tdr-count">{dcnt(c).toLocaleString()}</span>
-                      <span className="tdr-metric">
-                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(dpct(c), 100)}%`, background: CAT_META[c].color }} /></span>
-                        <span className="tdr-pct">{dpct(c)}%</span>
-                      </span>
-                      <span className="tdr-metric">
-                        <span className="tdr-track"><span className="tdr-fill" style={{ width: `${Math.min(dgpct(c), 100)}%`, background: CAT_META[c].color, opacity: .55 }} /></span>
-                        <span className="tdr-pct">{dgpct(c)}%</span>
-                      </span>
-                      {at
-                        ? <span className="tdr-trend" style={{ color: "var(--dim)" }}>—</span>
-                        : <span className="tdr-trend" title="当前窗口较前一个等长窗口">
-                            <Delta v={d?.catWindowDelta?.[c]} />
-                          </span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-          </div>
-        </details>
-
-        <div className="panel txn-hot-xl" style={{ maxWidth: 1620 }}>
-          <div className="panel-header">
-            <span>{hotLabel} 热门合约</span>
-            <span className="txn-dist-ctl">
-              <span className="sub">标注(身份) · 分类(行为)+ 依据 · ✦ = AI 候选标签,未经人工审计</span>
-              <span className="tf-ranges">
-                {[[1, "24H"], [7, "7天"], [30, "30天"]].map(([v, l]) => (
-                  <button key={v} className={`tf-range ${hotDays === v ? "on" : ""}`} onClick={() => setHotDays(v)}>{l}</button>
-                ))}
-              </span>
-              <AiButton ai={hotAi} label={`AI 解读(${hotLabel})`} />
-            </span>
-          </div>
-          <div className="panel-body txn-contracts">
-            <AiResult ai={hotAi} title={`热门合约 · ${hotLabel}`} />
-            <div className="txn-crow txn-crow-head">
-              <span>标注 / 地址线索</span>
-              <span>地址</span>
-              <span>分类</span>
-              <span>依据</span>
-              <span className="tcr-n">笔数</span>
-            </div>
-            {(d?.topContracts ?? []).map((c) => (
-              <div key={c.addr} className="txn-crow">
-                <span className="tcr-id">
-                  {c.name
-                    ? <span className="tcr-name">{c.name}{c.ai && <em className="txn-ai">✦</em>}{c.lc && <em className="txn-ai" title="NodeReal 标签库">◈</em>}</span>
-                    : <span className="tcr-unnamed">未命名{intelHint(c.intel) && <em className="txn-hint">· {intelHint(c.intel)}</em>}</span>}
-                </span>
-                <span className={`txn-addr ${openAddr === c.addr ? "open" : ""}`} title={`${c.addr}（点击复制）`} onClick={() => clickAddr(c.addr)}>
-                  {openAddr === c.addr ? c.addr : short(c.addr)}
-                  {openAddr === c.addr && <em className="txn-copied">✓ 已复制</em>}
-                </span>
-                <span className="txn-cat" style={{ color: CAT_META[c.cat]?.color ?? "#8A8F99", borderColor: (CAT_META[c.cat]?.color ?? "#8A8F99") + "55" }}>{CAT_META[c.cat]?.label ?? c.cat}</span>
-                <span className="tcr-reason">{reasonOf(c)}</span>
-                <span className="tcr-n">
-                  <span className="tcr-nbar" style={{ width: `${(c.n / maxTop) * 100}%`, background: (CAT_META[c.cat]?.color ?? "#8A8F99") + "55" }} />
-                  <b>{c.n.toLocaleString()}</b>
-                </span>
-              </div>
-            ))}
-            {!d?.topContracts?.length && <div className="ph-note">数据积累中,几分钟后刷新可见。</div>}
-          </div>
-        </div>
-
-        <div className="ph-note" style={{ maxWidth: 900 }}>
-          管线:从持久化连续水位并发追取区块与完整 receipts → 写入可重放事实窗口 → V2 行为规则与身份/资产标签分开聚合。
-          只有“采集连续性”和“Receipt 完整”均达标的区间才可视为全量；AI 候选标签不直接决定交易主行为。
-        </div>
-      </div>
-      <div className="mev-robot-anchor"><RobotWidget variant="txn" /></div>
+  const data = state.data;
+  const traffic = data?.traffic;
+  const focusLabel = useMemo(() => focus ? SEGMENTS[focus]?.label || focus : null, [focus]);
+  return <div className="subpage txn-page txn-dev-page">
+    <div className="subpage-header">
+      <div><h1>⇄ Txn 开发者流量分析</h1><p>从业务赛道下钻到协议、合约和Method；系统合约已排除，主分类互斥，事实特征独立。</p></div>
+      {focus && <button className="txn-clear-focus" onClick={() => setFocus(null)}>清除筛选 · {focusLabel}</button>}
     </div>
-  );
+    {state.error && <div className="ai-err">⚠ {state.error}</div>}
+    <div className="subpage-body txn-dev-body">
+      <TrafficPanel traffic={traffic} collector={data?.collector} range={range} setRange={setRange} focus={focus} setFocus={setFocus} />
+      <ProtocolPanel traffic={traffic} focus={focus} />
+      <FailureGasPanel traffic={traffic} focus={focus} />
+      <EmergingPanel traffic={traffic} focus={focus} />
+      <FactsPanel traffic={traffic} dim={data?.dim} focus={focus} />
+    </div>
+    <div className="mev-robot-anchor"><RobotWidget variant="txn" /></div>
+  </div>;
 }

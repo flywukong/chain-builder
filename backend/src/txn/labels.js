@@ -3,10 +3,10 @@
  *
  * 静态表 = verified:人工/官方来源核实,可参与统计维度(assets/flows/verified action);
  * 学得表 = candidate:AI 行为推断,只提供展示名与审计候选,不参与 v2 多维统计。
- * `cat` 为旧口径兼容字段(双写期间旧分类器仍消费);v2 语义在 roles/actorTypes/assetTypes/actions。
+ * `cat` 为旧口径兼容字段(双写期间旧分类器仍消费);新口径语义在 roles/actorTypes/assetTypes/actions。
  *
  * 条目: { name, cat, status, entity?, roles?, actorTypes?, assetTypes?,
- *         actions?: {selector→activity} | null(null=仅有身份、不可终判交易动作), src? }
+ *         actions?: {selector→businessAction} | null(null=仅有身份、不可解释具体业务动作), src? }
  */
 
 import fs from "fs";
@@ -98,21 +98,17 @@ export const STATIC_LABELS = {
   "0x0639556f03714a74a5feeaf5736a4a64ff70d206": V({ name: "OKX Hot 2", cat: "cex", entity: "OKX", actorTypes: ["cex"] }),
 
   // ── bridge / peg tokens / AA ──
-  "0x0000000000000000000000000000000000001004": V({ name: "BSC TokenHub", cat: "bridge", roles: ["bridge"], actions: null }),
+  "0x0000000000000000000000000000000000001004": V({ name: "BSC TokenHub", cat: "bridge", entity: "BSC Bridge", roles: ["bridge"], actions: null }),
   "0x2170ed0880ac9a755fd29b2688956bd959f933f8": V({ name: "ETH (peg)", cat: "token", roles: ["token"] }),
   "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c": V({ name: "BTCB", cat: "token", roles: ["token"] }),
-  "0x0000000071727de22e5e9d8baf0edac6f37da032": V({ name: "ERC-4337 EntryPoint v0.7", cat: "defi", roles: ["entrypoint"] }),
-  "0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789": V({ name: "ERC-4337 EntryPoint v0.6", cat: "defi", roles: ["entrypoint"] }),
+  "0x0000000071727de22e5e9d8baf0edac6f37da032": V({ name: "ERC-4337 EntryPoint v0.7", cat: "infra", entity: "ERC-4337", roles: ["entrypoint"] }),
+  "0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789": V({ name: "ERC-4337 EntryPoint v0.6", cat: "infra", entity: "ERC-4337", roles: ["entrypoint"] }),
 };
 
 // v2 维度查询集合(仅 verified 条目参与)
 export const CEX_SET = new Set(Object.entries(STATIC_LABELS).filter(([, v]) => v.actorTypes?.includes("cex")).map(([a]) => a));
 const ASSET_OF = new Map(Object.entries(STATIC_LABELS).flatMap(([a, v]) =>
   v.assetTypes?.includes("stable") ? [[a, "stable"]] : v.assetTypes?.includes("meme") ? [[a, "meme"]] : []));
-// verified predict/bridge:activity 需地址∧动作双命中;actions=null 不参与终判。
-const VERIFIED_ACTION = new Map(Object.entries(STATIC_LABELS).flatMap(([a, v]) =>
-  v.cat === "predict" || v.cat === "bridge" ? [[a, { act: v.cat, actions: v.actions ?? null }]] : []));
-
 // AI-learned labels persist here and override nothing static.
 export class LabelBook {
   constructor(file) {
@@ -126,21 +122,10 @@ export class LabelBook {
     const a = (addr || "").toLowerCase();
     return STATIC_LABELS[a] ?? this.learned[a] ?? null;
   }
-  // MEV Tracker 背书地址集(由 labelCloud 周期灌入):行为检测结论,可参与 participants 维度
-  setMevSet(set) {
-    const next = new Set(set ?? []);
-    const changed = next.size !== (this.mev?.size ?? 0) || [...next].some((a) => !this.mev?.has(a));
-    this.mev = next;
-    return changed;
+  verified(addr) {
+    return STATIC_LABELS[(addr || "").toLowerCase()] ?? null;
   }
-  isMev(addr) { return this.mev?.has(addr) ?? false; }
   assetOf(addr) { return ASSET_OF.get(addr) ?? null; }
-  verifiedAction(addr) { return VERIFIED_ACTION.get(addr) ?? null; }
-  actionCapabilities() {
-    const out = { predict: false, bridge: false };
-    for (const v of VERIFIED_ACTION.values()) if (v.actions && Object.keys(v.actions).length) out[v.act] = true;
-    return out;
-  }
   addLearned(entries) {   // [{addr, name, cat, confidence?, evidence?}] → candidate 条目
     let n = 0;
     for (const e of entries ?? []) {

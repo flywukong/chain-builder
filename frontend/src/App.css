@@ -1200,6 +1200,55 @@ body::before {
 
 /* TXN 页:面板标题金色加亮,更显眼 */
 .txn-page .panel-header > span:first-child { color: var(--gold); font-size: 13px; text-shadow: 0 0 10px rgba(240,185,11,.35); }
+.txn-dev-page { overflow: auto; }
+.txn-dev-body { display: flex; flex-direction: column; gap: 18px; padding-bottom: 54px; }
+.txn-dev-panel { width: 100%; max-width: none; margin: 0; }
+.txn-dev-panel > .panel-body { padding: 14px 18px 18px; overflow-x: auto; }
+.txn-panel-controls { display: inline-flex; align-items: center; gap: 14px; }
+.txn-dev-quality { margin-bottom: 10px; }
+.txn-partial-note { margin: 0 0 12px; padding: 7px 10px; border: 1px solid rgba(240,185,11,.22); border-radius: 6px; color: var(--gold); background: rgba(240,185,11,.05); font-size: 10px; }
+.txn-dev-table { display: grid; grid-template-columns: minmax(180px,1.3fr) minmax(130px,1fr) minmax(110px,.8fr) 100px 135px 110px 85px; gap: 14px; align-items: center; min-width: 1040px; }
+.txn-segment-head { min-height: 28px; color: var(--dim); border-bottom: 1px solid var(--border); font-size: 9px; }
+.txn-segment-row { width: 100%; min-height: 48px; padding: 5px 0; border: 0; border-bottom: 1px solid rgba(255,255,255,.035); color: var(--text); text-align: left; background: transparent; cursor: pointer; }
+.txn-segment-row:hover, .txn-segment-row.active { background: rgba(240,185,11,.035); }
+.txn-segment-row.active { box-shadow: inset 2px 0 var(--gold); }
+.txn-seg-name { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; }
+.txn-seg-name > i { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+.txn-cell-stack { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.txn-cell-stack > b { color: var(--text); font-size: 11px; }
+.txn-cell-stack > b.ok { color: var(--green); }
+.txn-cell-stack > small { color: var(--muted); font-family: var(--mono); font-size: 9px; }
+.txn-cell-stack > small.bad { color: #ef6b6b; }
+.txn-inline-bar { position: relative; display: flex; align-items: center; width: 100%; height: 5px; border-radius: 3px; background: #181a1f; }
+.txn-inline-bar > i { height: 100%; border-radius: inherit; }
+.txn-inline-bar > em { position: absolute; right: 0; top: -14px; color: var(--muted); font-size: 9px; font-style: normal; }
+.mono { font-family: var(--mono); }
+.txn-drill-grid { display: grid; grid-template-columns: repeat(3,minmax(260px,1fr)); gap: 20px; }
+.txn-drill-col, .txn-analysis-list { min-width: 0; border: 1px solid var(--border); border-radius: 9px; padding: 11px 12px; background: rgba(255,255,255,.012); }
+.txn-drill-col h4, .txn-analysis-list h4 { margin: 0 0 8px; color: var(--muted); font-size: 10px; letter-spacing: .25px; }
+.txn-rank-row { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; gap: 8px; align-items: center; min-height: 39px; border-top: 1px solid rgba(255,255,255,.035); }
+.txn-rank-row > em { color: var(--dim); font-family: var(--mono); font-size: 9px; font-style: normal; }
+.txn-rank-row > span, .txn-metric-row > span { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.txn-rank-row b, .txn-metric-row b { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }
+.txn-rank-row small, .txn-metric-row small, .txn-rank-row a, .txn-metric-row a { overflow: hidden; color: var(--dim); text-overflow: ellipsis; white-space: nowrap; font: 9px var(--mono); }
+.txn-rank-row strong { color: var(--gold); font: 10px var(--mono); }
+.txn-two-cols { display: grid; grid-template-columns: repeat(2,minmax(340px,1fr)); gap: 18px; }
+.txn-three-cols { display: grid; grid-template-columns: repeat(3,minmax(260px,1fr)); gap: 18px; }
+.txn-analysis-list { display: flex; flex-direction: column; }
+.txn-metric-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 43px; border-top: 1px solid rgba(255,255,255,.035); }
+.txn-metric-row > em { flex: 0 0 auto; color: var(--text); font: normal 10px var(--mono); text-align: right; }
+.txn-metric-row > em.bad { color: #ef6b6b; }
+.txn-metric-row > em small { display: block; color: var(--dim); font-size: 8px; margin-top: 2px; }
+.txn-facts-grid { display: grid; grid-template-columns: repeat(3,minmax(280px,1fr)); gap: 18px; }
+.txn-feature-row { display: grid; grid-template-columns: 100px minmax(60px,1fr) 100px; gap: 9px; align-items: center; min-height: 34px; font-size: 10px; }
+.txn-feature-row > i { height: 6px; border-radius: 3px; background: #181a1f; overflow: hidden; }
+.txn-feature-row > i > b { display: block; height: 100%; border-radius: inherit; }
+.txn-feature-row > em { color: var(--muted); font: normal 9px var(--mono); text-align: right; }
+.txn-clear-focus { align-self: center; border: 1px solid rgba(240,185,11,.35); border-radius: 7px; padding: 7px 12px; color: var(--gold); background: rgba(240,185,11,.06); cursor: pointer; font: 10px var(--mono); }
+@media (max-width: 1100px) {
+  .txn-drill-grid, .txn-three-cols, .txn-facts-grid { grid-template-columns: 1fr; }
+  .txn-two-cols { grid-template-columns: 1fr; }
+}
 .txn-dist-ctl { display: inline-flex; align-items: center; gap: 10px; }
 .txn-dist-head, .txn-dist-row { display: grid; grid-template-columns: 104px 62px 1fr 1fr 88px; align-items: center; gap: 12px; }
 /* Txn V2:先展示质量，再展示互斥行为；覆盖特征在右侧分组。 */
@@ -1237,8 +1286,6 @@ body::before {
 .tcv-v em { font-style: normal; color: var(--dim); font-size: 9px; margin-left: 4px; }
 .txn-dim-qual { font-size: 9.5px; line-height: 1.6; color: var(--muted); font-family: var(--mono); margin-top: 5px; }
 .txn-dim-qual b { color: var(--text); }
-.txn-sandwich-line { font-size: 11px; font-family: var(--mono); color: var(--muted); padding: 4px 0; line-height: 1.7; }
-.txn-sandwich-line b { color: #D96A6A; }
 .txn-legacy { max-width: 1230px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.012); overflow: hidden; }
 .txn-legacy > summary { cursor: pointer; list-style: none; padding: 11px 15px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .txn-legacy > summary::-webkit-details-marker { display: none; }

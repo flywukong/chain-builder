@@ -177,3 +177,154 @@ AI 补标(2h 一批):unknownHot = 24h 内 cat==other 的热合约 top30(≥5 才
 - **立刻**:top50 学得标签抽审;labeler prompt 统一 infra 措辞;补 4 个地址(FDUSD/USD1/2006/3000);sampler receipts 失败计数。
 - **定口径后**:cex 充值 `topics[2]` 识别;meme 面板口径注释。
 - **不做/缓做**:分布回写、Swap 签名扩充、bot ≥3 规则改动。
+
+---
+
+## 七、最终核实结论(2026-08-30)
+
+本节综合代码复核、BSC 主网只读检查、公开方法签名和本地持久化标签数据。**与前文冲突时以本节为准。**
+
+### 7.1 最终结论
+
+当前 TXN 分类适合做流量方向和热点观察,但仍不适合作为严格的业务真值。最终确认的核心问题不是某一个静态地址漏配,而是:
+
+1. 单一互斥 `cat` 混合了行为、资产和主体三个维度;
+2. AI 学得标签缺少审计、证据和复核机制;
+3. AI 反馈队列只接收 `other`,非 other 的规则误判和 AI 错标无法自愈;
+4. 历史桶冻结入库时分类,趋势混合不同分类器和标签版本;
+5. receipts 降级和缺块没有完整的数据质量指标。
+
+### 7.2 最终保留的问题
+
+#### A. 学得标签无审计 + 只复核 other —— 最高优先级
+
+该问题完全成立。`unknownHot()` 只接收桶内 `cat == other` 且当前标签为空或仍为 other 的地址;已被标为 defi/token/bot/infra 等类别后不会重新进入队列。
+
+本地标签文件也证明审计能力不足:当前 260 条 learned labels 中 249 条 `name` 为空(95.8%),且没有 confidence、evidence、modelVersion、reviewedAt 或过期策略。
+
+需要注意:`0x1de460f3…` 不是已经证明的错标。其主 selector `0x4d819a2a` 可反查为 `swap(...)`,小时桶中也有大量 Swap 日志,标为 defi 有较强行为证据。这个案例证明的是“证据没有随标签保存”,不是“标签一定错误”。
+
+#### B. CEX ERC20 充值盲区 —— 成立
+
+分类器只检查顶层 `tx.from/tx.to`;ERC20 充值的实际 CEX 收款地址位于 `Transfer` log 的 `topics[2]`,因此充值通常落 stable/token,提现则可能因 `tx.from` 命中热钱包而落 cex。
+
+修复前必须先定口径:在单分类模型里,一笔 USDT 充值只能选 cex 或 stable。长期建议拆成正交字段:
+
+```text
+activity = token_transfer
+actor    = cex
+asset    = stable
+```
+
+#### C. Meme 3% 的口径 —— 成立
+
+当前 meme 主要表示已识别 launchpad/目标合约的直接调用。通过 PancakeSwap 等外盘交易的 Meme 币通常进入 defi。因此前端应先改成“已识别 Meme Launchpad 调用”,不能展示成全市场 Meme 活跃度。
+
+#### D. Bot 高频计数实现错误 —— 必须保留
+
+前文用 multisend 作为误报例子不够准确,但不能因此撤回实现问题。`fromCounts` 统计同一发送方的全部交易,而不是文档定义的“合格合约调用数”。
+
+主网最近 60 个块的抽样结果:
+
+- 734 笔被判为 bot;
+- 189 笔来自同发送方高频规则;
+- 其中 29 笔没有达到“至少 3 笔合格合约调用”,只是发送方总交易数达到 3;
+- 约占高频规则 bot 的 15.3%,占全部 bot 的 4.0%。
+
+因此 bot 的主要风险虽然仍偏向漏报(单发 MEV、调用已知 Router 的 Bot),但误判侧并非不存在。应修正为“只统计合格调用数”,无需删除高频规则。
+
+#### E. 历史分类版本混合 —— 仍是结构性问题
+
+否决“按 top80 粗暴回写历史”是正确的,但不代表 S1 消失。标签更新只影响新入库交易,同一地址可能昨天算 other、今天算 defi,7 天趋势会混入标签学习造成的变化。
+
+不建议改写旧桶。更安全的方案是每个桶记录 `classifierVersion` 和 `labelVersion`,版本变化时在趋势上标记断点或避免直接环比。
+
+#### F. receipts 静默降级 —— 成立
+
+`eth_getBlockReceipts` 失败后返回 null 并继续分类,会同时丢失 Swap/Transfer 特征,并用 gas limit 代替实际 gasUsed。增加失败计数只是第一步;最终应重试、隔离不完整块或在 API 输出 coverage/receiptCoverage。
+
+### 7.3 经数据校准后降级的问题
+
+#### Infra 5.3% 的量级本身合理
+
+`0x4848489f…4848` 已由 48Club 官方文档确认是 Puissant Builder Control EOA;BlockRazor 地址也是 EOA。按线上快照:
+
+- 48Club 44.2 万笔,约占 2.70%;
+- BlockRazor 21.1 万笔,约占 1.29%;
+- 两者合计约 3.98%。
+
+因此 infra 总计 5.3% 在量级上合理,不应继续描述为“明显不可信”。但这不能证明整个 AI 标签库可靠:当前本地 learned labels 反而把同一个 48Club 地址标成 `bot`,说明不同学习轮次/环境可能得到不一致结果。
+
+#### Predict 已超出静态地址表
+
+线上 `0xdcffeb0c…` 的主方法 selector 反查为 `matchOrders(...)`,行为与订单簿/CTF Exchange 相符,说明 AI 雪球确实能扩展静态 predict.fun 地址表。此前“范围外覆盖为零”的表述应撤回。
+
+但具体协议身份仍应随标签保存 verifiedName、合约源码或链上核实证据,不能只依赖模型输出名称。
+
+#### FDUSD/USD1 是真实漏配,但影响较小
+
+两个地址均已通过主网 `symbol()/name()` 核实。它们不在该线上 24h top15 中,由 top15 阈值只能得到两者合计影响的理论上限约 1.6pp,不能严格推出 0.5pp 下限。
+
+此外漏量不会全部从 token 搬到 stable:部分交易当前属于 cex、defi、other 或 bot。最终表述应为“值得补齐,预计不改变整体大盘;实际影响需按地址从线上桶聚合”。
+
+#### Swap 签名扩充紧迫性较低
+
+主流 Router 多有静态标签,未知非标准协议落入 other 后有机会进入 AI 队列。扩签名仍能提高首轮召回和减少对 AI 的依赖,但优先级低于标签审计、CEX 盲区和采集质量。
+
+### 7.4 Prompt 冲突的最终判断
+
+Prompt 同时写有:
+
+- builder payment → infra;
+- builder payment → bnb;
+- 允许分类列表中又没有 bnb。
+
+这不是单纯文字瑕疵。虽然纯 21000 gas 支付通常先归 bnb、可能到不了 AI 队列,但带 calldata、自交易或先落 other 的 Builder EOA 仍可能进入学习流程。本地 48Club 地址被 AI 标为 bot,也说明结果并不稳定。
+
+在现有单分类模型下应统一为 infra;长期则将其拆成 `actor=builder`、`activity=bnb_payment`。
+
+### 7.5 最终行动清单
+
+#### 立即执行(P0/P1)
+
+1. 按 24h 交易量对 top50 learned labels 做人工/链上抽审;
+2. 标签持久化增加 `evidence`、`confidence`、`modelVersion`、`reviewedAt`;
+3. 扩大复核队列,允许高流量 learned defi/token/bot/infra 定期重验;
+4. 修正 Bot 高频规则:阈值只统计合格合约调用;
+5. 统一 labeler 中 builder payment 为 infra;
+6. 补 FDUSD、USD1、Timelock `0x…2006`、TokenRecoverPortal `0x…3000`;
+7. 增加 receipts 失败数、完整率和缺块覆盖率;
+8. 小时桶记录 `classifierVersion` 和 `labelVersion`。
+
+#### 定口径后执行
+
+1. 用 Transfer `topics[2]` 识别已知 CEX 收款地址;
+2. 明确 CEX 与 stable/token 的优先级,或直接拆成多维标签;
+3. 前端把 Meme 改为“已识别 Meme Launchpad 调用”;
+4. 前端说明所有占比是规则/标签估算,同一交易只展示一个主分类。
+
+#### 不建议直接执行
+
+1. 不按 top80 合约明细粗暴改写全部历史分布;
+2. 不因为 top15 地址归因合理就默认全部 AI 标签可信;
+3. 不取消 Bot 高频规则,只修正其计数对象;
+4. 不把补两个稳定币地址描述成稳定币统计已经完整。
+
+### 7.6 最终可信度分层
+
+| 分类 | 最终判断 | 可解释口径 |
+|---|---|---|
+| system | 高精度、覆盖待补 | 已知系统地址调用 |
+| bnb | 中高 | 21000 gas/低 gas 空 input 近似转账 |
+| stable | 高精度、低覆盖 | 已配置稳定币合约调用 |
+| predict | 中高、含 AI 扩展 | 已识别预测市场合约调用 |
+| infra | 中、量级合理 | 已识别 Builder/支付地址交互 |
+| defi | 中 | 已知 DeFi 地址或标准 Swap 事件 |
+| token | 中 | 广义 Transfer 行为,含 NFT/mint/claim |
+| bridge | 中低覆盖 | 已知 Bridge 地址调用 |
+| cex | 低覆盖 | 已知 CEX 顶层地址交互,主要漏充值 |
+| meme | 低覆盖 | 已识别 Launchpad/目标合约调用 |
+| bot | 低至中 | Bot 特征命中,不等于真实 Bot 总量 |
+| other | 无业务语义 | 所有规则未命中的残差 |
+
+**最终产品结论:**当前页面可以回答“规则命中结构和已识别热点如何变化”,不能严格回答“BSC 全网真实 Bot/Meme/CEX/稳定币业务占比是多少”。

@@ -47,16 +47,17 @@ backend (Node.js + Fastify)
 See `DEPLOY.md` for the DevOps checklist (inbound/outbound, reverse proxy, resources)
 and `docs/txn-classification.md` for the transaction classification rules.
 
-## TXN 30-day backfill
+## TXN 20-day backfill
 
 The dashboard enables a time range only after the current classifier version has
-continuous data for that whole range. To make 30-day V2 analysis available immediately,
-stop the monitor and run the resumable offline backfill against an archive/full RPC:
+continuous data for that whole range. To seed 20 days of V2 history and let the
+30-day range become available through subsequent online accumulation, stop the monitor
+and run the resumable offline backfill against an archive/full RPC:
 
 ```bash
 cd backend
 TXN_BACKFILL_CONFIRM=YES \
-TXN_BACKFILL_DAYS=30 \
+TXN_BACKFILL_DAYS=20 \
 BSC_RPC_URL=http://your-archive-node:8545 \
 npm run backfill:txn
 ```

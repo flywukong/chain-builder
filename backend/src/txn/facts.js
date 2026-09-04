@@ -5,17 +5,15 @@
  * 让 24h 面板立即恢复准确,而不是只对未来交易生效(v1 口径已冻结,不重放)。
  *
  * 存储:data/txnfacts/<hourKey>.ndjson 按小时分区追加;整点后异步 gzip 轮转,
- * 超过保留窗口整文件删除。~400B/笔裸,gzip 后约 1~1.5GB/天,默认保留 24h。
+ * 超过保留窗口整文件删除。大小随事件复杂度变化，默认只保留 24h。
  *
  * fact 字段(FACT_SCHEMA_VER=3):
  *   b 块号  i tx 序  t 毫秒时间  f from  o to(null=部署)  s selector(null=短 input)
  *   g gasUsed  st status(1/0)  rc receipt 可用(1/0)  lg 日志总数
- *   sw Swap 事件数  xf Transfer 事件数  na 非 Approval 日志数
- *   q  同块同 from 合格调用数(采集时定格,重放无需重建块上下文)
+ *   z value(hex)  il calldata bytes  sw Swap事件数  xf Transfer事件数
+ *   ap Approval数  nft ERC721-like Transfer数  mt ERC1155 Transfer数
+ *   ev [emitter,topic0,topicsCount] 去重事件字典(cap 16)
  *   tk Transfer 的 token 合约地址集  tf Transfer 付方集  td Transfer 收方集(各去重,cap 20)
- *   swaps(v3)按 Swap 事件所在池聚合 Transfer 净流量得到的逐池 swap 明细
- *     [{p 池, ti 流入池的 token, ai 数量, to 流出池的 token, ao 数量}](金额十进制字符串;
- *     协议无关,三明治/套利检测的输入)
  */
 
 import fs from "fs";
@@ -30,65 +28,52 @@ const T_SWAP_V2   = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840
 const T_SWAP_V3   = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
 const T_TRANSFER  = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const T_APPROVAL  = "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925";
+const T_ERC1155_SINGLE = "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62";
+const T_ERC1155_BATCH  = "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb";
 
 const SEL_TRANSFER = "0xa9059cbb", SEL_TRANSFER_FROM = "0x23b872dd";
 
 // 单笔交易 → 不可变事实(qualCounts: 块内同 from 合格调用计数 Map,采集侧先算好)
-export function extractFact(tx, rc, tMs, blockNum, txIndex, qualCounts) {
+export function extractFact(tx, rc, tMs, blockNum, txIndex) {
   const to = tx.to ? tx.to.toLowerCase() : null;
   const from = (tx.from || "").toLowerCase();
   const input = tx.input ?? tx.data ?? "0x";
   const sel = input.length >= 10 ? input.slice(0, 10) : null;
-  let sw = 0, xf = 0, na = 0;
+  let sw = 0, xf = 0, na = 0, ap = 0, nft = 0, mt = 0;
   const tk = new Set(), tf = new Set(), td = new Set();
-  const pools = new Set(), xfers = [];
+  const ev = [];
   for (const lg of rc?.logs ?? []) {
     const t0 = lg.topics?.[0];
-    if (t0 === T_SWAP_V2 || t0 === T_SWAP_V3) { sw++; if (lg.address) pools.add(lg.address.toLowerCase()); }
+    if (t0 === T_SWAP_V2 || t0 === T_SWAP_V3) sw++;
+    if (t0 === T_APPROVAL) ap++;
+    if (t0 === T_ERC1155_SINGLE || t0 === T_ERC1155_BATCH) mt++;
     if (t0 !== T_APPROVAL) na++;
     if (t0 === T_TRANSFER) {
       xf++;
-      const token = (lg.address || "").toLowerCase();
-      const xFrom = lg.topics[1]?.length === 66 ? "0x" + lg.topics[1].slice(26) : null;
-      const xTo = lg.topics[2]?.length === 66 ? "0x" + lg.topics[2].slice(26) : null;
-      if (tk.size < ADDR_CAP && token) tk.add(token);
-      if (tf.size < ADDR_CAP && xFrom) tf.add(xFrom);
-      if (td.size < ADDR_CAP && xTo) td.add(xTo);
-      if (xfers.length < 40 && token && (xFrom || xTo)) xfers.push({ token, xFrom, xTo, data: lg.data });
+      if ((lg.topics?.length ?? 0) === 4) nft++;
+      if (tk.size < ADDR_CAP && lg.address) tk.add(lg.address.toLowerCase());
+      if (tf.size < ADDR_CAP && lg.topics[1]?.length === 66) tf.add("0x" + lg.topics[1].slice(26));
+      if (td.size < ADDR_CAP && lg.topics[2]?.length === 66) td.add("0x" + lg.topics[2].slice(26));
     }
-  }
-  // 逐池 swap 明细:按 Swap 事件的池地址聚合本笔 Transfer 净流量(协议无关),
-  // 净流入池的 token = tokenIn,净流出的 = tokenOut(标准双 token 池各恰一个)
-  const swaps = [];
-  for (const pool of pools) {
-    if (swaps.length >= 6) break;
-    const net = new Map();
-    for (const x of xfers) {
-      let amt;
-      try { amt = BigInt(x.data); } catch { continue; }
-      if (amt <= 0n) continue;
-      if (x.xTo === pool) net.set(x.token, (net.get(x.token) ?? 0n) + amt);
-      if (x.xFrom === pool) net.set(x.token, (net.get(x.token) ?? 0n) - amt);
+    // A compact, deduplicated event dictionary is enough to extend protocol
+    // detectors later without retaining the full receipt payload.
+    if (t0 && lg.address && ev.length < 16) {
+      const row = [lg.address.toLowerCase(), t0, lg.topics?.length ?? 0];
+      if (!ev.some((x) => x[0] === row[0] && x[1] === row[1] && x[2] === row[2])) ev.push(row);
     }
-    let ti = null, ai = 0n, to2 = null, ao = 0n;
-    for (const [token, v] of net) {
-      if (v > ai) { ai = v; ti = token; }
-      if (-v > ao) { ao = -v; to2 = token; }
-    }
-    if (ti && to2 && ti !== to2) swaps.push({ p: pool, ti, ai: ai.toString(), to: to2, ao: ao.toString() });
   }
   return {
     v: FACT_SCHEMA_VER,
-    b: blockNum, i: txIndex, t: tMs, f: from, o: to, s: sel,
+    b: blockNum, i: txIndex, t: tMs, h: tx.hash ?? null, f: from, o: to, s: sel,
+    z: tx.value ?? "0x0", il: Math.max(0, (input.length - 2) / 2),
     // receipt 缺失时 gasUsed/status 都是未知,不能拿 gas limit 冒充实际消耗。
     g: rc ? Number(rc.gasUsed) : null,
     st: rc ? (rc.status === "0x0" ? 0 : 1) : null,
     rc: rc ? 1 : 0,
     lg: rc?.logs?.length ?? 0,
-    sw, xf, na,
-    q: qualCounts.get(from) || 0,
+    sw, xf, na, ap, nft, mt,
+    ...(ev.length ? { ev } : {}),
     ...(tk.size ? { tk: [...tk] } : {}), ...(tf.size ? { tf: [...tf] } : {}), ...(td.size ? { td: [...td] } : {}),
-    ...(swaps.length ? { swaps } : {}),
   };
 }
 

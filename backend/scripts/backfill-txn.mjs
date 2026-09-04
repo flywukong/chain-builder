@@ -1,22 +1,23 @@
 /**
- * Offline V2 history backfill. The monitor must be stopped while this runs.
+ * Offline traffic/V2 history backfill. The monitor must be stopped while the
+ * completed snapshot is merged. Fetches run concurrently and ethers batches
+ * the underlying JSON-RPC calls to reduce HTTP round trips.
  *
  * Required:
  *   TXN_BACKFILL_CONFIRM=YES BSC_RPC_URL=http://archive-node npm run backfill:txn
  * Optional:
- *   TXN_BACKFILL_DAYS=30 TXN_BACKFILL_CONCURRENCY=10 TXN_BACKFILL_BATCH=300
+ *   TXN_BACKFILL_DAYS=20 TXN_BACKFILL_CONCURRENCY=24 TXN_BACKFILL_BATCH=600
  *   TXN_BACKFILL_RESET=YES  # archive a completed/old-format checkpoint and start a fresh snapshot
  *
  * The job is resumable. It writes a versioned temporary store/state and only
- * replaces V2 hourly dimensions in txn-7d.json after the full fixed range succeeds.
+ * replaces current activity/traffic hourly dimensions only after the full fixed range succeeds.
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
-import { CLASSIFIER_V2_VER } from "../src/txn/classifier.js";
-import { LabelCloud } from "../src/txn/labelCloud.js";
+import { CLASSIFIER_V2_VER, TRAFFIC_SCHEMA_VER } from "../src/txn/classifier.js";
 import { LabelBook } from "../src/txn/labels.js";
 import { TxnSampler } from "../src/txn/sampler.js";
 import { TxnStore } from "../src/txn/store.js";
@@ -30,12 +31,12 @@ if (!process.env.BSC_RPC_URL) {
   process.exit(2);
 }
 
-const days = Math.min(Math.max(Number(process.env.TXN_BACKFILL_DAYS) || 30, 1), 30);
-const concurrency = Math.min(Math.max(Number(process.env.TXN_BACKFILL_CONCURRENCY) || 10, 1), 50);
-const batch = Math.min(Math.max(Number(process.env.TXN_BACKFILL_BATCH) || 300, 10), 2000);
+const days = Math.min(Math.max(Number(process.env.TXN_BACKFILL_DAYS) || 20, 1), 30);
+const maxConcurrency = Math.min(Math.max(Number(process.env.TXN_BACKFILL_CONCURRENCY) || 24, 1), 96);
+const batch = Math.min(Math.max(Number(process.env.TXN_BACKFILL_BATCH) || 600, 10), 2000);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.resolve(here, "../data");
-const suffix = `v${CLASSIFIER_V2_VER}-${days}d`;
+const suffix = `traffic-v${TRAFFIC_SCHEMA_VER}-activity-v${CLASSIFIER_V2_VER}-${days}d`;
 const tempFile = path.join(dataDir, `txn-backfill-${suffix}.json`);
 const stateFile = path.join(dataDir, `txn-backfill-${suffix}-state.json`);
 const mainFile = path.join(dataDir, "txn-7d.json");
@@ -45,7 +46,10 @@ if (process.env.TXN_BACKFILL_RESET === "YES") {
     if (fs.existsSync(file)) fs.renameSync(file, `${file}.audit-${stamp}`);
   }
 }
-const provider = new ethers.JsonRpcProvider(process.env.BSC_RPC_URL);
+const provider = new ethers.JsonRpcProvider(process.env.BSC_RPC_URL, undefined, {
+  batchMaxCount: Math.min(100, maxConcurrency * 2),
+  batchStallTime: 5,
+});
 
 const blockHeader = async (height) => {
   const b = await provider.send("eth_getBlockByNumber", [`0x${height.toString(16)}`, false]);
@@ -61,8 +65,9 @@ if (savedState.completedAt) {
 }
 // 首次运行固定目标块；续跑沿用同一 target，避免任务边跑边向前延伸而永远没有稳定快照。
 const tip = Number(savedState.targetBlock) || chainTip;
-// 多回填 1 天余量:与存储窗(31d)对齐,保证 30d 连续判定稳定不闪烁
-const targetMs = Date.now() - (days + 1) * 86400e3;
+// 以固定目标块的链上时间向前精确取 N 天，任务跑多久都不会改变边界。
+const tipHeader = await blockHeader(tip);
+const targetMs = Number.parseInt(tipHeader.timestamp, 16) * 1000 - days * 86400e3;
 let fromBlock = Number(savedState.firstBlock) || 0;
 if (!fromBlock) {
   let lo = 1, hi = tip;
@@ -87,32 +92,47 @@ fs.writeFileSync(stateFile, JSON.stringify({
   firstBlock: fromBlock,
 }));
 const labelBook = new LabelBook(path.join(dataDir, "contract-labels.json"));
-const labelCloud = new LabelCloud(path.join(dataDir, "label-cloud-cache.json"));
-labelBook.setMevSet(labelCloud.mevSet());
 const sampler = new TxnSampler({
   provider, store: tempStore, labelBook, stateFile,
-  concurrency, maxPerTick: batch, intervalMs: 60_000, confirmationBlocks: 0,
+  concurrency: maxConcurrency, maxPerTick: batch, intervalMs: 60_000, confirmationBlocks: 0, legacy: false,
 });
 // 仅全新任务从窗口起点开跑;续跑必须衔接上次水位——重新二分的起点会随时间前移,
 // 若跳过中断期间的块段,会在小时桶里留下永久缺口,拖垮 30d 覆盖率判定。
 if (tempMax === 0 && sampler.lastBlock < fromBlock - 1) sampler.lastBlock = fromBlock - 1;
 
-console.log(`[txn backfill] classifier=v${CLASSIFIER_V2_VER} days=${days} range=#${fromBlock}..#${tip}`);
-console.log(`[txn backfill] resume=#${sampler.lastBlock + 1} concurrency=${concurrency} batch=${batch}`);
+console.log(`[txn backfill] traffic=v${TRAFFIC_SCHEMA_VER} activity=v${CLASSIFIER_V2_VER} days=${days} range=#${fromBlock}..#${tip}`);
+console.log(`[txn backfill] resume=#${sampler.lastBlock + 1} concurrency=${maxConcurrency} batch=${batch}`);
 
 let consecutiveFailures = 0;
+let successfulBatches = 0;
+const startedAt = Date.now();
+const startedDone = Math.max(0, sampler.lastBlock - fromBlock + 1);
 while (sampler.lastBlock < tip) {
   const before = sampler.lastBlock;
   await sampler.sample(tip).catch(() => {});
   if (sampler.lastBlock === before) {
     consecutiveFailures++;
+    successfulBatches = 0;
+    if (consecutiveFailures >= 2 && sampler.concurrency > 4) {
+      sampler.concurrency = Math.max(4, Math.floor(sampler.concurrency / 2));
+      console.warn(`[txn backfill] RPC pressure detected; concurrency reduced to ${sampler.concurrency}`);
+    }
     if (consecutiveFailures >= 10) throw new Error(`stalled at #${before + 1}: ${sampler.lastError?.error ?? "unknown error"}`);
     await new Promise((resolve) => setTimeout(resolve, Math.min(10_000, 500 * 2 ** consecutiveFailures)));
   } else {
     consecutiveFailures = 0;
+    successfulBatches = sampler.lastError ? 0 : successfulBatches + 1;
+    if (successfulBatches >= 8 && sampler.concurrency < maxConcurrency) {
+      sampler.concurrency = Math.min(maxConcurrency, sampler.concurrency + 4);
+      successfulBatches = 0;
+      console.log(`[txn backfill] RPC stable; concurrency restored to ${sampler.concurrency}`);
+    }
     const done = Math.max(0, sampler.lastBlock - fromBlock + 1);
     const total = tip - fromBlock + 1;
-    console.log(`[txn backfill] #${sampler.lastBlock}/${tip} ${(100 * done / total).toFixed(2)}%`);
+    const elapsedSec = Math.max(1, (Date.now() - startedAt) / 1000);
+    const blocksPerSec = Math.max(0, done - startedDone) / elapsedSec;
+    const etaMin = blocksPerSec ? (total - done) / blocksPerSec / 60 : null;
+    console.log(`[txn backfill] #${sampler.lastBlock}/${tip} ${(100 * done / total).toFixed(2)}% · ${blocksPerSec.toFixed(1)} blk/s${etaMin == null ? "" : ` · ETA ${etaMin.toFixed(1)}m`}`);
   }
 }
 
